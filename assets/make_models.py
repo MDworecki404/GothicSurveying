@@ -166,6 +166,13 @@ def reticle_pixel(w, h):
     return px
 
 
+def hair_pixel(w, h):
+    """Kreska dalmiercza: czarny środek z białą obwódką (jak główny krzyż); rozciągana na widok ~1200x28."""
+    def px(x, y):
+        return (0, 0, 0, 255) if 2 <= y < h - 2 else (255, 255, 255, 190)
+    return px
+
+
 def panel_pixel(w, h):
     """Tło pól tekstowych: ciemne, półprzezroczyste, z jasną ramką."""
     def px(x, y):
@@ -240,6 +247,7 @@ def main():
     tga(tex / "LVL_INSTR.TGA", 128, 16, instr_pixel)
     tga32(tex / "LVL_RETICLE.TGA", 1024, 512, reticle_pixel(1024, 512))
     tga32(tex / "LVL_PANEL.TGA", 64, 64, panel_pixel(64, 64))
+    tga32(tex / "LVL_HAIR.TGA", 16, 8, hair_pixel(16, 8))
     one = [("LVL_INSTR", "LVL_INSTR.TGA")]
     for fname, mesh, mats in (("LVL_ROD", build_rod(), [(f"LVL_ROD{k}", f"LVL_ROD{k}.TGA") for k in range(NSEG)]),
                               ("LVL_INSTR", build_instrument(), one),

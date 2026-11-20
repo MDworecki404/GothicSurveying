@@ -41,11 +41,18 @@ Jeśli `Signatures_G2A.tsv` nie powstał podczas konfiguracji, uruchom
 | **F9** | postaw żabkę (łata postawiona < 30 cm od niej stoi na niej) |
 | **F10** | wejdź do widoku niwelatora / wyjdź z niego (gra zatrzymana, zbliżenie 20×, krzyż kresek) |
 | **←/→** | obrót niwelatora w poziomie (**Shift** = powoli) |
-| **Enter** | odczyt: pionowa kreska musi leżeć na łacie; wpisz odczyt w mm (0–9, Backspace, Enter, F10 anuluje) |
+| **Enter** | odczyt: pionowa kreska musi leżeć na łacie; wpisz odczyt środkowej kreski w mm (0–9, Backspace, Enter), potem opcjonalnie górnej i dolnej kreski dalmierczej (Enter bez liczby pomija odległość); F10 anuluje |
 | **F11** | usuń wszystko |
 
 Pierwszy odczyt na stanowisku to wstecz (BS) na łacie o znanej wysokości, kolejne to w przód (FS). Linia celowa jest zawsze pozioma.
 Wyniki trafiają do `niwelacja_N.csv` w katalogu głównym gry: Twój odczyt, odczyt idealny, wysokość, błąd względem prawdziwej.
+
+## Dalmierz nitkowy
+
+Nad i pod poziomą kreską leżą dwie krótkie kreski dalmiercze (stała k = 100). Odległość do łaty to
+**D = 100 × (odczyt górnej − odczyt dolnej)**, np. 1,578 m − 1,378 m = 0,200 m, czyli 20,0 m. Po odczycie środkowej kreski
+wpisz odczyty górnej i dolnej (albo pomiń Enterem). Plugin porównuje wynik z prawdziwą odległością i zapisuje oba w CSV
+(`dalmierz_m`, `blad_dalmierza_m`). Odstęp kresek na ekranie jest liczony z pola widzenia gry, więc zgadza się ze stałą k niezależnie od ustawień FOV.
 
 ## Jak czytać łatę
 
@@ -68,7 +75,8 @@ Jeśli cyfry na łacie są w grze do góry nogami, ustaw `FLIP_V = True` w `asse
 ## Znane ograniczenia
 
 - Plugin nie zapisuje stanu: po wyjściu z gry sprzęt trzeba postawić od nowa (wyniki zostają w CSV).
-- Brak kresek dalmierczych i automatycznego ciągu niwelacyjnego z wyrównaniem.
+- Brak automatycznego ciągu niwelacyjnego z wyrównaniem.
+- Kreski dalmiercze liczone są dla pola widzenia gry; przy bardzo wąskim FOV mogą wypaść poza lunetę (wtedy są pomijane, wpis w `GothicSurveying.log`).
 - Hook na `zCWorld::Render` sprawdzono tylko na Gothic II NotR 2.6 (fix) ze Steam Gold Classic.
 
 ## Licencja

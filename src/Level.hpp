@@ -36,6 +36,7 @@ namespace GOTHIC_NAMESPACE {
   const float  LV_ZOOM      = 20.0f;    // powiększenie lunety
   const float  LV_TURN_FAST = 12.0f;    // obrót niwelatora [stopnie/s]
   const float  LV_TURN_SLOW = 1.0f;     // obrót powolny (Shift) [stopnie/s]
+  const float  LV_STADIA_K  = 100.0f;   // stała dalmierza nitkowego: odległość = k * (górny - dolny odczyt)
 
   struct LvRod   { zVEC3 foot; zCVob* vob; bool known; double H; int id; };
   struct LvPlate { zVEC3 pos;  zCVob* vob; };
@@ -56,7 +57,11 @@ namespace GOTHIC_NAMESPACE {
   float   lvFovX = 0, lvFovY = 0;
   DWORD   lvLastTick = 0;
   zCView* lvReticle = nullptr;
+  zCView* lvHairU = nullptr;               // kreski dalmiercze (górna i dolna), położenie zależy od FOV
+  zCView* lvHairL = nullptr;
+  bool    lvHairsDone = false;             // kreski już próbowano otworzyć w tym widoku
   int     lvEntryRod = -1, lvEntryLen = 0, lvEntryMm = 0;
+  int     lvEntryStep = 0, lvMidMm = 0, lvUpMm = 0;   // krok: 0 środkowa, 1 górna, 2 dolna kreska
   double  lvEntryIdealCm = 0, lvEntryDist = 0;
 
   inline void LvTrace( const char* s ) {   // diagnostyka: GothicSurveying.log w katalogu roboczym gry
@@ -117,6 +122,7 @@ namespace GOTHIC_NAMESPACE {
     if ( !lvView ) return;
     lvView = lvEntry = false;
     LvApplyZoom();                                   // przywraca FOV
+    LvPanelClose( lvHairU ); LvPanelClose( lvHairL ); lvHairsDone = false;
     if ( lvReticle ) { lvReticle->Close(); screen->RemoveItem( lvReticle ); delete lvReticle; lvReticle = nullptr; }
     LvPanelClose( lvEntryPanel ); LvPanelClose( lvHud );
     if ( player ) player->showVisual = 1;
@@ -150,18 +156,37 @@ namespace GOTHIC_NAMESPACE {
     return true;
   }
 
-  void LvLogRow( const char* kind, const LvRod& r, double userCm, double idealCm, double H, double distCm ) {
+  // stadiaCm < 0 = nie wpisano odczytów kresek dalmierczych
+  void LvLogRow( const char* kind, const LvRod& r, double userCm, double idealCm, double H, double distCm, double stadiaCm ) {
     if ( !lvLog ) {
       char name[64]; sprintf( name, "niwelacja_%d.csv", ++lvFileNo );
       lvLog = fopen( name, "w" );
-      if ( lvLog ) fputs( "stanowisko;laty;typ;odczyt_m;odczyt_idealny_m;roznica_odczytu_mm;H_m;H_prawda_m;blad_H_mm;celowa_m\n", lvLog );
+      if ( lvLog ) fputs( "stanowisko;laty;typ;odczyt_m;odczyt_idealny_m;roznica_odczytu_mm;H_m;H_prawda_m;blad_H_mm;celowa_m;dalmierz_m;blad_dalmierza_m\n", lvLog );
     }
     if ( lvLog ) {
       double truth = r.foot[VY] / 100.0;
-      fprintf( lvLog, "%d;%d;%s;%.3f;%.3f;%.1f;%.3f;%.3f;%.1f;%.1f\n", lvSetup, r.id, kind, userCm / 100.0, idealCm / 100.0,
+      fprintf( lvLog, "%d;%d;%s;%.3f;%.3f;%.1f;%.3f;%.3f;%.1f;%.1f;", lvSetup, r.id, kind, userCm / 100.0, idealCm / 100.0,
                ( userCm - idealCm ) * 10.0, H / 100.0, truth, ( H / 100.0 - truth ) * 1000.0, distCm / 100.0 );
+      if ( stadiaCm >= 0 ) fprintf( lvLog, "%.1f;%.1f\n", stadiaCm / 100.0, ( stadiaCm - distCm ) / 100.0 );
+      else fputs( ";\n", lvLog );
       fflush( lvLog );
     }
+  }
+
+  // Kreski dalmiercze: tg(kąt między nimi) = 1/k, każda leży o pół tego kąta od osi. Na ekranie (pion = 8192) odstęp od środka
+  // wynosi 4096 * (1/(2k)) / tg(pionowe FOV zbliżenia / 2) = 4096 * zoom / (2k * tg(pionowe FOV gry / 2)).
+  void LvOpenHairs() {
+    const float rad = 3.14159265f / 180.0f;
+    int off = (int)( 4096.0 * LV_ZOOM / ( 2.0 * LV_STADIA_K * tan( lvFovY * rad / 2 ) ) );
+    if ( off < 40 || off > 3600 ) { LvTrace( "kreski dalmiercze poza zakresem ekranu - pominiete" ); return; }
+    auto hair = [&]( int y ) {
+      zCView* v = new zCView( 3500, y - 14, 4700, y + 14 );
+      v->InsertBack( "LVL_HAIR.TGA" );
+      v->SetAlphaBlendFunc( zRND_ALPHA_FUNC_BLEND );
+      screen->InsertItem( v ); v->Open();
+      return v;
+    };
+    lvHairU = hair( 4096 - off ); lvHairL = hair( 4096 + off );
   }
 
   void LvEnterView() {
@@ -213,27 +238,30 @@ namespace GOTHIC_NAMESPACE {
     double ideal = LevelReading( lineY, r.foot[VY], bestFwd, LV_COLLIM, 0.0 );
     if ( ideal < 0 || ideal > LV_ROD_LEN ) { LvMsg( "Pozioma kreska jest poza lata (nad nia lub pod nia)" ); return; }
 
-    lvEntry = true; lvEntryRod = best; lvEntryLen = 0; lvEntryMm = 0; lvEntryIdealCm = ideal; lvEntryDist = bestFwd;
+    lvEntry = true; lvEntryRod = best; lvEntryLen = 0; lvEntryMm = 0; lvEntryStep = 0; lvEntryIdealCm = ideal; lvEntryDist = bestFwd;
     LvPanelClose( lvHud );
     lvEntryPanel = LvPanelOpen( 2000, 5500, 6200, 7500 );   // pole wpisywania na dole lunety
   }
 
-  void LvFinishReading() {
+  // upMm / loMm < 0: odczytów kresek dalmierczych nie wpisano
+  void LvFinishReading( int midMm, int upMm, int loMm ) {
     LvRod& r = lvRods[lvEntryRod];
-    double userCm = lvEntryMm / 10.0;
-    char buf[200];
+    double userCm = midMm / 10.0;
+    double stadiaCm = ( upMm >= 0 && loMm >= 0 ) ? LevelStadiaDist( upMm / 10.0, loMm / 10.0, LV_STADIA_K ) : -1.0;
+    char buf[300], dm[80] = "";
+    if ( stadiaCm >= 0 ) sprintf( dm, " Dalmierz: %.1f m (prawdziwa %.1f m).", stadiaCm / 100.0, lvEntryDist / 100.0 );
     if ( !lvHasHorizon ) {
       if ( !r.known ) { LvMsg( "Wstecz (BS) musi byc na lacie o znanej wysokosci" ); return; }
       lvHorizon = LevelHorizon( r.H, userCm );
       lvHasHorizon = true;
-      LvLogRow( "BS", r, userCm, lvEntryIdealCm, r.H, lvEntryDist );
-      sprintf( buf, "BS: lata %d odczyt %.3f m, horyzont %.3f m. Obroc na inna lata (FS)", r.id, userCm / 100.0, lvHorizon / 100.0 );
+      LvLogRow( "BS", r, userCm, lvEntryIdealCm, r.H, lvEntryDist, stadiaCm );
+      sprintf( buf, "BS: lata %d odczyt %.3f m, horyzont %.3f m.%s Obroc na inna lata (FS)", r.id, userCm / 100.0, lvHorizon / 100.0, dm );
     } else {
       r.H = LevelForeHeight( lvHorizon, userCm );
       r.known = true;
-      LvLogRow( "FS", r, userCm, lvEntryIdealCm, r.H, lvEntryDist );
-      sprintf( buf, "FS: lata %d odczyt %.3f m, H = %.3f m (blad: %.1f mm)", r.id, userCm / 100.0, r.H / 100.0,
-               ( r.H - r.foot[VY] ) * 10.0 );
+      LvLogRow( "FS", r, userCm, lvEntryIdealCm, r.H, lvEntryDist, stadiaCm );
+      sprintf( buf, "FS: lata %d odczyt %.3f m, H = %.3f m (blad: %.1f mm).%s", r.id, userCm / 100.0, r.H / 100.0,
+               ( r.H - r.foot[VY] ) * 10.0, dm );
     }
     LvMsg( buf );
   }
@@ -242,6 +270,7 @@ namespace GOTHIC_NAMESPACE {
     DWORD now = GetTickCount();
     float dt = ( now - lvLastTick ) / 1000.0f; lvLastTick = now;
     if ( dt > 0.1f ) dt = 0.1f;
+    if ( !lvHairsDone && lvFovSaved ) { lvHairsDone = true; LvOpenHairs(); }     // FOV gry znany dopiero po pierwszym zastosowaniu zbliżenia
 
     if ( zinput->KeyToggled( KEY_F10 ) ) {           // F10: anuluj wpisywanie, a gdy go nie ma - wyjdź z widoku
       if ( lvEntry ) { lvEntry = false; LvPanelClose( lvEntryPanel ); } else { LvLeaveView(); return; }
@@ -253,16 +282,23 @@ namespace GOTHIC_NAMESPACE {
       for ( int d = 0; d < 10; d++ )
         if ( zinput->KeyToggled( digitKeys[d] ) && lvEntryLen < 4 ) { lvEntryMm = lvEntryMm * 10 + d; lvEntryLen++; }
       if ( zinput->KeyToggled( KEY_BACK ) && lvEntryLen > 0 ) { lvEntryMm /= 10; lvEntryLen--; }
-      if ( zinput->KeyToggled( KEY_RETURN ) && lvEntryLen > 0 && lvEntryMm <= 3000 ) {
-        lvEntry = false; LvPanelClose( lvEntryPanel ); LvFinishReading();
-      } else if ( lvEntry && lvEntryPanel ) {
-        char b[64];
-        sprintf( b, "Lata %d - odczyt w mm:", lvRods[lvEntryRod].id );
+      if ( zinput->KeyToggled( KEY_RETURN ) ) {
+        // krok 0: kreska środkowa (wymagana), kroki 1-2: kreski dalmiercze (Enter bez liczby pomija odległość)
+        bool valid = lvEntryLen > 0 && lvEntryMm <= 3000;
+        if ( lvEntryStep == 0 && valid ) { lvMidMm = lvEntryMm; lvEntryStep = 1; lvEntryLen = lvEntryMm = 0; }
+        else if ( lvEntryStep == 1 && valid ) { lvUpMm = lvEntryMm; lvEntryStep = 2; lvEntryLen = lvEntryMm = 0; }
+        else if ( lvEntryStep == 2 && valid ) { lvEntry = false; LvPanelClose( lvEntryPanel ); LvFinishReading( lvMidMm, lvUpMm, lvEntryMm ); }
+        else if ( lvEntryStep > 0 && lvEntryLen == 0 ) { lvEntry = false; LvPanelClose( lvEntryPanel ); LvFinishReading( lvMidMm, -1, -1 ); }
+      }
+      if ( lvEntry && lvEntryPanel ) {
+        static const char* titles[3] = { "srodkowa kreska [mm]:", "gorna kreska dalmiercza [mm]:", "dolna kreska dalmiercza [mm]:" };
+        char b[96];
+        sprintf( b, "Lata %d - %s", lvRods[lvEntryRod].id, titles[lvEntryStep] );
         lvEntryPanel->ClrPrintwin();
         lvEntryPanel->PrintCX( 700, zSTRING( b ) );
         sprintf( b, "%d", lvEntryMm );
         lvEntryPanel->PrintCX( 3500, zSTRING( lvEntryLen ? b : "_" ) );       // wpisana wartość
-        lvEntryPanel->PrintCX( 6300, zSTRING( "Enter - zatwierdz   F10 - anuluj" ) );
+        lvEntryPanel->PrintCX( 6300, zSTRING( lvEntryStep ? "Enter bez liczby - pomin odleglosc   F10 - anuluj" : "Enter - zatwierdz   F10 - anuluj" ) );
       }
     } else {
       const float rate = ( zinput->KeyPressed( KEY_LSHIFT ) ? LV_TURN_SLOW : LV_TURN_FAST ) * 3.14159265f / 180.0f;

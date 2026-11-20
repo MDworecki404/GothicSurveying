@@ -17,6 +17,11 @@ int main() {
   double hB2 = LevelForeHeight( LevelHorizon( hA, LevelReading( instrLine, 0.0, 2000, 20, 0 ) ),
                                 LevelReading( instrLine, 50.0, 2000, 20, 0 ) );
   assert( std::fabs( hB2 - 100050.0 ) < 1e-9 );
+  // dalmierz: celowa 20 m = 2000 cm, środek 147,8 cm -> kreski 157,8 i 137,8 cm, odległość z nich = 2000 cm
+  double up = LevelStadiaReading( 147.8, 2000, true ), lo = LevelStadiaReading( 147.8, 2000, false );
+  assert( std::fabs( up - 157.8 ) < 1e-9 && std::fabs( lo - 137.8 ) < 1e-9 );
+  assert( std::fabs( LevelStadiaDist( up, lo ) - 2000.0 ) < 1e-9 );
+  assert( std::fabs( LevelStadiaDist( lo, up ) - 2000.0 ) < 1e-9 );   // kolejność odczytów nie gra roli
   std::puts( "OK" );
   return 0;
 }
