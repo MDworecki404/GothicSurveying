@@ -9,10 +9,10 @@ $fail = 0
 Push-Location $root
 foreach ($t in Get-ChildItem (Join-Path $root "tests") -Filter "test_*.cpp") {
     $exe = Join-Path $tmp ($t.BaseName + ".exe")
-    & g++ -std=c++20 -Wall -I (Join-Path $root "src") $t.FullName -o $exe
+    & g++ -std=c++20 -Wall -static -I (Join-Path $root "src") $t.FullName -o $exe
     if ($LASTEXITCODE -ne 0) { $fail++; Write-Host "COMPILE FAIL $($t.Name)"; continue }
     & $exe
-    if ($LASTEXITCODE -ne 0) { $fail++; Write-Host "FAIL $($t.Name)" } else { Write-Host "ok   $($t.Name)" }
+    if ($LASTEXITCODE -ne 0) { $fail++; Write-Host "FAIL $($t.Name) (exit $LASTEXITCODE)" } else { Write-Host "ok   $($t.Name)" }
 }
 $docx = Join-Path $root "tests\out\sample.docx"
 if (Test-Path $docx) {

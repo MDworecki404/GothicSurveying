@@ -423,3 +423,5 @@ __pycache__/
 
 # SDD workspace
 .superpowers/
+tests/out/
+__pycache__/
