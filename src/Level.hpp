@@ -180,7 +180,7 @@ namespace GOTHIC_NAMESPACE {
     int off = (int)( 4096.0 * LV_ZOOM / ( 2.0 * LV_STADIA_K * tan( lvFovY * rad / 2 ) ) );
     if ( off < 40 || off > 3600 ) { LvTrace( "kreski dalmiercze poza zakresem ekranu - pominiete" ); return; }
     auto hair = [&]( int y ) {
-      zCView* v = new zCView( 3500, y - 14, 4700, y + 14 );
+      zCView* v = new zCView( 3500, y - 11, 4700, y + 11 );
       v->InsertBack( "LVL_HAIR.TGA" );
       v->SetAlphaBlendFunc( zRND_ALPHA_FUNC_BLEND );
       screen->InsertItem( v ); v->Open();

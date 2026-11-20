@@ -245,7 +245,7 @@ def main():
     for k in range(NSEG):
         tga(tex / f"LVL_ROD{k}.TGA", RW, RH, rod_pixel(RW, RH, k))
     tga(tex / "LVL_INSTR.TGA", 128, 16, instr_pixel)
-    tga32(tex / "LVL_RETICLE.TGA", 1024, 512, reticle_pixel(1024, 512))
+    tga32(tex / "LVL_RETICLE.TGA", 2048, 1024, reticle_pixel(2048, 1024))   # 2x gęstsza => krzyż ok. 2x cieńszy na ekranie
     tga32(tex / "LVL_PANEL.TGA", 64, 64, panel_pixel(64, 64))
     tga32(tex / "LVL_HAIR.TGA", 16, 8, hair_pixel(16, 8))
     one = [("LVL_INSTR", "LVL_INSTR.TGA")]
