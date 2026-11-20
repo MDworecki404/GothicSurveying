@@ -1,0 +1,156 @@
+#include <cassert>
+#include <cmath>
+#include <cstdio>
+#include <map>
+#include <string>
+#include <vector>
+#include "job/Jobs.hpp"
+
+static bool near(double a, double b, double eps = 1e-6) { return std::fabs(a - b) <= eps; }
+static bool has(const std::string& s, const std::string& part) { return s.find(part) != std::string::npos; }
+
+struct FakeWorld : IWorld {
+  std::vector<std::string> calls, said;
+  bool feetNear = true, ground = true;
+  std::map<int, double> heights;
+  bool PlaceMarker(int id, MarkerKind k) override { calls.push_back("marker " + std::to_string(id) + (k == MarkerKind::Reper ? " reper" : " turning")); return ground; }
+  bool FeetWithinCm(int, double) const override { return feetNear; }
+  void PlaceRod(RodRole r, int id) override { calls.push_back(std::string("place_rod ") + (r == RodRole::Back ? "back " : "fore ") + std::to_string(id)); }
+  void RemoveRod(RodRole r) override { calls.push_back(std::string("remove_rod ") + (r == RodRole::Back ? "back" : "fore")); }
+  bool PlaceInstrument() override { calls.push_back("place_instrument"); return ground; }
+  void RemoveInstrument() override { calls.push_back("remove_instrument"); }
+  double PointHeightM(int id) const override { auto it = heights.find(id); return it == heights.end() ? 0.0 : it->second; }
+  double SightDistCm(int) const override { return 3000; }
+  void Say(const std::string& t) override { said.push_back(t); }
+};
+
+struct Fx {
+  FakeWorld w; std::unique_ptr<Job> job;
+  explicit Fx(TraverseKind k = TraverseKind::Anchored) {
+    w.heights[1] = 100.000; w.heights[4] = 100.240;                 // A = 1, B = 4 przy 3 stanowiskach
+    job = CreateLevelingTraverse(w, JobOptions{k, CalcMode::Auto});
+  }
+  bool enabled(const std::string& id) const { for (auto& m : job->Menu()) if (m.id == id) return m.enabled; return false; }
+  void menu(const std::string& id) { job->OnMenu(id); }
+  bool read(int p, int mid, int up = -1, int lo = -1) { return job->OnReading(p, mid, up, lo); }
+};
+
+static void menu_at_start_only_allows_reper_a() {
+  Fx f;
+  assert(f.enabled("reper_a"));
+  for (const char* id : {"instrument", "rod_back", "rod_fore_turn", "rod_fore_end", "move_next", "finish"}) assert(!f.enabled(id));
+  assert(!f.job->CanFinish());
+}
+
+static void rod_fore_blocked_until_instrument_and_back_rod() {
+  Fx f; f.menu("reper_a");
+  assert(!f.enabled("rod_fore_turn") && !f.enabled("rod_back") && f.enabled("instrument"));
+  size_t before = f.w.calls.size();
+  f.menu("rod_fore_turn");                                          // niedozwolone: nic się nie dzieje
+  assert(f.w.calls.size() == before);
+  f.menu("instrument"); assert(!f.enabled("rod_fore_turn") && f.enabled("rod_back"));
+  f.menu("rod_back");   assert(f.enabled("rod_fore_turn") && f.enabled("rod_fore_end"));
+}
+
+static void do_stand(Fx& f, int backPoint, int backMm, const char* foreMenu, int forePoint, int foreMm, bool carriedBack) {
+  f.menu("instrument");
+  if (!carriedBack) f.menu("rod_back");
+  assert(f.read(backPoint, backMm));
+  f.menu(foreMenu);
+  assert(f.read(forePoint, foreMm));
+}
+
+static void full_anchored_run_produces_expected_fieldbook() {
+  Fx f; f.menu("reper_a");
+  do_stand(f, 1, 1500, "rod_fore_turn", 2, 1200, false); f.menu("move_next");
+  do_stand(f, 2, 1400, "rod_fore_turn", 3, 1650, true);  f.menu("move_next");
+  assert(!f.job->CanFinish());
+  do_stand(f, 3, 1300, "rod_fore_end", 4, 1100, true);
+  assert(f.job->CanFinish() && f.enabled("finish"));
+  FieldBook fb = f.job->Finish(true);
+  assert(fb.complete && fb.rows.size() == 3 && fb.rows[2].pointName == "B");
+  assert(near(fb.sum.fhMm, 10.0, 1e-6) && near(fb.rows[0].dhMm, 300) && near(fb.startHeightM, 100.000));
+}
+
+static void move_next_swaps_roles_and_removes_instrument() {
+  Fx f; f.menu("reper_a");
+  do_stand(f, 1, 1500, "rod_fore_turn", 2, 1200, false);
+  f.w.calls.clear(); f.menu("move_next");
+  assert((f.w.calls == std::vector<std::string>{"remove_instrument", "remove_rod back", "place_rod back 2", "remove_rod fore"}));
+  assert(f.enabled("instrument") && !f.enabled("rod_back"));         // łata wstecz już stoi na punkcie 2
+}
+
+static void closed_end_requires_feet_on_reper_a() {
+  Fx f(TraverseKind::Closed); f.menu("reper_a"); f.menu("instrument"); f.menu("rod_back"); assert(f.read(1, 1500));
+  f.w.feetNear = false;
+  f.menu("rod_fore_end");
+  assert(!f.w.said.empty() && has(f.w.said.back(), "reperze A"));
+  for (auto& c : f.w.calls) assert(!has(c, "place_rod fore"));
+  assert(f.enabled("rod_fore_end"));
+  f.w.feetNear = true; f.menu("rod_fore_end");
+  assert(f.w.calls.back() == "place_rod fore 1");
+}
+
+static void open_end_finishes_without_closure() {
+  Fx f(TraverseKind::Open); f.menu("reper_a");
+  do_stand(f, 1, 1500, "rod_fore_end", 2, 1200, false);
+  assert(f.job->CanFinish());
+  FieldBook fb = f.job->Finish(true);
+  assert(!fb.sum.hasClosure && fb.rows.size() == 1 && near(fb.rows[0].dhMm, 300));
+}
+
+static void finish_disabled_until_end_point_read() {
+  Fx f; f.menu("reper_a"); assert(!f.job->CanFinish());
+  f.menu("instrument"); f.menu("rod_back"); assert(f.read(1, 1500));
+  f.menu("rod_fore_end"); assert(!f.job->CanFinish());                // koniec postawiony, brak odczytu wprzód
+  assert(f.read(2, 1200)); assert(f.job->CanFinish());                // punkt końcowy ma id 2 (A = 1)
+}
+
+static void abort_without_stands_returns_incomplete_empty_book() {
+  Fx f; FieldBook fb = f.job->Finish(false);
+  assert(!fb.complete && fb.rows.empty());
+  f.menu("reper_a"); fb = f.job->Finish(false);
+  assert(!fb.complete && fb.rows.empty());
+}
+
+static void reading_rejects_out_of_range() {
+  Fx f; f.menu("reper_a"); f.menu("instrument"); f.menu("rod_back");
+  assert(!f.read(1, 3001));
+  assert(!f.read(1, -5));
+  assert(!f.read(1, 1500, 1600, -1));                                 // górna bez dolnej
+  assert(!f.read(1, 1500, -1, 1600));
+  assert(!f.read(1, 1500, 3001, 1400));
+  assert(f.read(1, 1500, 1400, 1600));                                // kolejność górna/dolna dowolna
+}
+
+static void reading_on_unplaced_rod_is_rejected() {
+  Fx f; assert(!f.read(1, 1000));
+  f.menu("reper_a"); assert(!f.read(1, 1000));                        // brak niwelatora i łaty
+  f.menu("instrument"); assert(!f.read(1, 1000));                     // brak łaty wstecz
+  f.menu("rod_back"); assert(!f.read(9, 1000));                       // zły punkt
+  assert(f.read(1, 1000)); assert(!f.read(1, 1000));                  // powtórny odczyt tej samej łaty odrzucony
+}
+
+static void readings_order_is_free() {
+  Fx f(TraverseKind::Open); f.menu("reper_a"); f.menu("instrument"); f.menu("rod_back");
+  f.menu("rod_fore_end");
+  assert(f.read(2, 1200)); assert(f.read(1, 1500));                   // najpierw wprzód, potem wstecz
+  assert(near(f.job->Finish(true).rows[0].dhMm, 300));
+}
+
+static void job_registry_lists_traverse() {
+  const auto& types = JobTypes();
+  assert(!types.empty() && types[0].id == "traverse" && types[0].name == "Ciag niwelacyjny");
+  FakeWorld w; auto j = types[0].create(w, JobOptions{TraverseKind::Open, CalcMode::Auto});
+  assert(j && j->Name() == "Ciag niwelacyjny");
+}
+
+int main() {
+  menu_at_start_only_allows_reper_a(); rod_fore_blocked_until_instrument_and_back_rod();
+  full_anchored_run_produces_expected_fieldbook(); move_next_swaps_roles_and_removes_instrument();
+  closed_end_requires_feet_on_reper_a(); open_end_finishes_without_closure(); finish_disabled_until_end_point_read();
+  abort_without_stands_returns_incomplete_empty_book(); reading_rejects_out_of_range(); reading_on_unplaced_rod_is_rejected();
+  readings_order_is_free(); job_registry_lists_traverse();
+  std::puts("test_traverse_job OK");
+  return 0;
+}
