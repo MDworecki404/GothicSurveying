@@ -1,7 +1,7 @@
-// Sprawdzenie: g++ tests/test_level_math.cpp -o t && ./t   (albo cl /EHsc test_level_math.cpp)
+// Sprawdzenie: g++ -Isrc tests/test_level_math.cpp -o t && ./t   (albo cl /EHsc test_level_math.cpp)
 #include <cassert>
 #include <cstdio>
-#include "../src/LevelMath.hpp"
+#include "calc/LevelMath.hpp"
 
 int main() {
   const double instrLine = 150.0;                       // linia celowa 150 cm nad gruntem stanowiska A (y=0)

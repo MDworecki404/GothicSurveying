@@ -17,7 +17,7 @@
 // Pierwszy odczyt na stanowisku = wstecz (BS) na łacie o znanej wysokości, kolejne = w przód (FS).
 // Wynik: komunikat na ekranie i niwelacja_N.csv w katalogu głównym gry (twój odczyt, odczyt idealny, błąd).
 // Teksty w grze są bez polskich znaków (kodowanie). Wysokości w metrach z Y silnika; "prawda" = Y gruntu pod łatą.
-#include "LevelMath.hpp"
+#include "calc/LevelMath.hpp"
 #include <vector>
 #include <cstdio>
 #include <cmath>

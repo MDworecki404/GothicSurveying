@@ -420,3 +420,6 @@ Configuration.override.cmake
 # lokalne
 __pycache__/
 *.log
+
+# SDD workspace
+.superpowers/
