@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <map>
 #include "Job.hpp"
+#include "calc/LevelMath.hpp"
 
 class LevelingTraverse : public Job {
  public:
@@ -17,11 +18,12 @@ class LevelingTraverse : public Job {
                                                                : "Postaw late wprzod (punkt koncowy)";
     return {
       {"reper_a", "Postaw reper A", "stan w miejscu reperu", !hasA_},
-      {"instrument", "Postaw niwelator", "najpierw reper A; nie po domknieciu ciagu", hasA_ && !instrument_ && !ended},
+      {"instrument", instrument_ ? "Przestaw niwelator (przed odczytami)" : "Postaw niwelator", "najpierw reper A; nie po domknieciu ciagu i nie po odczytach", hasA_ && !ended && (!instrument_ || (!backRead_ && !foreRead_))},
       {"rod_back", "Postaw late wstecz", "najpierw niwelator", instrument_ && !backRod_},
       {"rod_fore_turn", "Postaw late wprzod (punkt obrotowy)", "najpierw niwelator i lata wstecz", instrument_ && backRod_ && !foreRod_},
       {"rod_fore_end", endLabel, "najpierw niwelator i lata wstecz", instrument_ && backRod_ && !foreRod_},
       {"move_next", "Przeloz na nastepne stanowisko", "po obu odczytach, na punkcie obrotowym", backRead_ && foreRead_ && !foreIsEnd_},
+      {"redo_readings", "Powtorz odczyty na tym stanowisku", "najpierw jakis odczyt", instrument_ && (backRead_ || foreRead_)},
       {"finish", "Zakoncz robote", "po odczycie na punkcie koncowym", CanFinish()},
     };
   }
@@ -34,7 +36,9 @@ class LevelingTraverse : public Job {
       char b[80]; std::snprintf(b, sizeof b, "Reper A: H = %.3f m", w_.PointHeightM(1)); w_.Say(b);
     } else if (id == "instrument") {
       if (!w_.PlaceInstrument()) { w_.Say("Brak gruntu pod stopami"); return; }
-      instrument_ = true; foreRod_ = false; backRead_ = foreRead_ = false;
+      instrument_ = true;
+    } else if (id == "redo_readings") {
+      backRead_ = foreRead_ = false; backStadia_ = foreStadia_ = -1;
     } else if (id == "rod_back") {
       w_.PlaceRod(RodRole::Back, curBack_); backRod_ = true;
     } else if (id == "rod_fore_turn") {
@@ -58,6 +62,7 @@ class LevelingTraverse : public Job {
       foreNames_.push_back(names_[forePoint_]);
       w_.RemoveInstrument(); w_.RemoveRod(RodRole::Back); w_.PlaceRod(RodRole::Back, forePoint_); w_.RemoveRod(RodRole::Fore);
       curBack_ = forePoint_; instrument_ = false; foreRod_ = false; backRod_ = true; backRead_ = foreRead_ = false; foreIsEnd_ = false;
+      backStadia_ = foreStadia_ = -1;
     }
     // "finish": kontroler wywołuje Finish(true)
   }
@@ -73,11 +78,13 @@ class LevelingTraverse : public Job {
     if (!instrument_ || midMm < 0 || midMm > 3000) return false;
     const bool hasStadia = upMm >= 0 || loMm >= 0;
     if (hasStadia && (upMm < 0 || loMm < 0 || upMm > 3000 || loMm > 3000)) return false;
+    if (hasStadia && (midMm < (upMm < loMm ? upMm : loMm) || midMm > (upMm < loMm ? loMm : upMm))) return false;   // środkowa leży między kreskami
+    const double stadiaCm = hasStadia ? LevelStadiaDist(upMm / 10.0, loMm / 10.0) : -1.0;
     if (backRod_ && !backRead_ && pointId == curBack_) {
-      backMm_ = midMm; backSight_ = w_.SightDistCm(pointId); backRead_ = true; return true;
+      backMm_ = midMm; backSight_ = w_.SightDistCm(pointId); backStadia_ = stadiaCm; backRead_ = true; return true;
     }
     if (foreRod_ && !foreRead_ && pointId == forePoint_) {
-      foreMm_ = midMm; foreSight_ = w_.SightDistCm(pointId); foreRead_ = true; return true;
+      foreMm_ = midMm; foreSight_ = w_.SightDistCm(pointId); foreStadia_ = stadiaCm; foreRead_ = true; return true;
     }
     return false;
   }
@@ -108,12 +115,12 @@ class LevelingTraverse : public Job {
 
  private:
   bool Ended() const { return foreIsEnd_ && backRead_ && foreRead_; }
-  Stand Current() const { return Stand{backMm_, foreMm_, backSight_, foreSight_}; }
+  Stand Current() const { return Stand{backMm_, foreMm_, backSight_, foreSight_, backStadia_, foreStadia_}; }
 
   IWorld& w_; JobOptions opt_;
   bool hasA_ = false, instrument_ = false, backRod_ = false, foreRod_ = false, backRead_ = false, foreRead_ = false, foreIsEnd_ = false;
   int curBack_ = 0, forePoint_ = 0, nextId_ = 1, turnNo_ = 0, backMm_ = 0, foreMm_ = 0;
-  double backSight_ = 0, foreSight_ = 0;
+  double backSight_ = 0, foreSight_ = 0, backStadia_ = -1, foreStadia_ = -1;
   std::map<int, std::string> names_;
   std::vector<Stand> stands_; std::vector<std::string> foreNames_;
 };

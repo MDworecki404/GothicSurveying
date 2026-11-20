@@ -25,13 +25,18 @@ namespace GOTHIC_NAMESPACE {
     v->SetCollDet( 0 );                                  // nie blokuje promieni ani gracza
     v->SetPositionWorld( p );
     ogame->GetWorld()->AddVob( v );
-    v->Release();
-    return v;
+    return v;                                            // zachowujemy własną referencję: wskaźnik zostaje ważny także po zwolnieniu świata
   }
+
+  // Vob nie należy już do bieżącego świata (np. po wczytaniu zapisu świat zwolnił vob; zostaje tylko nasza referencja).
+  inline bool VobIsStale( zCVob* v ) { return v && v->GetHomeWorld() != ogame->GetWorld(); }
 
   inline void RemoveVobSafe( zCVob*& v ) {
     if ( !v ) return;
-    if ( zCWorld* w = ogame->GetWorld() ) w->RemoveVob( v );
+    zCWorld* w = ogame->GetWorld();
+    if ( w && v->GetHomeWorld() == w ) w->RemoveVob( v );
+    v->Release();                                        // oddajemy własną referencję
     v = nullptr;
   }
+  inline void DropVobRef( zCVob*& v ) { if ( v ) { v->Release(); v = nullptr; } }   // bez dotykania świata
 }

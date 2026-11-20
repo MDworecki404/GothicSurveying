@@ -145,12 +145,43 @@ static void job_registry_lists_traverse() {
   assert(j && j->Name() == "Ciag niwelacyjny");
 }
 
+static void stadia_is_stored_and_validated() {
+  Fx f; f.menu("reper_a"); f.menu("instrument"); f.menu("rod_back");
+  assert(!f.read(1, 1500, 1400, 1450));                               // środkowa poza przedziałem kresek
+  assert(f.read(1, 1500, 1578, 1378));
+  f.menu("rod_fore_end"); assert(f.read(2, 1200));
+  FieldBook fb = f.job->Finish(true);
+  assert(near(fb.rows[0].stadiaBackCm, 2000.0, 1e-6) && fb.rows[0].stadiaForeCm < 0);
+}
+
+static void redo_readings_allows_second_reading() {
+  Fx f; f.menu("reper_a"); f.menu("instrument"); f.menu("rod_back");
+  assert(!f.enabled("redo_readings"));                                // nic jeszcze nie odczytano
+  assert(f.read(1, 1500)); assert(!f.read(1, 1510));
+  assert(f.enabled("redo_readings"));
+  f.menu("redo_readings");
+  assert(f.read(1, 1510));                                            // poprawiony odczyt
+  f.menu("rod_fore_end"); assert(f.read(2, 1200));
+  assert(near(f.job->Finish(true).rows[0].dhMm, 310));
+}
+
+static void instrument_can_be_repositioned_before_readings() {
+  Fx f; f.menu("reper_a"); f.menu("instrument");
+  assert(f.enabled("instrument"));                                    // można przestawić
+  f.menu("instrument");
+  int placed = 0; for (auto& c : f.w.calls) if (c == "place_instrument") placed++;
+  assert(placed == 2);
+  f.menu("rod_back"); assert(f.read(1, 1500));
+  assert(!f.enabled("instrument"));                                   // po odczycie już nie
+}
+
 int main() {
   menu_at_start_only_allows_reper_a(); rod_fore_blocked_until_instrument_and_back_rod();
   full_anchored_run_produces_expected_fieldbook(); move_next_swaps_roles_and_removes_instrument();
   closed_end_requires_feet_on_reper_a(); open_end_finishes_without_closure(); finish_disabled_until_end_point_read();
   abort_without_stands_returns_incomplete_empty_book(); reading_rejects_out_of_range(); reading_on_unplaced_rod_is_rejected();
   readings_order_is_free(); job_registry_lists_traverse();
+  stadia_is_stored_and_validated(); redo_readings_allows_second_reading(); instrument_can_be_repositioned_before_readings();
   std::puts("test_traverse_job OK");
   return 0;
 }

@@ -62,11 +62,20 @@ namespace GOTHIC_NAMESPACE {
         if ( d.Length() > 0.1f ) { d.Normalize(); rod_[r]->SetHeadingAtWorld( d ); }
       }
     }
-    void ForgetAll() { pts_.clear(); rod_[0] = rod_[1] = nullptr; rodPoint_[0] = rodPoint_[1] = -1; instr_ = nullptr; hasInstr_ = false; }   // po zmianie świata
+    // Po zmianie świata: oddaje własne referencje bez dotykania świata (voby zwolnił już świat).
+    void ForgetAll() {
+      for ( auto& kv : pts_ ) DropVobRef( kv.second.marker );
+      DropVobRef( rod_[0] ); DropVobRef( rod_[1] ); DropVobRef( instr_ );
+      pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false;
+    }
+    bool Stale() const {                                 // któryś z naszych vobów nie należy już do bieżącego świata
+      for ( const auto& kv : pts_ ) if ( VobIsStale( kv.second.marker ) ) return true;
+      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ );
+    }
     void ClearAll() {
       for ( auto& kv : pts_ ) RemoveVobSafe( kv.second.marker );
       RemoveVobSafe( rod_[0] ); RemoveVobSafe( rod_[1] ); RemoveVobSafe( instr_ );
-      ForgetAll();
+      pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false;
     }
 
    private:

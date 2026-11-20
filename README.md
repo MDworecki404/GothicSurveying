@@ -55,9 +55,16 @@ na punkcie końcowym **Zakończ robotę**. Punkt końcowy: dla ciągu dowiązane
 Pierwszy odczyt na stanowisku może być wstecz lub wprzód (kolejność dowolna); przewyższenie to wstecz − wprzód. Wysokość punktu to wysokość stopy łaty
 (szczyt znaku reperu lub żabki).
 
+## Poprawianie błędów w trakcie roboty
+
+- „Powtórz odczyty na tym stanowisku” kasuje odczyty bieżącego stanowiska (np. po pomyłce przy wpisywaniu), a „Przestaw niwelator” pozwala
+  postawić go w innym miejscu, dopóki nie ma odczytów.
+- „Przerwij robotę” pyta o potwierdzenie (domyślnie „Nie”) i zapisuje to, co zmierzono, do `dziennik_N_przerwany.csv`.
+- W trakcie roboty każdy przyjęty odczyt trafia też do pomocniczego logu `niwelacja_N.csv` (punkt, odczyt środkowy, górna i dolna kreska).
+
 ## Dziennik i pliki
 
-Po **Zakończ robotę** gra pokazuje tabelę dziennika (↑/↓ przewijanie, Enter zamyka) i zapisuje w katalogu głównym gry:
+Po **Zakończ robotę** gra pokazuje tabelę dziennika (z celowymi z dalmierza, jeśli wpisano kreski) (↑/↓ przewijanie, Enter zamyka) i zapisuje w katalogu głównym gry:
 `dziennik_N.docx` (A4 pozioma, do wydruku: tabela, Σ, fh, fh dop., wynik, data) oraz `dziennik_N.csv` (dane, średniki).
 Dziennik liczy fh = ΣΔh − (H_koniec − H_start), poprawki równomierne na stanowisko i wysokości wyrównane;
 dopuszczalny błąd fh_dop = 20 mm·√L (L w km, suma celowych). Ciąg otwarty nie ma kontroli ani poprawek.

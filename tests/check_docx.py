@@ -17,7 +17,7 @@ assert len(tables) == (2 if manual else 1), f"zla liczba tabel: {len(tables)}"
 rows = tables[0].getElementsByTagNameNS(W, "tr")
 assert len(rows) == 3 + 2, f"oczekiwano 5 wierszy (naglowek + start + 3 stanowiska), jest {len(rows)}"
 text = "".join(t.firstChild.data for t in doc.getElementsByTagNameNS(W, "t") if t.firstChild)
-needles = ["Dziennik niwelacji", "ciąg dowiązany", "Zabka & <1> żółć", "2026-11-20", "przekroczony"] + (["Sprawdzenie"] if manual else [])
+needles = ["Dziennik niwelacji", "ciąg dowiązany", "Zabka & <1> żółć", "2026-11-20", "przekroczony", "H reper B = 100.240 m"] + (["Sprawdzenie"] if manual else [])
 for needle in needles:
     assert needle in text, f"brak tekstu: {needle}"
 assert 'w:orient="landscape"' in z.read("word/document.xml").decode("utf-8")

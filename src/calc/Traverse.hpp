@@ -5,7 +5,8 @@
 
 enum class TraverseKind { Anchored, Closed, Open };   // dowiązany, zamknięty, otwarty
 
-struct Stand { int backMm; int foreMm; double sightBackCm; double sightForeCm; };
+// stadiaCm: odległość z dalmierza nitkowego [cm] albo < 0, gdy nie wpisano kresek dalmierczych.
+struct Stand { int backMm; int foreMm; double sightBackCm; double sightForeCm; double stadiaBackCm = -1, stadiaForeCm = -1; };
 
 struct TraverseResult {
   std::vector<double> dhMm, vMm, dhAdjMm;          // po jednym na stanowisko

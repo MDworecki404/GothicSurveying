@@ -19,29 +19,38 @@ namespace GOTHIC_NAMESPACE {
 
   inline void FieldBookEditRedraw() {
     if ( !gEditPanel ) return;
-    const int X[4] = { 300, 2400, 4100, 5900 };
+    const int X[6] = { 250, 1500, 2600, 3700, 5000, 6300 };   // punkt, wstecz, wprzod, | komorki: dh, [v], H
     const bool closure = gEditFb.sum.hasClosure;
     gEditPanel->ClrPrintwin();
-    gEditPanel->PrintCX( 250, zSTRING( "Dziennik - wpisz wyniki obliczen (tryb samodzielny)" ) );
-    gEditPanel->Print( X[0], 900, zSTRING( "Punkt" ) );
-    gEditPanel->Print( X[1], 900, zSTRING( "dh [mm]" ) );
-    if ( closure ) gEditPanel->Print( X[2], 900, zSTRING( "popr. v [mm]" ) );
-    gEditPanel->Print( X[closure ? 3 : 2], 900, zSTRING( "H [m]" ) );
+    gEditPanel->PrintCX( 200, zSTRING( "Dziennik - wpisz wyniki obliczen (tryb samodzielny)" ) );
+    char ref[120];
+    if ( gEditFb.kind == TraverseKind::Anchored && gEditFb.hasEnd ) sprintf( ref, "H reper A = %.3f m   H reper B = %.3f m", gEditFb.startHeightM, gEditFb.endHeightM );
+    else sprintf( ref, "H reper A = %.3f m%s", gEditFb.startHeightM, gEditFb.kind == TraverseKind::Closed ? "   (ciag zamkniety: koniec = A)" : "" );
+    gEditPanel->PrintCX( 650, zSTRING( ref ) );
+    gEditPanel->Print( X[0], 1100, zSTRING( "Punkt" ) );
+    gEditPanel->Print( X[1], 1100, zSTRING( "Wstecz" ) );
+    gEditPanel->Print( X[2], 1100, zSTRING( "Wprzod" ) );
+    gEditPanel->Print( X[3], 1100, zSTRING( "dh [mm]" ) );
+    if ( closure ) gEditPanel->Print( X[4], 1100, zSTRING( "popr. v [mm]" ) );
+    gEditPanel->Print( X[closure ? 5 : 4], 1100, zSTRING( "H [m]" ) );
     auto cell = [&]( int r, int c, int x, int y ) {
       std::string t = gEditGrid[r][c].empty() ? "_" : gEditGrid[r][c];
       if ( r == gEditRow && c == gEditCol ) t = "[" + t + "]";
       gEditPanel->Print( x, y, zSTRING( t.c_str() ) );
     };
     const int n = (int)gEditFb.rows.size();
+    char b[32];
     for ( int r = 0; r < n; r++ ) {
-      const int y = 1300 + r * 330;
+      const int y = 1500 + r * 330;
       gEditPanel->Print( X[0], y, zSTRING( gEditFb.rows[r].pointName.c_str() ) );
-      for ( int c = 0; c < EditCols( r ); c++ ) cell( r, c, X[c + 1], y );
+      sprintf( b, "%d", gEditFb.rows[r].backMm ); gEditPanel->Print( X[1], y, zSTRING( b ) );
+      sprintf( b, "%d", gEditFb.rows[r].foreMm ); gEditPanel->Print( X[2], y, zSTRING( b ) );
+      for ( int c = 0; c < EditCols( r ); c++ ) cell( r, c, X[c + 3], y );
     }
-    const int ys = 1300 + n * 330 + 250;
+    const int ys = 1500 + n * 330 + 250;
     gEditPanel->Print( X[0], ys, zSTRING( "Suma dh [mm]" ) );
-    cell( n, 0, X[1], ys );
-    if ( closure ) { gEditPanel->Print( X[2], ys, zSTRING( "fh [mm]" ) ); cell( n, 1, X[3], ys ); }
+    cell( n, 0, X[3], ys );
+    if ( closure ) { gEditPanel->Print( X[4], ys, zSTRING( "fh [mm]" ) ); cell( n, 1, X[5], ys ); }
     gEditPanel->PrintCX( 7300, zSTRING( "Strzalki - komorka, cyfry - . - wartosc, Backspace - kasuj, F12 - sprawdz" ) );
   }
 

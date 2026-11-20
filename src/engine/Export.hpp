@@ -27,6 +27,18 @@ namespace GOTHIC_NAMESPACE {
     return f.good();
   }
 
+  // Pomocniczy log pojedynczych odczytów (niwelacja_N.csv) dopisywany w trakcie roboty.
+  inline void AppendReadingLog( const std::string& file, int pointId, int midMm, int upMm, int loMm ) {
+    const bool fresh = !FileExistsRel( file );
+    std::ofstream f( file, std::ios::app );
+    if ( fresh ) f << "punkt;odczyt_srodkowa_mm;gorna_mm;dolna_mm\n";
+    f << pointId << ";" << midMm << ";" << ( upMm >= 0 ? std::to_string( upMm ) : "" ) << ";" << ( loMm >= 0 ? std::to_string( loMm ) : "" ) << "\n";
+  }
+  inline std::string NextReadingLogName() {
+    for ( int n = 1; n < 10000; n++ ) { std::string f = "niwelacja_" + std::to_string( n ) + ".csv"; if ( !FileExistsRel( f ) ) return f; }
+    return "niwelacja_9999.csv";
+  }
+
   // aborted: tylko dziennik_N_przerwany.csv (bez DOCX); zwraca true, gdy wszystkie pliki zapisano.
   inline bool ExportFieldBook( const FieldBook& fb, int seq, bool aborted, const ManualVerdict* verdict = nullptr ) {
     const std::string base = "dziennik_" + std::to_string( seq );
