@@ -73,6 +73,7 @@ src/
     LevelMath.hpp            (jest) odczyt idealny, BS/FS, dalmierz
     Traverse.hpp             przewyższenia, błąd zamknięcia, poprawki, wysokości wyrównane, fh_dop
     FieldBook.hpp            model dziennika (wiersze, podsumowanie) + eksport CSV
+    Docx.hpp                 minimalny zapis .docx (archiwum ZIP bez kompresji + WordprocessingML), bez zależności
   job/
     Job.hpp                  interfejs Job + rejestr robót
     LevelingTraverse.hpp     automat stanów ciągu niwelacyjnego (bez silnika, przez interfejs IWorld)
@@ -144,7 +145,12 @@ wyrównane) są puste do wpisania przez gracza w edytorze tabeli (kursor po kom�
 plugin porównuje każdą wpisaną komórkę z poprawną wartością (tolerancja 1 mm), oznacza trafione/chybione, pokazuje poprawne
 wartości i zapisuje do CSV obie wersje (gracza i poprawną).
 
-**Eksport:** `dziennik_N.csv` (średniki, jak dziś `niwelacja_N.csv`) w katalogu głównym gry. Dotychczasowy `niwelacja_N.csv`
+**Eksport:** po `Zakończ robotę` powstają dwa pliki w katalogu głównym gry: **`dziennik_N.docx`** (do wydruku, zdania i oddania)
+oraz `dziennik_N.csv` (dane, średniki, jak dziś `niwelacja_N.csv`). Dokument Word: strona A4 pozioma, tytuł „Dziennik niwelacji”,
+pod nim rodzaj ciągu, tryb liczenia i data (rzeczywista, z zegara systemu), tabela dziennika z kolumnami jak wyżej, podsumowanie
+(Σ, fh, fh_dop, wynik). W trybie samodzielnym dokument zawiera drugą tabelę „Sprawdzenie”: wartości gracza, poprawne i różnice.
+Plik tworzy sam plugin: `.docx` to archiwum ZIP z XML, a ZIP zapisujemy bez kompresji (metoda „stored” z CRC32), więc nie
+potrzeba żadnych bibliotek. Polskie znaki w dokumencie są dozwolone (UTF-8 w XML). Dotychczasowy `niwelacja_N.csv`
 z pojedynczymi odczytami zostaje jako log pomocniczy w trakcie roboty.
 
 **fh_dop:** ±20 mm·√L (L w km) jako domyślne kryterium niwelacji technicznej; stała konfigurowalna.
@@ -154,6 +160,9 @@ z pojedynczymi odczytami zostaje jako log pomocniczy w trakcie roboty.
 - Testy jednostkowe `calc/Traverse.hpp` (3 rodzaje ciągu, błąd zamknięcia, poprawki, kolejność odczytów), z danymi liczonymi ręcznie.
 - Test automatu `LevelingTraverse` przez sztuczne `IWorld` (poprawne i niepoprawne sekwencje kroków, przełożenie, zakończenie
   w każdym rodzaju, ścieżka przerwania).
+- Test `Docx.hpp`: wygenerowany plik rozpakowuje się standardowym ZIP-em, każdy plik XML jest poprawnym XML-em, tabela ma oczekiwaną
+  liczbę wierszy i kolumn, polskie znaki i znaki specjalne XML (`&`, `<`) są poprawnie zapisane. Dodatkowo (opcjonalnie, gdy dostępne)
+  otwarcie bibliotekami Python (`python-docx`) lub LibreOffice w trybie bez interfejsu.
 - Rzeczy zależne od silnika (menu, panele, luneta, edytor tabeli) sprawdza autor w grze; plugin loguje do `GothicSurveying.log`.
 
 ## Rozstrzygnięcia autora (jego słowami: ustalone w rozmowie)
@@ -176,7 +185,9 @@ z pojedynczymi odczytami zostaje jako log pomocniczy w trakcie roboty.
 - fh_dop = 20 mm·√L km (niwelacja techniczna).
 - Dwie łaty jako obiekty wielokrotnego użytku; punkty obrotowe z żabką pozostają na świecie.
 - Brak zapisu roboty między sesjami; przy zmianie świata zapis `dziennik_N_przerwany.csv`.
-- Dziennik pokazywany w grze jako tabela w panelu (przewijana), oprócz CSV.
+- Dziennik pokazywany w grze jako tabela w panelu (przewijana), oprócz CSV i DOCX.
+- DOCX generowany przez sam plugin (własny minimalny zapis ZIP + XML), a nie zewnętrznym skryptem Pythona; powód: działa
+  u każdego bez instalowania czegokolwiek. Data w dokumencie to rzeczywista data systemowa.
 
 ## Ryzyka i luki
 
@@ -187,6 +198,9 @@ z pojedynczymi odczytami zostaje jako log pomocniczy w trakcie roboty.
   (liczby ujemne dla Δh i poprawek) wymagają sprawdzenia w grze.
 - Panele zCView mają ograniczoną liczbę znaków w wierszu; dziennik ze wszystkimi kolumnami może nie zmieścić się na jednym
   ekranie przy 1080p – wykonawca ma dobrać czcionkę/układ albo ograniczyć kolumny na ekranie (CSV zawsze pełny).
+- **Zgodność DOCX z Wordem.** Minimalny `.docx` (`[Content_Types].xml`, `_rels/.rels`, `word/document.xml`) jest akceptowany przez Worda
+  i LibreOffice, ale błąd w strukturze objawia się komunikatem „plik uszkodzony”. Wykonawca ma sprawdzić wynik w prawdziwym Wordzie
+  lub LibreOffice; autor potwierdza otwarcie u siebie. Ograniczone formatowanie (jedna czcionka, ramki tabeli, brak stylów).
 - Wysokość terenu w grze jest dowolnym układem (Y silnika); „wysokość reperu” nie ma związku z żadnym układem odniesienia.
 
 ## Zostawione wykonawcy
