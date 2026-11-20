@@ -55,6 +55,15 @@ na punkcie końcowym **Zakończ robotę**. Punkt końcowy: dla ciągu dowiązane
 Pierwszy odczyt na stanowisku może być wstecz lub wprzód (kolejność dowolna); przewyższenie to wstecz − wprzód. Wysokość punktu to wysokość stopy łaty
 (szczyt znaku reperu lub żabki).
 
+## Dziennik i pliki
+
+Po **Zakończ robotę** gra pokazuje tabelę dziennika (↑/↓ przewijanie, Enter zamyka) i zapisuje w katalogu głównym gry:
+`dziennik_N.docx` (A4 pozioma, do wydruku: tabela, Σ, fh, fh dop., wynik, data) oraz `dziennik_N.csv` (dane, średniki).
+Dziennik liczy fh = ΣΔh − (H_koniec − H_start), poprawki równomierne na stanowisko i wysokości wyrównane;
+dopuszczalny błąd fh_dop = 20 mm·√L (L w km, suma celowych). Ciąg otwarty nie ma kontroli ani poprawek.
+Jeśli w trakcie roboty wczytasz zapis, plugin zapisze to, co zmierzono, do `dziennik_N_przerwany.csv` (bez DOCX).
+„Przerwij robotę” kończy robotę bez zapisu dziennika.
+
 ## Dalmierz nitkowy
 
 Nad i pod poziomą kreską leżą dwie krótkie kreski dalmiercze (stała k = 100). Odległość do łaty to

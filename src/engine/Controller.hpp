@@ -32,7 +32,11 @@ namespace GOTHIC_NAMESPACE {
       sprintf( b, "Dziennik gotowy: %d stan., fh = %.1f mm (dop. %.1f mm) - %s", (int)fb.rows.size(), fb.sum.fhMm, fb.sum.fhDopMm,
                fb.sum.withinTolerance ? "w tolerancji" : "PRZEKROCZONY" );
     else sprintf( b, "Dziennik gotowy: %d stan., ciag otwarty (brak kontroli)", (int)fb.rows.size() );
-    HudMessage( b );
+    const int seq = NextExportSeq();
+    const bool ok = ExportFieldBook( fb, seq, false );
+    const std::string files = "dziennik_" + std::to_string( seq ) + ".docx i .csv w katalogu gry";
+    FieldBookShow( fb, ok ? "Zapisano: " + files : "BLAD ZAPISU plikow dziennika" );
+    SvTrace( b );
     CtrlEndJob();
   }
 
@@ -92,11 +96,15 @@ namespace GOTHIC_NAMESPACE {
 
   inline void ControllerTick() {
     zCWorld* w = ogame->GetWorld();
-    if ( w != gCtrlWorld ) { CtrlForgetJob(); gCtrlWorld = w; }
+    if ( w != gCtrlWorld ) {                           // zmiana świata (wczytanie zapisu): zapisz, co się zmierzyło, i posprzątaj
+      if ( gJob ) { FieldBook part = gJob->Finish( false ); if ( !part.rows.empty() ) ExportFieldBook( part, NextExportSeq(), true ); }
+      FieldBookClose(); CtrlForgetJob(); gCtrlWorld = w;
+    }
     if ( !w ) return;
     ScopeTick();
     HudTick();
     if ( ScopeActive() ) { CtrlCloseJobHud(); return; }
+    if ( FieldBookVisible() ) { FieldBookTick(); return; }
     if ( MenuIsOpen() ) { MenuTick(); return; }
     if ( zinput->KeyToggled( LV_KEY_MENU ) ) { CtrlOpenMenu(); return; }
     if ( gJob && zinput->KeyToggled( KEY_F10 ) ) CtrlEnterScope();
