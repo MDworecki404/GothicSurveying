@@ -5,6 +5,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <limits>
 #include "calc/Docx.hpp"
 
 static bool has(const std::string& s, const std::string& part) { return s.find(part) != std::string::npos; }
@@ -40,8 +41,22 @@ static void writes_sample_file_for_python_check() {
   assert(f.good());
 }
 
+static void writes_manual_sample_with_check_table() {
+  FieldBook fb = BuildFieldBook(TraverseKind::Anchored, CalcMode::Manual, { {1500, 1200, 3000, 3000}, {1400, 1650, 3000, 3000}, {1300, 1100, 3000, 3000} },
+                                {"Zabka & <1> żółć", "2", "B"}, 100.000, 100.240, true);
+  PlayerEntries p;
+  for (const FbRow& r : fb.rows) { p.dhMm.push_back(r.dhMm); p.vMm.push_back(r.vMm); p.heightM.push_back(r.heightM); }
+  p.dhMm[1] += 5.0; p.sumDhMm = fb.sum.sumDhMm; p.fhMm = std::numeric_limits<double>::quiet_NaN();
+  ManualVerdict v = CheckManual(fb, p);
+  std::string d = BuildDocx(fb, "2026-11-20", &v);
+  assert(has(d, "Sprawdzenie"));
+  std::ofstream f("tests/out/sample_manual.docx", std::ios::binary);
+  f.write(d.data(), (std::streamsize)d.size());
+  assert(f.good());
+}
+
 int main() {
-  crc32_known_value(); zip_store_has_headers_and_entry_count(); docx_contains_required_parts(); writes_sample_file_for_python_check();
+  crc32_known_value(); zip_store_has_headers_and_entry_count(); docx_contains_required_parts(); writes_sample_file_for_python_check(); writes_manual_sample_with_check_table();
   std::puts("test_docx OK");
   return 0;
 }

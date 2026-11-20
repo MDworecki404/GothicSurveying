@@ -59,4 +59,36 @@ namespace GOTHIC_NAMESPACE {
     if ( zinput->KeyToggled( KEY_DOWN ) && gFbOffset < maxOff ) { gFbOffset++; FieldBookRedraw(); }
     if ( zinput->KeyToggled( KEY_UP ) && gFbOffset > 0 ) { gFbOffset--; FieldBookRedraw(); }
   }
+
+  // Prosty panel z listą wierszy tekstu (wynik sprawdzania w trybie samodzielnym): ↑/↓ przewijanie, Enter zamyka.
+  inline zCView*     gTxtPanel = nullptr;
+  inline std::string gTxtTitle, gTxtFooter;
+  inline std::vector<std::string> gTxtLines;
+  inline int         gTxtOffset = 0;
+  inline const int   LV_TXT_VISIBLE = 16;
+
+  inline bool TextPanelVisible() { return gTxtPanel != nullptr; }
+  inline void TextPanelRedraw() {
+    if ( !gTxtPanel ) return;
+    gTxtPanel->ClrPrintwin();
+    gTxtPanel->PrintCX( 250, zSTRING( gTxtTitle.c_str() ) );
+    int y = 1000;
+    for ( int i = gTxtOffset; i < (int)gTxtLines.size() && i < gTxtOffset + LV_TXT_VISIBLE; i++, y += 380 )
+      gTxtPanel->Print( 300, y, zSTRING( gTxtLines[i].c_str() ) );
+    gTxtPanel->PrintCX( 7450, zSTRING( gTxtFooter.c_str() ) );
+  }
+  inline void TextPanelShow( const std::string& title, const std::vector<std::string>& lines, const std::string& footer ) {
+    gTxtTitle = title; gTxtLines = lines; gTxtFooter = footer + "   (Gora/Dol - przewijanie, Enter - zamknij)"; gTxtOffset = 0;
+    if ( gTxtPanel ) PanelClose( gTxtPanel ); else ogame->Pause();
+    gTxtPanel = PanelOpen( 500, 500, 7700, 7700 );
+    TextPanelRedraw();
+  }
+  inline void TextPanelClose() { if ( !gTxtPanel ) return; PanelClose( gTxtPanel ); ogame->Unpause(); }
+  inline void TextPanelTick() {
+    if ( !gTxtPanel ) return;
+    if ( zinput->KeyToggled( KEY_RETURN ) || zinput->KeyToggled( LV_KEY_MENU ) ) { TextPanelClose(); return; }
+    int maxOff = (int)gTxtLines.size() - LV_TXT_VISIBLE; if ( maxOff < 0 ) maxOff = 0;
+    if ( zinput->KeyToggled( KEY_DOWN ) && gTxtOffset < maxOff ) { gTxtOffset++; TextPanelRedraw(); }
+    if ( zinput->KeyToggled( KEY_UP ) && gTxtOffset > 0 ) { gTxtOffset--; TextPanelRedraw(); }
+  }
 }

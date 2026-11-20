@@ -28,11 +28,11 @@ namespace GOTHIC_NAMESPACE {
   }
 
   // aborted: tylko dziennik_N_przerwany.csv (bez DOCX); zwraca true, gdy wszystkie pliki zapisano.
-  inline bool ExportFieldBook( const FieldBook& fb, int seq, bool aborted ) {
+  inline bool ExportFieldBook( const FieldBook& fb, int seq, bool aborted, const ManualVerdict* verdict = nullptr ) {
     const std::string base = "dziennik_" + std::to_string( seq );
     if ( aborted ) return WriteBytes( base + "_przerwany.csv", ToCsv( fb ) );
-    bool ok = WriteBytes( base + ".csv", ToCsv( fb ) );
-    ok = WriteBytes( base + ".docx", BuildDocx( fb, DateTodayText() ) ) && ok;
+    bool ok = WriteBytes( base + ".csv", verdict ? ToCsvWithVerdict( fb, *verdict ) : ToCsv( fb ) );
+    ok = WriteBytes( base + ".docx", BuildDocx( fb, DateTodayText(), verdict ) ) && ok;
     return ok;
   }
 }

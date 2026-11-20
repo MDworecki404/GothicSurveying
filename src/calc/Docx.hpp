@@ -5,6 +5,7 @@
 #include <utility>
 #include <vector>
 #include "FieldBook.hpp"
+#include "ManualCheck.hpp"
 
 inline uint32_t Crc32(const std::string& bytes) {
   static uint32_t table[256]; static bool ready = false;
@@ -65,7 +66,7 @@ inline std::string ZipStore(const std::vector<std::pair<std::string, std::string
   return out;
 }
 
-inline std::string BuildDocx(const FieldBook& fb, const std::string& dateText) {
+inline std::string BuildDocx(const FieldBook& fb, const std::string& dateText, const ManualVerdict* verdict = nullptr) {
   using namespace docxdetail; using namespace fbdetail;
   const bool closure = fb.sum.hasClosure;
   std::string body;
@@ -89,6 +90,17 @@ inline std::string BuildDocx(const FieldBook& fb, const std::string& dateText) {
   body += Para(closure ? "fh = " + Num(fb.sum.fhMm, 1) + " mm, fh dop. = " + Num(fb.sum.fhDopMm, 1) + " mm, wynik: " +
                              (fb.sum.withinTolerance ? "w tolerancji" : "przekroczony")
                        : std::string("Ciąg otwarty - brak kontroli (błędu zamknięcia)."), true);
+  if (verdict) {                                         // tryb samodzielny: tabela „Sprawdzenie”
+    body += Para("Sprawdzenie (tryb samodzielny): trafione " + std::to_string(verdict->ok) + " z " + std::to_string(verdict->total), true);
+    std::string t = "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblBorders>";
+    for (const char* b : {"top", "left", "bottom", "right", "insideH", "insideV"})
+      t += std::string("<w:") + b + " w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"000000\"/>";
+    t += "</w:tblBorders></w:tblPr><w:tblGrid>";
+    for (int i = 0; i < 5; i++) t += "<w:gridCol w:w=\"1500\"/>";
+    t += "</w:tblGrid>" + Row({"Komórka", "Poprawna", "Twoja", "Różnica [mm]", "Ocena"}, true);
+    for (const auto& r : VerdictRows(*verdict)) t += Row(r, false);
+    body += t + "</w:tbl>" + Para("");
+  }
   const std::string doc =
       "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
       "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>" + body +

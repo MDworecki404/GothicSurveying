@@ -9,6 +9,7 @@
 #include "engine/World.hpp"
 #include "engine/Export.hpp"
 #include "engine/FieldBookView.hpp"
+#include "engine/FieldBookEdit.hpp"
 #include "engine/Controller.hpp"
 
 namespace GOTHIC_NAMESPACE

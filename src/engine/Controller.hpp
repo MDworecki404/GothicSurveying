@@ -8,6 +8,8 @@ namespace GOTHIC_NAMESPACE {
   inline zCView*            gJobHud = nullptr;       // stały panel z bieżącym krokiem roboty
   inline std::string        gJobHudText;
 
+  inline FieldBook          gPendingFb;               // dziennik oczekujący na wpisy gracza (tryb samodzielny)
+
   inline void CtrlCloseJobHud() { PanelClose( gJobHud ); gJobHudText.clear(); }
   inline void CtrlEndJob() { gJob.reset(); gWorld.ClearAll(); CtrlCloseJobHud(); }
   inline void CtrlForgetJob() {                        // po zmianie świata: obiekty zniknęły razem ze światem
@@ -27,6 +29,10 @@ namespace GOTHIC_NAMESPACE {
   inline void CtrlFinish() {
     if ( !gJob ) return;
     FieldBook fb = gJob->Finish( true );
+    if ( fb.mode == CalcMode::Manual ) {               // tryb samodzielny: gracz sam liczy dziennik w edytorze
+      gPendingFb = fb; CtrlEndJob(); FieldBookEditStart( fb );
+      return;
+    }
     char b[200];
     if ( fb.sum.hasClosure )
       sprintf( b, "Dziennik gotowy: %d stan., fh = %.1f mm (dop. %.1f mm) - %s", (int)fb.rows.size(), fb.sum.fhMm, fb.sum.fhDopMm,
@@ -38,6 +44,21 @@ namespace GOTHIC_NAMESPACE {
     FieldBookShow( fb, ok ? "Zapisano: " + files : "BLAD ZAPISU plikow dziennika" );
     SvTrace( b );
     CtrlEndJob();
+  }
+
+  // Koniec edycji w trybie samodzielnym: sprawdź wpisy, zapisz pliki z werdyktem, pokaż wynik.
+  inline void CtrlFinishManual() {
+    ManualVerdict v = CheckManual( gPendingFb, FieldBookEditResult() );
+    const int seq = NextExportSeq();
+    const bool ok = ExportFieldBook( gPendingFb, seq, false, &v );
+    std::vector<std::string> lines;
+    for ( const auto& r : VerdictRows( v ) ) {
+      if ( r[4] != "nie" ) continue;
+      lines.push_back( r[0] + ": poprawnie " + r[1] + ( r[2].empty() ? ", nie wpisano" : ", wpisano " + r[2] + " (roznica " + r[3] + " mm)" ) );
+    }
+    if ( lines.empty() ) lines.push_back( "Wszystkie komorki poprawne!" );
+    TextPanelShow( "Sprawdzenie: trafione " + std::to_string( v.ok ) + " z " + std::to_string( v.total ), lines,
+                   ok ? "Zapisano: dziennik_" + std::to_string( seq ) + ".docx i .csv" : "BLAD ZAPISU plikow dziennika" );
   }
 
   inline void CtrlStartJob( int typeIdx, TraverseKind kind, CalcMode mode ) {
@@ -98,12 +119,15 @@ namespace GOTHIC_NAMESPACE {
     zCWorld* w = ogame->GetWorld();
     if ( w != gCtrlWorld ) {                           // zmiana świata (wczytanie zapisu): zapisz, co się zmierzyło, i posprzątaj
       if ( gJob ) { FieldBook part = gJob->Finish( false ); if ( !part.rows.empty() ) ExportFieldBook( part, NextExportSeq(), true ); }
-      FieldBookClose(); CtrlForgetJob(); gCtrlWorld = w;
+      if ( FieldBookEditActive() ) ExportFieldBook( gPendingFb, NextExportSeq(), true );
+      FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); CtrlForgetJob(); gCtrlWorld = w;
     }
     if ( !w ) return;
     ScopeTick();
     HudTick();
     if ( ScopeActive() ) { CtrlCloseJobHud(); return; }
+    if ( FieldBookEditActive() ) { if ( FieldBookEditTick() ) CtrlFinishManual(); return; }
+    if ( TextPanelVisible() ) { TextPanelTick(); return; }
     if ( FieldBookVisible() ) { FieldBookTick(); return; }
     if ( MenuIsOpen() ) { MenuTick(); return; }
     if ( zinput->KeyToggled( LV_KEY_MENU ) ) { CtrlOpenMenu(); return; }

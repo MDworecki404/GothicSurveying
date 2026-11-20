@@ -19,5 +19,10 @@ if (Test-Path $docx) {
     & python (Join-Path $root "tests\check_docx.py") $docx
     if ($LASTEXITCODE -ne 0) { $fail++; Write-Host "FAIL check_docx.py" } else { Write-Host "ok   check_docx.py" }
 }
+$docxM = Join-Path $root "tests\out\sample_manual.docx"
+if (Test-Path $docxM) {
+    & python (Join-Path $root "tests\check_docx.py") $docxM --manual
+    if ($LASTEXITCODE -ne 0) { $fail++; Write-Host "FAIL check_docx.py --manual" } else { Write-Host "ok   check_docx.py --manual" }
+}
 Pop-Location
 if ($fail -eq 0) { Write-Host "ALL OK" } else { Write-Host "$fail FAILED"; exit 1 }

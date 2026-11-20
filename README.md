@@ -64,6 +64,13 @@ dopuszczalny błąd fh_dop = 20 mm·√L (L w km, suma celowych). Ciąg otwarty 
 Jeśli w trakcie roboty wczytasz zapis, plugin zapisze to, co zmierzono, do `dziennik_N_przerwany.csv` (bez DOCX).
 „Przerwij robotę” kończy robotę bez zapisu dziennika.
 
+## Tryb samodzielny
+
+Przy starcie roboty możesz wybrać „Dziennik liczę sam”. Po **Zakończ robotę** pojawia się edytor: tabela z pustymi komórkami
+(Δh, poprawki v, wysokości wyrównane, Σ Δh, fh). Strzałki zmieniają komórkę, cyfry, `-` i `.` wpisują wartość (Δh i v w mm, H w m),
+Backspace kasuje, **F12** kończy. Plugin porównuje każdą komórkę z poprawną wartością (tolerancja 1 mm), pokazuje listę chybionych
+i zapisuje CSV oraz DOCX z tabelą „Sprawdzenie” (wartości poprawne, Twoje, różnice).
+
 ## Dalmierz nitkowy
 
 Nad i pod poziomą kreską leżą dwie krótkie kreski dalmiercze (stała k = 100). Odległość do łaty to
@@ -78,11 +85,14 @@ Opis przy decymetrze to jego numer od podstawy łaty (`14` = 1,40 m). Nieparzyst
 
 ## Struktura
 
-- `src/Level.hpp` – logika pluginu i interfejs (widok lunety, pola tekstowe, CSV), `src/LevelMath.hpp` – czysta arytmetyka niwelacji.
+- `src/calc/` – czyste obliczenia bez silnika (testowane): `LevelMath.hpp` (odczyt, dalmierz), `Traverse.hpp` (przewyższenia, fh, poprawki, wysokości),
+  `FieldBook.hpp` (dziennik + CSV), `Docx.hpp` (zapis DOCX), `ManualCheck.hpp` (sprawdzanie trybu samodzielnego).
+- `src/job/` – interfejs `Job`/`IWorld` i automat ciągu niwelacyjnego (bez silnika, testowany sztucznym światem); nowe roboty rejestruje się w `Jobs.hpp`.
+- `src/engine/` – część zależna od Gothic API: panele, stawianie, luneta, menu, adapter `EngineWorld`, kontroler, eksport, podgląd i edytor dziennika.
 - `src/Plugin.hpp` – hook `zCWorld::Render` (pętla klatki), `userapi/zCWorld.inl` – deklaracja hooka.
-- `assets/make_models.py` – generuje modele `.3DS` (łata 3 m z 6 teksturami, niwelator na statywie, żabka) i tekstury `.TGA` (podziałka, krzyż, panel).
-- `tests/test_level_math.cpp` – test arytmetyki: `g++ tests/test_level_math.cpp -o t && ./t`.
-- Reszta (`CMakeLists.txt`, `cmake/`, `scripts/`, `vdf/`) pochodzi z szablonu.
+- `assets/make_models.py` – modele `.3DS` (łata 3 m z 6 teksturami, niwelator na statywie, żabka, znak reperu) i tekstury `.TGA` (podziałka, krzyż, kreski, panel).
+- `tests/` – `powershell -File tests/run.ps1` kompiluje i uruchamia testy `g++` oraz sprawdza wygenerowane DOCX (`check_docx.py`).
+- Reszta (`CMakeLists.txt`, `cmake/`, `scripts/`, `vdf/`) pochodzi z szablonu; `scripts/build.ps1` buduje plugin, `scripts/install.ps1` instaluje w grze.
 
 ## Ustawienia
 
@@ -92,7 +102,7 @@ Jeśli cyfry na łacie są w grze do góry nogami, ustaw `FLIP_V = True` w `asse
 ## Znane ograniczenia
 
 - Plugin nie zapisuje stanu: po wyjściu z gry sprzęt trzeba postawić od nowa (wyniki zostają w CSV).
-- Brak automatycznego ciągu niwelacyjnego z wyrównaniem.
+- Tylko jedna robota (ciąg niwelacyjny); tachimetria i niwelacja trygonometryczna dojdą jako kolejne moduły `Job`.
 - Kreski dalmiercze liczone są dla pola widzenia gry; przy bardzo wąskim FOV mogą wypaść poza lunetę (wtedy są pomijane, wpis w `GothicSurveying.log`).
 - Hook na `zCWorld::Render` sprawdzono tylko na Gothic II NotR 2.6 (fix) ze Steam Gold Classic.
 
