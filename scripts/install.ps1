@@ -31,4 +31,4 @@ if ($LASTEXITCODE -ne 0) { throw "Generowanie modeli nie powiodlo sie (potrzebny
 
 # stare, skompilowane przez silnik kopie modeli i tekstur
 Remove-Item (Join-Path $Game "_work\Data\Meshes\_compiled\LVL_*"), (Join-Path $Game "_work\Data\Textures\_compiled\LVL_*") -ErrorAction SilentlyContinue
-Write-Host "Gotowe. Uruchom gre i wczytaj zapis. F7/F8/F9 stawiaja sprzet, F10 wchodzi do lunety."
+Write-Host "Gotowe. Uruchom gre i wczytaj zapis. F12 otwiera menu geodezyjne, F10 wchodzi do lunety."
