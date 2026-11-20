@@ -34,18 +34,26 @@ Jeśli `Signatures_G2A.tsv` nie powstał podczas konfiguracji, uruchom
 
 ## Sterowanie
 
+**F12** otwiera menu geodezyjne (↑/↓ wybór, Enter zatwierdza, F12 zamyka; gra jest wtedy zatrzymana).
+Poza robotą menu ma pozycję „Rozpocznij robotę”: wybierasz typ roboty (na razie ciąg niwelacyjny), rodzaj ciągu
+(dowiązany, zamknięty, otwarty) i tryb liczenia dziennika (automatyczny albo samodzielny). W trakcie roboty menu zawiera
+kroki tej roboty (niedostępne są wyszarzone z podpowiedzią), „Patrz przez lunetę” i „Przerwij robotę”; u dołu ekranu widać bieżący krok.
+
+Sprzęt staje pod stopami bohatera. Przebieg ciągu niwelacyjnego: **Postaw reper A** → **Postaw niwelator** → **Postaw łatę wstecz** →
+odczyt wstecz w lunecie → **Postaw łatę wprzód** (punkt obrotowy z żabką albo punkt końcowy) → odczyt wprzód →
+**Przełóż na następne stanowisko** (niwelator i tylna łata zabierane, łata wprzód zostaje jako wstecz) → … → po odczycie
+na punkcie końcowym **Zakończ robotę**. Punkt końcowy: dla ciągu dowiązanego reper B, dla zamkniętego powrót na reper A
+(stań na nim), dla otwartego dowolny punkt.
+
 | Klawisz | Akcja |
 |---|---|
-| **F7** | postaw niwelator pod stopami bohatera (nowe stanowisko) |
-| **F8** | postaw łatę (pierwsza łata = reper o znanej, prawdziwej wysokości) |
-| **F9** | postaw żabkę (łata postawiona < 30 cm od niej stoi na niej) |
+| **F12** | menu geodezyjne |
 | **F10** | wejdź do widoku niwelatora / wyjdź z niego (gra zatrzymana, zbliżenie 20×, krzyż kresek) |
-| **←/→** | obrót niwelatora w poziomie (**Shift** = powoli) |
-| **Enter** | odczyt: pionowa kreska musi leżeć na łacie; wpisz odczyt środkowej kreski w mm (0–9, Backspace, Enter), potem opcjonalnie górnej i dolnej kreski dalmierczej (Enter bez liczby pomija odległość); F10 anuluje |
-| **F11** | usuń wszystko |
+| **←/→** | w lunecie: obrót niwelatora w poziomie (**Shift** = powoli) |
+| **Enter** | w lunecie: odczyt; pionowa kreska musi leżeć na łacie; wpisz odczyt środkowej kreski w mm (0–9, Backspace, Enter), potem opcjonalnie górnej i dolnej kreski dalmierczej (Enter bez liczby pomija odległość); F10 anuluje |
 
-Pierwszy odczyt na stanowisku to wstecz (BS) na łacie o znanej wysokości, kolejne to w przód (FS). Linia celowa jest zawsze pozioma.
-Wyniki trafiają do `niwelacja_N.csv` w katalogu głównym gry: Twój odczyt, odczyt idealny, wysokość, błąd względem prawdziwej.
+Pierwszy odczyt na stanowisku może być wstecz lub wprzód (kolejność dowolna); przewyższenie to wstecz − wprzód. Wysokość punktu to wysokość stopy łaty
+(szczyt znaku reperu lub żabki).
 
 ## Dalmierz nitkowy
 

@@ -106,6 +106,13 @@ def build_plate():
     return m
 
 
+def build_reper():
+    m = Mesh()
+    prism(m, (0, 0, 0), (0, 0, 10), 3.5, 12, block(1))            # słupek znaku wysokościowego
+    prism(m, (0, 0, 10), (0, 0, 12), 5.0, 12, block(4))           # czerwona główka, na niej staje łata
+    return m
+
+
 # ---------- zapis .3DS ----------
 def chunk(cid, payload):
     return struct.pack("<HI", cid, 6 + len(payload)) + payload
@@ -251,7 +258,8 @@ def main():
     one = [("LVL_INSTR", "LVL_INSTR.TGA")]
     for fname, mesh, mats in (("LVL_ROD", build_rod(), [(f"LVL_ROD{k}", f"LVL_ROD{k}.TGA") for k in range(NSEG)]),
                               ("LVL_INSTR", build_instrument(), one),
-                              ("LVL_PLATE", build_plate(), one)):
+                              ("LVL_PLATE", build_plate(), one),
+                              ("LVL_REPER", build_reper(), one)):
         (meshes / f"{fname}.3DS").write_bytes(to_3ds(fname, mesh, mats))
         print(f"{fname}.3DS: {len(mesh.v)} wierzcholkow, {len(mesh.f)} trojkatow, {len(mats)} mat.")
 
