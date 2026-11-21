@@ -21,6 +21,9 @@ inline double LevelStadiaReading( double midReading, double dist, bool upper, do
   return midReading + ( upper ? 1 : -1 ) * dist / ( 2 * k );
 }
 
+// Obsadzka: losowa zmiana wysokości niwelatora o 2-7 mm; r1 (0..1) daje znak (< 0,5 = w dół), r2 (0..1) wielkość.
+inline double ObsadzkaDeltaMm( double r1, double r2 ) { return ( r1 < 0.5 ? -1.0 : 1.0 ) * ( 2.0 + 5.0 * r2 ); }
+
 // Dalmierz liczony sam z prawdziwej celowej [cm]: kreski górna/dolna odczytane z dokładnością 1 mm (jak na oko, bez szumu), D = k*(g-d).
 // Środkowa w mm (całkowita); wynik w cm.
 inline double LevelStadiaMeasured( double midMm, double sightCm, double k = 100.0 ) {

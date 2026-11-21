@@ -6,7 +6,11 @@
 enum class TraverseKind { Anchored, Closed, Open };   // dowiązany, zamknięty, otwarty
 
 // stadiaCm: odległość z dalmierza nitkowego [cm] (< 0 tylko w danych ręcznych/testach).
-struct Stand { int backMm; int foreMm; double sightBackCm; double sightForeCm; double stadiaBackCm = -1, stadiaForeCm = -1; };
+struct Stand { int backMm; int foreMm; double sightBackCm; double sightForeCm; double stadiaBackCm = -1, stadiaForeCm = -1;
+               int back2Mm = -1, fore2Mm = -1; };   // drugi komplet odczytów po obsadzce (< 0 = brak); wynik = średnia obu kompletów
+inline bool HasSecondSet(const Stand& s) { return s.back2Mm >= 0 && s.fore2Mm >= 0; }
+inline double StandBackMm(const Stand& s) { return HasSecondSet(s) ? (s.backMm + s.back2Mm) / 2.0 : s.backMm; }
+inline double StandForeMm(const Stand& s) { return HasSecondSet(s) ? (s.foreMm + s.fore2Mm) / 2.0 : s.foreMm; }
 
 struct TraverseResult {
   std::vector<double> dhMm, vMm, dhAdjMm;          // po jednym na stanowisko
@@ -24,8 +28,8 @@ inline TraverseResult ComputeTraverse(TraverseKind kind, const std::vector<Stand
   r.hasClosure = kind != TraverseKind::Open;
   double sightsCm = 0;
   for (const Stand& s : stands) {
-    r.dhMm.push_back(s.backMm - s.foreMm);
-    r.sumBackMm += s.backMm; r.sumForeMm += s.foreMm;
+    r.dhMm.push_back(StandBackMm(s) - StandForeMm(s));
+    r.sumBackMm += StandBackMm(s); r.sumForeMm += StandForeMm(s);
     sightsCm += s.sightBackCm + s.sightForeCm;
   }
   r.sumDhMm = r.sumBackMm - r.sumForeMm;

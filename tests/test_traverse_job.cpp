@@ -21,6 +21,9 @@ struct FakeWorld : IWorld {
   void RemoveInstrument() override { calls.push_back("remove_instrument"); }
   double PointHeightM(int id) const override { auto it = heights.find(id); return it == heights.end() ? 0.0 : it->second; }
   double SightDistCm(int) const override { return 3000; }
+  std::vector<double> rnd; size_t rndAt = 0; double shifted = 0;
+  double Random01() override { return rndAt < rnd.size() ? rnd[rndAt++] : 0.5; }
+  void ShiftInstrumentMm(double dy) override { shifted += dy; }
   void Say(const std::string& t) override { said.push_back(t); }
 };
 
@@ -159,6 +162,28 @@ static void rod_point_for_reports_roles() {
   assert(f.job->RodPointFor(RodRole::Fore) == 2);
 }
 
+static void obsadzka_takes_second_set_and_averages() {
+  Fx f(TraverseKind::Open); f.w.rnd = {0.9, 1.0};                    // znak +, wielkość 7 mm
+  f.menu("reper_a"); f.menu("instrument"); f.menu("rod_back");
+  assert(!f.enabled("obsadzka"));                                    // dopiero po obu odczytach
+  assert(f.read(1, 1500)); assert(!f.enabled("obsadzka"));
+  f.menu("rod_fore_end"); assert(f.read(2, 1200));
+  assert(f.enabled("obsadzka") && f.job->CanFinish());
+  f.menu("obsadzka");
+  assert(near(f.w.shifted, 7.0) && !f.job->CanFinish() && !f.enabled("obsadzka") && !f.enabled("instrument") && !f.enabled("finish"));
+  assert(f.read(1, 1507)); assert(f.read(2, 1209));                  // niwelator wyżej o 7 mm: oba odczyty większe
+  assert(f.job->CanFinish());
+  FieldBook fb = f.job->Finish(true);
+  assert(near(fb.rows[0].dhMm, 299.0) && fb.rows[0].back2Mm == 1507 && fb.rows[0].fore2Mm == 1209 && near(fb.rows[0].dh2DiffMm, 2.0));
+}
+
+static void abort_during_second_set_keeps_first_set() {
+  Fx f(TraverseKind::Open); f.menu("reper_a"); f.menu("instrument"); f.menu("rod_back"); assert(f.read(1, 1500));
+  f.menu("rod_fore_end"); assert(f.read(2, 1200)); f.menu("obsadzka"); assert(f.read(1, 1503));   // drugi komplet niepełny
+  FieldBook fb = f.job->Finish(false);
+  assert(fb.rows.size() == 1 && fb.rows[0].backMm == 1500 && fb.rows[0].foreMm == 1200 && fb.rows[0].back2Mm < 0 && near(fb.rows[0].dhMm, 300));
+}
+
 static void redo_readings_allows_second_reading() {
   Fx f; f.menu("reper_a"); f.menu("instrument"); f.menu("rod_back");
   assert(!f.enabled("redo_readings"));                                // nic jeszcze nie odczytano
@@ -186,7 +211,7 @@ int main() {
   closed_end_requires_feet_on_reper_a(); open_end_finishes_without_closure(); finish_disabled_until_end_point_read();
   abort_without_stands_returns_incomplete_empty_book(); reading_rejects_out_of_range(); reading_on_unplaced_rod_is_rejected();
   readings_order_is_free(); job_registry_lists_traverse();
-  stadia_is_measured_automatically(); rod_point_for_reports_roles(); redo_readings_allows_second_reading(); instrument_can_be_repositioned_before_readings();
+  obsadzka_takes_second_set_and_averages(); abort_during_second_set_keeps_first_set(); stadia_is_measured_automatically(); rod_point_for_reports_roles(); redo_readings_allows_second_reading(); instrument_can_be_repositioned_before_readings();
   std::puts("test_traverse_job OK");
   return 0;
 }

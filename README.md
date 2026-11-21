@@ -86,6 +86,15 @@ Przy starcie roboty możesz wybrać „Dziennik liczę sam”. Po **Zakończ rob
 Backspace kasuje, **Home** kończy. Plugin porównuje każdą komórkę z poprawną wartością (tolerancja 1 mm), pokazuje listę chybionych
 i zapisuje CSV oraz DOCX z tabelą „Sprawdzenie” (wartości poprawne, Twoje, różnice).
 
+## Obsadzka (zmiana wysokości niwelatora)
+
+Gdy na stanowisku masz odczyty wstecz i wprzód, w menu (Home) dostępna jest **Obsadzka**: niwelator zostaje losowo podniesiony albo obniżony
+o 2–7 mm (znak i wielkość losuje plugin, nie mówi którą), po czym czytasz obie łaty jeszcze raz (komplet II). Przewyższenie stanowiska
+to **średnia z obu kompletów**, a różnica Δh I − Δh II trafia do dziennika. Gdy przekracza 5 mm, w uwagach pojawia się „UWAGA: roznica obsadzek > 5 mm”.
+W CSV i DOCX są trzy dodatkowe kolumny: `odczyt_wstecz2_mm`, `odczyt_wprzod2_mm`, `roznica_dh_mm`; kolumny odczytów wstecz/wprzód zawierają komplet I,
+a tabela w grze pokazuje oba odczyty jako `I/II`. Obsadzka jest opcjonalna i możliwa na każdym stanowisku, także na końcowym (przed „Zakończ robotę”).
+Do czasu odczytów kompletu II nie można zakończyć roboty ani przełożyć niwelatora; „Przerwij” zachowuje komplet I.
+
 ## Dalmierz nitkowy
 
 Dalmierz mierzy się sam. Odległość nitkowa (k = 100) to **D = 100 × (odczyt górnej − odczyt dolnej)**. Po odczycie środkowej kreski

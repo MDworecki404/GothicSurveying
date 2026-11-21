@@ -77,15 +77,16 @@ inline std::string BuildDocx(const FieldBook& fb, const std::string& dateText, c
   for (const char* b : {"top", "left", "bottom", "right", "insideH", "insideV"})
     tbl += std::string("<w:") + b + " w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"000000\"/>";
   tbl += "</w:tblBorders></w:tblPr><w:tblGrid>";
-  for (int i = 0; i < 11; i++) tbl += "<w:gridCol w:w=\"1300\"/>";
+  for (int i = 0; i < 14; i++) tbl += "<w:gridCol w:w=\"1100\"/>";
   tbl += "</w:tblGrid>";
   tbl += Row({"Nr stan.", "Punkt", "Odczyt wstecz [mm]", "Odczyt wprzód [mm]", "Δh [mm]", "Poprawka v [mm]", "Δh wyrównane [mm]", "H [m]", "Uwagi",
-              "Celowa wstecz [m]", "Celowa wprzód [m]"}, true);
-  tbl += Row({"0", fb.startName, "", "", "", "", "", Num(fb.startHeightM, 3), "reper", "", ""}, false);
+              "Celowa wstecz [m]", "Celowa wprzód [m]", "Odczyt wstecz II [mm]", "Odczyt wprzód II [mm]", "Δh I−II [mm]"}, true);
+  tbl += Row({"0", fb.startName, "", "", "", "", "", Num(fb.startHeightM, 3), "reper", "", "", "", "", ""}, false);
   for (const FbRow& r : fb.rows)
     tbl += Row({std::to_string(r.standNo), r.pointName, std::to_string(r.backMm), std::to_string(r.foreMm), Num(r.dhMm, 1),
                 closure ? Num(r.vMm, 1) : "", closure ? Num(r.dhAdjMm, 1) : "", Num(r.heightM, 3), r.note,
-                r.stadiaBackCm >= 0 ? Num(r.stadiaBackCm / 100.0, 1) : "", r.stadiaForeCm >= 0 ? Num(r.stadiaForeCm / 100.0, 1) : ""}, false);
+                r.stadiaBackCm >= 0 ? Num(r.stadiaBackCm / 100.0, 1) : "", r.stadiaForeCm >= 0 ? Num(r.stadiaForeCm / 100.0, 1) : "",
+                ObsadzkaCells(r)[0], ObsadzkaCells(r)[1], ObsadzkaCells(r)[2]}, false);
   body += tbl + "</w:tbl>";
   body += Para("H reper A = " + Num(fb.startHeightM, 3) + " m" + (fb.kind == TraverseKind::Anchored && fb.hasEnd ? ", H reper B = " + Num(fb.endHeightM, 3) + " m" : ""));
   body += Para("Σ wstecz = " + Num(fb.sum.sumBackMm, 1) + " mm, Σ wprzód = " + Num(fb.sum.sumForeMm, 1) + " mm, ΣΔh = " + Num(fb.sum.sumDhMm, 1) +

@@ -15,6 +15,8 @@ struct FbRow {
   std::string note;
   double sightBackCm = 0, sightForeCm = 0;
   double stadiaBackCm = -1, stadiaForeCm = -1;     // z dalmierza nitkowego; < 0 = brak
+  int back2Mm = -1, fore2Mm = -1;                  // drugi komplet po obsadzce; < 0 = brak (backMm/foreMm to komplet I, dhMm to średnia)
+  double dh2DiffMm = 0;                            // Δh komplet I − Δh komplet II
 };
 
 struct FieldBook {
@@ -38,9 +40,24 @@ inline FieldBook BuildFieldBook(TraverseKind kind, CalcMode mode, const std::vec
     r.note = i + 1 == stands.size() ? (kind == TraverseKind::Open ? "punkt koncowy" : "reper") : "zabka";
     r.sightBackCm = stands[i].sightBackCm; r.sightForeCm = stands[i].sightForeCm;
     r.stadiaBackCm = stands[i].stadiaBackCm; r.stadiaForeCm = stands[i].stadiaForeCm;
+    if (HasSecondSet(stands[i])) {
+      r.back2Mm = stands[i].back2Mm; r.fore2Mm = stands[i].fore2Mm;
+      r.dh2DiffMm = (stands[i].backMm - stands[i].foreMm) - (stands[i].back2Mm - stands[i].fore2Mm);
+      if (std::fabs(r.dh2DiffMm) > 5.0) r.note += "; UWAGA: roznica obsadzek > 5 mm";
+    }
     fb.rows.push_back(r);
   }
   return fb;
+}
+
+// Odczyt do tabel w grze: "1400" albo "1400/1402" (komplet I/II).
+inline std::string ReadingPair(int a, int b) { return b < 0 ? std::to_string(a) : std::to_string(a) + "/" + std::to_string(b); }
+
+// Trzy kolumny drugiego kompletu (CSV: z separatorami, puste bez obsadzki).
+inline std::vector<std::string> ObsadzkaCells(const FbRow& r) {
+  if (r.back2Mm < 0) return {"", "", ""};
+  char b[32]; std::snprintf(b, sizeof b, "%.1f", r.dh2DiffMm + 0.0);
+  return {std::to_string(r.back2Mm), std::to_string(r.fore2Mm), b};
 }
 
 inline std::string KindName(TraverseKind k) {
@@ -66,13 +83,13 @@ inline std::string ToCsv(const FieldBook& fb) {
   const bool closure = fb.sum.hasClosure;
   std::string o;
   if (!fb.complete) o += "# UWAGA: dziennik niekompletny (robota przerwana)\n";
-  o += "nr_stanowiska;punkt;odczyt_wstecz_mm;odczyt_wprzod_mm;dh_mm;poprawka_mm;dh_wyrown_mm;H_m;uwagi;celowa_wstecz_m;celowa_wprzod_m\n";
-  o += "0;" + Csv(fb.startName) + ";;;;;;" + Num(fb.startHeightM, 3) + ";reper;;\n";
+  o += "nr_stanowiska;punkt;odczyt_wstecz_mm;odczyt_wprzod_mm;dh_mm;poprawka_mm;dh_wyrown_mm;H_m;uwagi;celowa_wstecz_m;celowa_wprzod_m;odczyt_wstecz2_mm;odczyt_wprzod2_mm;roznica_dh_mm\n";
+  o += "0;" + Csv(fb.startName) + ";;;;;;" + Num(fb.startHeightM, 3) + ";reper;;;;;\n";
   for (const FbRow& r : fb.rows) {
     o += std::to_string(r.standNo) + ";" + Csv(r.pointName) + ";" + std::to_string(r.backMm) + ";" + std::to_string(r.foreMm) + ";" +
          Num(r.dhMm, 1) + ";" + (closure ? Num(r.vMm, 1) : "") + ";" + (closure ? Num(r.dhAdjMm, 1) : "") + ";" +
          Num(r.heightM, 3) + ";" + Csv(r.note) + ";" + (r.stadiaBackCm >= 0 ? Num(r.stadiaBackCm / 100.0, 1) : "") + ";" +
-         (r.stadiaForeCm >= 0 ? Num(r.stadiaForeCm / 100.0, 1) : "") + "\n";
+         (r.stadiaForeCm >= 0 ? Num(r.stadiaForeCm / 100.0, 1) : "") + ";" + ObsadzkaCells(r)[0] + ";" + ObsadzkaCells(r)[1] + ";" + ObsadzkaCells(r)[2] + "\n";
   }
   o += "\n";
   o += "suma_wstecz_mm;" + Num(fb.sum.sumBackMm, 1) + "\nsuma_wprzod_mm;" + Num(fb.sum.sumForeMm, 1) + "\nsuma_dh_mm;" + Num(fb.sum.sumDhMm, 1) + "\n";

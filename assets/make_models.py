@@ -182,12 +182,16 @@ def hair_pixel(w, h):
 
 
 def panel_pixel(w, h):
-    """Tło pól tekstowych: ciemne, półprzezroczyste, z jasną ramką."""
-    def px(x, y):
-        if min(x, y, w - 1 - x, h - 1 - y) < 3:
-            return (225, 225, 225, 255)
-        return (8, 8, 16, 225)
-    return px
+    """Tło pól tekstowych: ciemne, półprzezroczyste (złotą ramkę rysują osobne paski LVL_GOLDH/V, żeby miała stałą grubość)."""
+    return lambda x, y: (8, 8, 16, 225)
+
+
+GOLD = [(40, 25, 8), (120, 85, 20), (205, 165, 50), (245, 215, 120), (215, 175, 60), (150, 110, 30), (90, 60, 15), (30, 18, 5)]   # ramka jak w menu Gothica
+
+
+def gold_pixel(horizontal):
+    """Pasek ramki 8x8 px: gradient ciemny brąz -> złoto -> jasne złoto -> brąz, w poprzek paska."""
+    return (lambda x, y: GOLD[y] + (255,)) if horizontal else (lambda x, y: GOLD[x] + (255,))
 
 
 FLIP_V = False   # jeśli cyfry na łacie są w grze do góry nogami, ustaw True i wygeneruj ponownie
@@ -261,6 +265,8 @@ def main():
     tga32(tex / "LVL_RETICLE.TGA", 2048, 1024, reticle_pixel(2048, 1024))   # 2x gęstsza => krzyż ok. 2x cieńszy na ekranie
     tga32(tex / "LVL_PANEL.TGA", 64, 64, panel_pixel(64, 64))
     tga32(tex / "LVL_HAIR.TGA", 16, 8, hair_pixel(16, 8))
+    tga32(tex / "LVL_GOLDH.TGA", 8, 8, gold_pixel(True))      # górny/dolny pasek ramki paneli
+    tga32(tex / "LVL_GOLDV.TGA", 8, 8, gold_pixel(False))     # lewy/prawy pasek
     one = [("LVL_INSTR", "LVL_INSTR.TGA")]
     for fname, mesh, mats in (("LVL_ROD", build_rod(), [(f"LVL_ROD{k}", f"LVL_ROD{k}.TGA") for k in range(NSEG)]),
                               ("LVL_INSTR", build_instrument(), one),

@@ -23,6 +23,8 @@ class IWorld {
   virtual void   RemoveInstrument() = 0;
   virtual double PointHeightM(int pointId) const = 0;             // prawdziwa wysokość terenu punktu
   virtual double SightDistCm(int pointId) const = 0;              // pozioma, od instrumentu
+  virtual double Random01() = 0;                                  // 0..1 (los obsadzki)
+  virtual void   ShiftInstrumentMm(double dyMm) = 0;              // podnosi (+) / obniża (-) niwelator stojący na stanowisku
   virtual void   Say(const std::string& textAscii) = 0;
 };
 

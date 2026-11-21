@@ -27,8 +27,8 @@ namespace GOTHIC_NAMESPACE {
     for ( int i = gFbOffset; i < (int)gFb.rows.size() && i < gFbOffset + LV_FB_VISIBLE_ROWS; i++, y += 270 ) {
       const FbRow& r = gFb.rows[i];
       gFbPanel->Print( X[0], y, zSTRING( r.pointName.c_str() ) );
-      sprintf( b, "%d", r.backMm );  gFbPanel->Print( X[1], y, zSTRING( b ) );
-      sprintf( b, "%d", r.foreMm );  gFbPanel->Print( X[2], y, zSTRING( b ) );
+      sprintf( b, "%s", ReadingPair( r.backMm, r.back2Mm ).c_str() );  gFbPanel->Print( X[1], y, zSTRING( b ) );
+      sprintf( b, "%s", ReadingPair( r.foreMm, r.fore2Mm ).c_str() );  gFbPanel->Print( X[2], y, zSTRING( b ) );
       sprintf( b, "%.1f", r.dhMm );  gFbPanel->Print( X[3], y, zSTRING( b ) );
       if ( gFb.sum.hasClosure ) { sprintf( b, "%.1f", r.vMm ); gFbPanel->Print( X[4], y, zSTRING( b ) ); }
       sprintf( b, "%.3f", r.heightM ); gFbPanel->Print( X[5], y, zSTRING( b ) );

@@ -19,11 +19,12 @@ class LevelingTraverse : public Job {
                                                                : "Postaw late wprzod (punkt koncowy)";
     return {
       {"reper_a", "Postaw reper A", "stan w miejscu reperu", !hasA_},
-      {"instrument", instrument_ ? "Przestaw niwelator (przed odczytami)" : "Postaw niwelator", "najpierw reper A; nie po domknieciu ciagu i nie po odczytach", hasA_ && !ended && (!instrument_ || (!backRead_ && !foreRead_))},
+      {"instrument", instrument_ ? "Przestaw niwelator (przed odczytami)" : "Postaw niwelator", "najpierw reper A; nie po domknieciu ciagu i nie po odczytach", hasA_ && !ended && !second_ && (!instrument_ || (!backRead_ && !foreRead_))},
       {"rod_back", "Postaw late wstecz", "najpierw niwelator", instrument_ && !backRod_},
       {"rod_fore_turn", "Postaw late wprzod (punkt obrotowy)", "najpierw niwelator i lata wstecz", instrument_ && backRod_ && !foreRod_},
       {"rod_fore_end", endLabel, "najpierw niwelator i lata wstecz", instrument_ && backRod_ && !foreRod_},
       {"move_next", "Przeloz na nastepne stanowisko", "po obu odczytach, na punkcie obrotowym", backRead_ && foreRead_ && !foreIsEnd_},
+      {"obsadzka", "Obsadzka: zmien wysokosc niwelatora o 2-7 mm", "po odczytach wstecz i wprzod (drugi komplet)", instrument_ && backRead_ && foreRead_ && !second_},
       {"redo_readings", "Powtorz odczyty na tym stanowisku", "najpierw jakis odczyt", instrument_ && (backRead_ || foreRead_)},
       {"finish", "Zakoncz robote", "po odczycie na punkcie koncowym", CanFinish()},
     };
@@ -38,8 +39,14 @@ class LevelingTraverse : public Job {
     } else if (id == "instrument") {
       if (!w_.PlaceInstrument()) { w_.Say("Brak gruntu pod stopami"); return; }
       instrument_ = true;
+    } else if (id == "obsadzka") {
+      first_ = Current();                                  // komplet I zostaje; po przestawieniu czytamy obie łaty jeszcze raz
+      const double sign = w_.Random01(), size = w_.Random01();      // osobno: kolejność argumentów jest nieokreślona
+      w_.ShiftInstrumentMm(ObsadzkaDeltaMm(sign, size));
+      second_ = true; backRead_ = foreRead_ = false;
+      w_.Say("Obsadzka wykonana (niwelator przestawiony o 2-7 mm). Odczytaj obie laty ponownie");
     } else if (id == "redo_readings") {
-      backRead_ = foreRead_ = false; backStadia_ = foreStadia_ = -1;
+      backRead_ = foreRead_ = false; if (!second_) backStadia_ = foreStadia_ = -1;
     } else if (id == "rod_back") {
       w_.PlaceRod(RodRole::Back, curBack_); backRod_ = true;
     } else if (id == "rod_fore_turn") {
@@ -62,7 +69,7 @@ class LevelingTraverse : public Job {
       stands_.push_back(Current());
       foreNames_.push_back(names_[forePoint_]);
       w_.RemoveInstrument(); w_.RemoveRod(RodRole::Back); w_.PlaceRod(RodRole::Back, forePoint_); w_.RemoveRod(RodRole::Fore);
-      curBack_ = forePoint_; instrument_ = false; foreRod_ = false; backRod_ = true; backRead_ = foreRead_ = false; foreIsEnd_ = false;
+      curBack_ = forePoint_; instrument_ = false; foreRod_ = false; backRod_ = true; backRead_ = foreRead_ = false; foreIsEnd_ = false; second_ = false;
       backStadia_ = foreStadia_ = -1;
     }
     // "finish": kontroler wywołuje Finish(true)
@@ -98,7 +105,7 @@ class LevelingTraverse : public Job {
                      : !backRod_ ? "postaw late wstecz"
                      : !backRead_ && !foreRod_ ? "odczyt wstecz (" LV_KEYNAME_SCOPE " - luneta) lub postaw late wprzod"
                      : !foreRod_ ? "postaw late wprzod"
-                     : !backRead_ || !foreRead_ ? "odczyty (" LV_KEYNAME_SCOPE " - luneta)"
+                     : !backRead_ || !foreRead_ ? ( second_ ? "II komplet po obsadzce: odczyty (" LV_KEYNAME_SCOPE " - luneta)" : "odczyty (" LV_KEYNAME_SCOPE " - luneta)" )
                      : "przeloz na nastepne stanowisko";
     std::snprintf(b, sizeof b, "Stanowisko %d: %s", k, todo);
     return b;
@@ -108,7 +115,8 @@ class LevelingTraverse : public Job {
 
   FieldBook Finish(bool complete) override {
     std::vector<Stand> stands = stands_; std::vector<std::string> names = foreNames_;
-    if (backRead_ && foreRead_) { stands.push_back(Current()); names.push_back(names_.count(forePoint_) ? names_.at(forePoint_) : ""); }
+    if (second_ && !(backRead_ && foreRead_)) { stands.push_back(first_); names.push_back(names_.count(forePoint_) ? names_.at(forePoint_) : ""); }   // przerwano w II komplecie: zostaje komplet I
+    else if (backRead_ && foreRead_) { stands.push_back(Current()); names.push_back(names_.count(forePoint_) ? names_.at(forePoint_) : ""); }
     const double hStart = hasA_ ? w_.PointHeightM(1) : 0.0;
     const double hEnd = (opt_.kind == TraverseKind::Anchored && foreIsEnd_) ? w_.PointHeightM(forePoint_) : hStart;
     return BuildFieldBook(opt_.kind, opt_.mode, stands, names, hStart, hEnd, complete);
@@ -116,9 +124,14 @@ class LevelingTraverse : public Job {
 
  private:
   bool Ended() const { return foreIsEnd_ && backRead_ && foreRead_; }
-  Stand Current() const { return Stand{backMm_, foreMm_, backSight_, foreSight_, backStadia_, foreStadia_}; }
+  Stand Current() const {
+    if (!second_) return Stand{backMm_, foreMm_, backSight_, foreSight_, backStadia_, foreStadia_};
+    Stand s = first_; s.back2Mm = backMm_; s.fore2Mm = foreMm_; return s;          // komplet I + II
+  }
 
   IWorld& w_; JobOptions opt_;
+  Stand first_{0, 0, 0, 0};                         // komplet I zapamiętany przy obsadzce
+  bool second_ = false;                             // trwa (albo skończony) komplet II
   bool hasA_ = false, instrument_ = false, backRod_ = false, foreRod_ = false, backRead_ = false, foreRead_ = false, foreIsEnd_ = false;
   int curBack_ = 0, forePoint_ = 0, nextId_ = 1, turnNo_ = 0, backMm_ = 0, foreMm_ = 0;
   double backSight_ = 0, foreSight_ = 0, backStadia_ = -1, foreStadia_ = -1;

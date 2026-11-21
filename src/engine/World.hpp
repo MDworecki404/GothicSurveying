@@ -1,6 +1,7 @@
 // Adapter IWorld dla silnika: markery (reper/żabka), dwie łaty (role wstecz/wprzód), niwelator. Bez strażnika include.
 // Wysokość punktu = wysokość stopy łaty (szczyt znaku/żabki), więc wszystkie odczyty liczą się względem tej samej płaszczyzny.
 #include <map>
+#include <random>
 
 namespace GOTHIC_NAMESPACE {
   class EngineWorld : public IWorld {
@@ -46,6 +47,12 @@ namespace GOTHIC_NAMESPACE {
       if ( it == pts_.end() || !hasInstr_ ) return 0;
       double dx = it->second.pos[VX] - instrGround_[VX], dz = it->second.pos[VZ] - instrGround_[VZ];
       return sqrt( dx * dx + dz * dz );
+    }
+    double Random01() override { static std::mt19937 g{ std::random_device{}() }; return std::uniform_real_distribution<double>( 0.0, 1.0 )( g ); }
+    void ShiftInstrumentMm( double dyMm ) override {   // oś lunety (kamera) i model niwelatora idą razem w górę/w dół
+      if ( !hasInstr_ ) return;
+      instrGround_[VY] += (float)( dyMm / 10.0 );
+      if ( instr_ ) instr_->SetPositionWorld( instrGround_ );
     }
     void Say( const std::string& text ) override { HudMessage( text.c_str() ); }
 

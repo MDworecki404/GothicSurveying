@@ -39,12 +39,12 @@ namespace GOTHIC_NAMESPACE {
       gEditPanel->Print( x, y, zSTRING( t.c_str() ) );
     };
     const int n = (int)gEditFb.rows.size();
-    char b[32];
+    char b[48];
     for ( int r = 0; r < n; r++ ) {
       const int y = 1500 + r * 270;
       gEditPanel->Print( X[0], y, zSTRING( gEditFb.rows[r].pointName.c_str() ) );
-      sprintf( b, "%d", gEditFb.rows[r].backMm ); gEditPanel->Print( X[1], y, zSTRING( b ) );
-      sprintf( b, "%d", gEditFb.rows[r].foreMm ); gEditPanel->Print( X[2], y, zSTRING( b ) );
+      sprintf( b, "%s", ReadingPair( gEditFb.rows[r].backMm, gEditFb.rows[r].back2Mm ).c_str() ); gEditPanel->Print( X[1], y, zSTRING( b ) );
+      sprintf( b, "%s", ReadingPair( gEditFb.rows[r].foreMm, gEditFb.rows[r].fore2Mm ).c_str() ); gEditPanel->Print( X[2], y, zSTRING( b ) );
       for ( int c = 0; c < EditCols( r ); c++ ) cell( r, c, X[c + 3], y );
     }
     const int ys = 1500 + n * 270 + 200;

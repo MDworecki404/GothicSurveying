@@ -28,6 +28,9 @@ int main() {
   assert( std::fabs( LevelStadiaMeasured( 1500, 2003 ) - 2000.0 ) < 1e-9 );
   assert( std::fabs( LevelStadiaMeasured( 1500, 2025 ) - 2020.0 ) < 1e-9 );
   assert( std::fabs( LevelStadiaMeasured( 1234, 3000 ) - 3000.0 ) < 1e-9 );
+  // obsadzka: znak z pierwszej liczby losowej, wielkość 2-7 mm z drugiej
+  assert( std::fabs( ObsadzkaDeltaMm( 0.0, 0.0 ) + 2.0 ) < 1e-9 && std::fabs( ObsadzkaDeltaMm( 0.99, 1.0 ) - 7.0 ) < 1e-9 );
+  assert( std::fabs( ObsadzkaDeltaMm( 0.7, 0.5 ) - 4.5 ) < 1e-9 && std::fabs( ObsadzkaDeltaMm( 0.2, 0.5 ) + 4.5 ) < 1e-9 );
   std::puts( "OK" );
   return 0;
 }

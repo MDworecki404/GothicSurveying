@@ -28,9 +28,9 @@ static void rows_match_traverse() {
 static void csv_has_header_start_row_and_summary() {
   FieldBook fb = BuildFieldBook(TraverseKind::Anchored, CalcMode::Auto, S3(), NAMES, 100.000, 100.240, true);
   auto l = lines(ToCsv(fb));
-  assert(l[0] == "nr_stanowiska;punkt;odczyt_wstecz_mm;odczyt_wprzod_mm;dh_mm;poprawka_mm;dh_wyrown_mm;H_m;uwagi;celowa_wstecz_m;celowa_wprzod_m");
-  assert(l[1] == "0;A;;;;;;100.000;reper;;");
-  assert(l[2] == "1;1;1500;1200;300.0;-3.3;296.7;100.297;zabka;;");
+  assert(l[0] == "nr_stanowiska;punkt;odczyt_wstecz_mm;odczyt_wprzod_mm;dh_mm;poprawka_mm;dh_wyrown_mm;H_m;uwagi;celowa_wstecz_m;celowa_wprzod_m;odczyt_wstecz2_mm;odczyt_wprzod2_mm;roznica_dh_mm");
+  assert(l[1] == "0;A;;;;;;100.000;reper;;;;;");
+  assert(l[2] == "1;1;1500;1200;300.0;-3.3;296.7;100.297;zabka;;;;;");
   std::string csv = ToCsv(fb);
   assert(has(csv, "\nfh_mm;10.0\n") && has(csv, "\nwynik;przekroczony"));
   assert(has(csv, "\nsuma_dh_mm;250.0\n") && has(csv, "\ndlugosc_m;180.0\n"));
@@ -51,7 +51,7 @@ static void incomplete_book_is_flagged() {
 static void open_book_has_no_closure_rows() {
   FieldBook fb = BuildFieldBook(TraverseKind::Open, CalcMode::Auto, S3(), {"1", "2", "3"}, 100.000, 0.0, true);
   auto l = lines(ToCsv(fb));
-  assert(l[2] == "1;1;1500;1200;300.0;;;100.300;zabka;;");
+  assert(l[2] == "1;1;1500;1200;300.0;;;100.300;zabka;;;;;");
   assert(has(ToCsv(fb), "\nwynik;brak kontroli"));
 }
 
@@ -66,7 +66,18 @@ static void stadia_columns_filled_when_entered() {
   std::vector<Stand> s = S3(); s[0].stadiaBackCm = 2000.0; s[0].stadiaForeCm = 2010.0;
   FieldBook fb = BuildFieldBook(TraverseKind::Anchored, CalcMode::Auto, s, NAMES, 100.000, 100.240, true);
   assert(near(fb.rows[0].stadiaBackCm, 2000.0) && fb.rows[1].stadiaBackCm < 0);
-  assert(lines(ToCsv(fb))[2] == "1;1;1500;1200;300.0;-3.3;296.7;100.297;zabka;20.0;20.1");
+  assert(lines(ToCsv(fb))[2] == "1;1;1500;1200;300.0;-3.3;296.7;100.297;zabka;20.0;20.1;;;");
+}
+
+static void obsadzka_averages_two_sets_and_reports_difference() {
+  std::vector<Stand> s = S3(); s[0].back2Mm = 1503; s[0].fore2Mm = 1201;          // Δh I = 300, Δh II = 302 -> średnia 301
+  FieldBook fb = BuildFieldBook(TraverseKind::Open, CalcMode::Auto, s, {"1", "2", "3"}, 100.000, 0.0, true);
+  assert(near(fb.rows[0].dhMm, 301.0) && fb.rows[0].back2Mm == 1503 && fb.rows[1].back2Mm < 0);
+  assert(near(fb.rows[0].dh2DiffMm, -2.0) && !has(fb.rows[0].note, "UWAGA"));
+  assert(near(fb.sum.sumBackMm, 1501.5 + 1400 + 1300) && near(fb.sum.sumDhMm, 301 - 250 + 200));
+  assert(has(ToCsv(fb), ";1503;1201;-2.0\n"));
+  s[0].back2Mm = 1510;                                                           // Δh II = 309: różnica 9 mm > 5 mm
+  assert(has(BuildFieldBook(TraverseKind::Open, CalcMode::Auto, s, {"1", "2", "3"}, 100.000, 0.0, true).rows[0].note, "UWAGA"));
 }
 
 static void end_height_is_kept_and_exported() {
@@ -82,7 +93,7 @@ static void end_height_is_kept_and_exported() {
 int main() {
   rows_match_traverse(); csv_has_header_start_row_and_summary(); csv_escapes_special_fields();
   incomplete_book_is_flagged(); open_book_has_no_closure_rows(); names_are_polish_utf8();
-  stadia_columns_filled_when_entered(); end_height_is_kept_and_exported();
+  obsadzka_averages_two_sets_and_reports_difference(); stadia_columns_filled_when_entered(); end_height_is_kept_and_exported();
   std::puts("test_fieldbook OK");
   return 0;
 }
