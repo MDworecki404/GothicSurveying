@@ -58,6 +58,15 @@ namespace GOTHIC_NAMESPACE {
     std::error_code ec; if ( std::filesystem::exists( file, ec ) ) std::filesystem::rename( file, dir + "/odczyty.csv", ec );
   }
 
+  // Raport GNSS: pomiar_gnss.csv + pomiar_gnss.docx; aborted: tylko pomiar_gnss_przerwany.csv.
+  inline bool ExportGnss( GnssReport r, const std::string& dir, bool aborted ) {
+    r.dateText = DateTodayText();
+    if ( aborted ) return WriteBytes( dir + "/pomiar_gnss_przerwany.csv", GnssToCsv( r ) );
+    bool ok = WriteBytes( dir + "/pomiar_gnss.csv", GnssToCsv( r ) );
+    ok = WriteBytes( dir + "/pomiar_gnss.docx", GnssBuildDocx( r ) ) && ok;
+    return ok;
+  }
+
   // aborted: tylko dziennik_przerwany.csv (bez DOCX); zwraca true, gdy wszystkie pliki zapisano.
   inline bool ExportFieldBook( const FieldBook& fb, const std::string& dir, bool aborted, const ManualVerdict* verdict = nullptr ) {
     if ( aborted ) return WriteBytes( dir + "/dziennik_przerwany.csv", ToCsv( fb ) );

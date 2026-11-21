@@ -36,7 +36,7 @@ inline std::vector<SatDir> GnssUsable(const std::vector<SatDir>& sats, const Sky
   std::vector<SatDir> used;
   for (const SatDir& d : sats) {
     const int sector = (int)std::floor(d.azDeg / 10.0) % 36;
-    if (d.elDeg > std::max(10.0, m.horizonDeg[sector])) used.push_back(d);
+    if (d.elDeg > (std::max)(10.0, m.horizonDeg[sector])) used.push_back(d);
   }
   return used;
 }
@@ -65,7 +65,7 @@ inline double GnssPdop(const std::vector<SatDir>& used) {
 }
 
 // 0 przy przeszkodzie dalszej niż 5 m, liniowo do 1 przy 0 m.
-inline double GnssMultipath(const SkyMask& m) { return std::min(1.0, std::max(0.0, 1.0 - m.nearestObstacleM / 5.0)); }
+inline double GnssMultipath(const SkyMask& m) { return (std::min)(1.0, (std::max)(0.0, 1.0 - m.nearestObstacleM / 5.0)); }
 
 inline SolType GnssClassify(int nUsed, double pdop, double multipath, double sessionSec, double tFloatSec, double tFixSec) {
   if (nUsed < 4) return SolType::None;
@@ -96,7 +96,7 @@ inline SolSigma GnssSigma(SolType t, double pdop, double multipath) {
     case SolType::Autonomous: h = 3000; v = 5000; break;
     default: return {0, 0};
   }
-  const double k = std::max(0.7, pdop / 2.0) * (1.0 + 2.0 * multipath);
+  const double k = (std::max)(0.7, pdop / 2.0) * (1.0 + 2.0 * multipath);
   return {h * k, v * k};
 }
 
@@ -153,7 +153,7 @@ class GnssSession {
     fix_.h = truth_.h + (trueM_ - setM_) + sum_[2] / cnt_ / 1000.0;
     if (cnt_ >= 2) {
       double var[3];
-      for (int i = 0; i < 3; i++) var[i] = std::max(0.0, sq_[i] / cnt_ - (sum_[i] / cnt_) * (sum_[i] / cnt_));
+      for (int i = 0; i < 3; i++) var[i] = (std::max)(0.0, sq_[i] / cnt_ - (sum_[i] / cnt_) * (sum_[i] / cnt_));
       fix_.hRmsMm = std::sqrt(var[0] + var[1]); fix_.vRmsMm = std::sqrt(var[2]);
     } else fix_.hRmsMm = fix_.vRmsMm = 0;
   }

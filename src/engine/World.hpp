@@ -1,5 +1,6 @@
 // Adapter IWorld dla silnika: markery (reper/żabka), dwie łaty (role wstecz/wprzód), niwelator. Bez strażnika include.
 // Wysokość punktu = wysokość stopy łaty (szczyt znaku/żabki), więc wszystkie odczyty liczą się względem tej samej płaszczyzny.
+#include <ctime>
 #include <map>
 #include <random>
 
@@ -47,6 +48,49 @@ namespace GOTHIC_NAMESPACE {
       if ( it == pts_.end() || !hasInstr_ ) return 0;
       double dx = it->second.pos[VX] - instrGround_[VX], dz = it->second.pos[VZ] - instrGround_[VZ];
       return sqrt( dx * dx + dz * dz );
+    }
+    // --- GNSS: tyczka z odbiornikiem, promienie do nieba, zegar gry ---
+    bool PlacePole() override {
+      zVEC3 p;
+      if ( !FeetGround( p ) ) return false;
+      RemoveVobSafe( pole_ );
+      pole_ = SpawnVob( LV_VIS_POLE, p ); poleGround_ = p; hasPole_ = true;
+      return true;
+    }
+    void RemovePole() override { RemoveVobSafe( pole_ ); hasPole_ = false; }
+    GridPos PoleGroundGrid() const override { return GnssToGrid( poleGround_[VX], poleGround_[VY], poleGround_[VZ] ); }
+    double NowSec() const override { return clock_; }
+    std::string TimeText() const override {
+      time_t t = time( nullptr ); tm lt; localtime_s( &lt, &t );
+      char b[16]; strftime( b, sizeof b, "%H:%M:%S", &lt );
+      return b;
+    }
+    void AdvanceClock( double dtSec ) { clock_ += dtSec; }
+    // Maska horyzontu: 36 sektorów po 10 stopni, promienie co 15 stopni elewacji (5-80) od szczytu tyczki; horyzont sektora =
+    // najwyższy zasłonięty kierunek + pół kroku. Najbliższa przeszkoda = najmniejsza pozioma odległość trafienia.
+    SkyMask SkyHorizon() const override {
+      SkyMask m; zCWorld* w = ogame->GetWorld();
+      if ( !hasPole_ || !w ) return m;
+      const zVEC3 from( poleGround_[VX], poleGround_[VY] + LV_POLE_H, poleGround_[VZ] );
+      const float rad = 3.14159265f / 180.0f;
+      static const int els[6] = { 5, 20, 35, 50, 65, 80 };
+      double nearestCm = 1e9;
+      for ( int s = 0; s < 36; s++ ) {
+        const float az = ( s * 10 + 5 ) * rad;
+        double blocked = 0;
+        for ( int el : els ) {
+          const float e = el * rad;
+          const zVEC3 dir( sinf( az ) * cosf( e ), sinf( e ), cosf( az ) * cosf( e ) );
+          if ( !w->TraceRayNearestHit( from, dir * 8000.0f, (zCVob*)nullptr,
+               zTRACERAY_VOB_IGNORE_NO_CD_DYN | zTRACERAY_VOB_IGNORE_CHARACTER | zTRACERAY_POLY_IGNORE_TRANSP ) ) continue;
+          blocked = el + 7.5;                           // elewacje rosną, więc zostaje najwyższa zasłonięta
+          const double d = ( w->traceRayReport.foundIntersection - from ).Length() * cosf( e );
+          if ( d < nearestCm ) nearestCm = d;
+        }
+        m.horizonDeg[s] = blocked;
+      }
+      m.nearestObstacleM = nearestCm > 1e8 ? 100.0 : nearestCm / 100.0;
+      return m;
     }
     double Random01() override { static std::mt19937 g{ std::random_device{}() }; return std::uniform_real_distribution<double>( 0.0, 1.0 )( g ); }
     void ShiftInstrumentMm( double dyMm ) override {   // oś lunety (kamera) i model niwelatora idą razem w górę/w dół
@@ -116,17 +160,17 @@ namespace GOTHIC_NAMESPACE {
     // Po zmianie świata: oddaje własne referencje bez dotykania świata (voby zwolnił już świat).
     void ForgetAll() {
       for ( auto& kv : pts_ ) DropVobRef( kv.second.marker );
-      DropVobRef( rod_[0] ); DropVobRef( rod_[1] ); DropVobRef( instr_ );
+      DropVobRef( rod_[0] ); DropVobRef( rod_[1] ); DropVobRef( instr_ ); DropVobRef( pole_ ); hasPole_ = false;
       DropVobRef( helmet_ ); DropVobRef( vest_ ); helmetNode_ = vestNode_ = nullptr;
       pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false;
     }
     bool Stale() const {                                 // któryś z naszych vobów nie należy już do bieżącego świata
       for ( const auto& kv : pts_ ) if ( VobIsStale( kv.second.marker ) ) return true;
-      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ ) || VobIsStale( helmet_ ) || VobIsStale( vest_ );
+      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ ) || VobIsStale( helmet_ ) || VobIsStale( vest_ ) || VobIsStale( pole_ );
     }
     void ClearAll() {
       for ( auto& kv : pts_ ) RemoveVobSafe( kv.second.marker );
-      RemoveVobSafe( rod_[0] ); RemoveVobSafe( rod_[1] ); RemoveVobSafe( instr_ );
+      RemoveVobSafe( rod_[0] ); RemoveVobSafe( rod_[1] ); RemoveVobSafe( instr_ ); RemoveVobSafe( pole_ ); hasPole_ = false;
       DressOff();
       pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false;
     }
@@ -141,6 +185,7 @@ namespace GOTHIC_NAMESPACE {
     zCVob* rod_[2] = { nullptr, nullptr };
     int rodPoint_[2] = { -1, -1 };
     zCVob* instr_ = nullptr; zVEC3 instrGround_; bool hasInstr_ = false;
+    zCVob* pole_ = nullptr; zVEC3 poleGround_; bool hasPole_ = false; double clock_ = 0;   // GNSS: tyczka i zegar gry [s]
     zCVob *helmet_ = nullptr, *vest_ = nullptr; zCModelNodeInst *helmetNode_ = nullptr, *vestNode_ = nullptr;
     zVEC3 dressPos_[2] = { zVEC3( 1e9f, 0, 0 ), zVEC3( 1e9f, 0, 0 ) }, dressAt_[2] = { zVEC3( 0, 0, 0 ), zVEC3( 0, 0, 0 ) };
   };

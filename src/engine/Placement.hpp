@@ -4,6 +4,8 @@ namespace GOTHIC_NAMESPACE {
   inline const char*  LV_VIS_ROD   = "LVL_ROD.3DS";
   inline const char*  LV_VIS_PLATE = "LVL_PLATE.3DS";
   inline const char*  LV_VIS_REPER = "LVL_REPER.3DS";
+  inline const char*  LV_VIS_POLE  = "LVL_POLE.3DS";     // tyczka z odbiornikiem GNSS (2,00 m + antena)
+  inline const float  LV_POLE_H    = 200.0f;             // wysokość tyczki [cm]; promienie do nieba idą od jej szczytu
   inline const char*  LV_VIS_HELMET = "LVL_HELMET.3DS";   // kask i kamizelka odblaskowa bohatera (doczepiane do węzłów szkieletu)
   inline const char*  LV_VIS_VEST  = "LVL_VEST.3DS";
   inline const float  LV_INSTR_H   = 150.0f;            // wysokość osi lunety nad gruntem [cm]
