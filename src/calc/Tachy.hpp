@@ -1,0 +1,68 @@
+// Obliczenia tachimetryczne (bez Gothic API): kąty w gradach, orientacja, odczyty z szumem, wynik biegunowy, warunek celowania.
+// Azymut od północy (+Z = N) zgodnie z ruchem wskazówek zegara (+X = E). Odległości i współrzędne w metrach.
+#pragma once
+#include <cmath>
+#include "Gnss.hpp"
+
+inline const double TACHY_PI = 3.14159265358979323846;
+
+inline double GonToDeg(double g) { return g * 0.9; }
+inline double DegToGon(double d) { return d / 0.9; }
+inline double NormDeg(double d) {
+  if (!std::isfinite(d)) return 0.0;
+  d = std::fmod(d, 360.0); if (d < 0) d += 360.0;
+  return d >= 360.0 ? 0.0 : d;
+}
+inline double NormGon(double g) {
+  if (!std::isfinite(g)) return 0.0;
+  g = std::fmod(g, 400.0); if (g < 0) g += 400.0;
+  return g >= 400.0 ? 0.0 : g;
+}
+
+// Azymut z punktu 1 do punktu 2 [stopnie, 0-360).
+inline double TachyAzimuthDeg(double n1, double e1, double n2, double e2) { return NormDeg(std::atan2(e2 - e1, n2 - n1) * 180.0 / TACHY_PI); }
+
+struct TachyNoise { double angleArcsec = 5.0, distMm = 2.0, distPpm = 2.0; };
+struct TachyReading { double hzGon, vGon, slopeM; };          // V = kąt zenitalny
+struct TachyStation { double n, e, h; double instrH = 1.5; double azBackDeg = 0.0; double az0Deg = 0.0; };   // az0 = azymut kamery na nawiązanie
+
+// Orientacja: gracz celuje w nawiązanie; zapamiętany azymut kamery z szumem kątowym.
+inline double TachyOrient(double camAzDeg, const TachyNoise& nz, GnssRng& rng) {
+  const double noise = nz.angleArcsec / 3600.0 * rng.Normal();
+  return NormDeg((std::isfinite(camAzDeg) ? camAzDeg : 0.0) + noise);
+}
+
+inline TachyReading TachyMeasure(double camAzDeg, double camPitchDeg, double az0Deg, double trueSlopeM, const TachyNoise& nz, GnssRng& rng) {
+  const double aNoise = nz.angleArcsec / 3600.0;
+  const double az = std::isfinite(camAzDeg) ? camAzDeg : 0.0, pitch = std::isfinite(camPitchDeg) ? camPitchDeg : 0.0;
+  const double hzDeg = NormDeg(az - az0Deg + aNoise * rng.Normal());
+  double vDeg = 90.0 - pitch + aNoise * rng.Normal();
+  vDeg = (std::min)(180.0, (std::max)(0.0, vDeg));
+  const double d = (std::max)(0.0, trueSlopeM);
+  const double slope = d + (nz.distMm / 1000.0 + nz.distPpm * 1e-6 * d) * rng.Normal();
+  return {NormGon(DegToGon(hzDeg)), DegToGon(vDeg), (std::max)(0.0, slope)};
+}
+
+struct TachyResult { double n, e, h, hDistM, azDeg; };
+
+// Wynik biegunowy z odczytów: Az = azymut nawiązania + Hz, d = D sin V, H = Hs + ih + D cos V - wysokość lustra.
+inline TachyResult TachyPolar(const TachyStation& st, const TachyReading& r, double prismSetM) {
+  const double az = NormDeg(st.azBackDeg + GonToDeg(r.hzGon)), azRad = az * TACHY_PI / 180.0;
+  const double vRad = GonToDeg(r.vGon) * TACHY_PI / 180.0;
+  const double d = r.slopeM * std::sin(vRad);
+  return {st.n + d * std::cos(azRad), st.e + d * std::sin(azRad), st.h + st.instrH + r.slopeM * std::cos(vRad) - prismSetM, d, az};
+}
+
+struct TachyAim { double lateralM, verticalM, distM; bool ok; };
+
+// Błąd celowania: (dN, dE, dH) od oka lunety do środka celu; ok gdy linia celowa mija cel o <= 8 cm w obu osiach i odległość to 3-300 m.
+inline TachyAim TachyAimError(double dN, double dE, double dH, double camAzDeg, double camPitchDeg) {
+  const double hDist = std::hypot(dN, dE), slope = std::hypot(hDist, dH);
+  double diff = std::fmod(std::atan2(dE, dN) * 180.0 / TACHY_PI - camAzDeg, 360.0);
+  if (diff > 180.0) diff -= 360.0;
+  if (diff < -180.0) diff += 360.0;
+  const double lateral = std::fabs(diff) < 90.0 ? hDist * std::sin(diff * TACHY_PI / 180.0) : hDist;   // za plecami: nigdy ok
+  const double vdiff = (std::atan2(dH, hDist) * 180.0 / TACHY_PI - camPitchDeg) * TACHY_PI / 180.0;
+  const double vertical = slope * std::sin(vdiff);
+  return {lateral, vertical, slope, std::fabs(lateral) <= 0.08 && std::fabs(vertical) <= 0.08 && slope >= 3.0 && slope <= 300.0};
+}
