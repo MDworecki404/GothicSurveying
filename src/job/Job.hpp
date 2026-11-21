@@ -39,6 +39,10 @@ class IWorld {
   // Tachimetria
   virtual GridPos  StationGrid() const { return GridPos{0, 0, 0}; }            // prawdziwe wspolrzedne gruntu pod tachimetrem
   virtual GridPos  PointGrid(int pointId) const { return GridPos{0, 0, 0}; }   // prawdziwe wspolrzedne znaku (nawiazanie)
+  virtual bool     PlaceTachymeter() { return false; }                         // tachimetr (nie niwelator) na statywie pod stopami
+  virtual bool     PlaceBacksight() { return false; }                          // znak nawiazania z lustrem na tyczce, pod stopami
+  virtual void     SetPrismHeightM(double heightM) { (void)heightM; }          // fizyczna wysokosc lustra (model tyczek)
+  virtual bool     TraceSight(double camAzDeg, double camPitchDeg, GridPos& hit, double& slopeM) const { (void)camAzDeg; (void)camPitchDeg; (void)hit; (void)slopeM; return false; }   // pomiar bezlustrowy: pierwszy trafiony punkt
   virtual bool     PlacePrism() { return false; }                              // tyczka z lustrem (w miejscu tyczki GNSS); false = brak gruntu
   virtual bool     LineClear(bool toPrism) const { (void)toPrism; return true; }   // linia celowa od oka do lustra / znaku niezaslonieta
 };

@@ -107,6 +107,15 @@ w `odczyty_biezace.csv`.
 - `job`: kolejność kroków i dostępność menu z fałszywym światem, odmowa pomiaru bez orientacji, błędy celowania, przerwanie z częściowym raportem.
 - Silnik: sprawdza użytkownik w grze (widok z pochyleniem, celowanie, zapis plików).
 
+## Zmiany po testach w grze (2026-11-21)
+
+- Własny model tachimetru na statywie (`LVL_TACHY.3DS`) zamiast modelu niwelatora; oś lunety nadal 1,500 m nad gruntem.
+- **Lustro na nawiązaniu**: znak reperu ma tyczkę z lustrem; orientacja polega na celowaniu w środek tego lustra (nie w znak na gruncie).
+- **Wysokość lustra jest fizyczna**: tyczki (nawiązanie i pomiarowa) mają modele `LVL_PRISM13/15/18/20.3DS` o tej wysokości; instrument
+  odejmuje tę samą wysokość, więc nie ma sztucznego błędu w H z niezgodności ustawienia i modelu (błąd wynika z celowania i szumu).
+- **Pomiar bezlustrowy** (menu „Rodzaj pomiaru”): odległość z promienia do pierwszego trafionego punktu (1,5–300 m, szum odległości 3 mm + 2 ppm),
+  bez wysokości lustra, punkt z uwagą „bezlustrowy”; prawdziwy błąd liczony względem trafionego punktu.
+
 ## Zostawione budowniczemu
 
 Rozmieszczenie paneli, wygląd modelu lustra, dokładne progi celowania (strojone w grze), nazwy pól CSV poza wymienionymi, sposób współdzielenia

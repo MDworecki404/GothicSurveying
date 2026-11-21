@@ -35,8 +35,8 @@ STEROWANIE
   "Przeloz na nastepne stanowisko", ..., punkt koncowy, "Zakoncz robote".
 - F10: widok przez lunete (strzalki - obrot, Shift - powoli, Enter - odczyt; wpisz odczyt
   srodkowej kreski w mm cyframi 0-9; dalmierz liczy sie sam; Z / X - obrot na late wstecz / wprzod).
-- Tachimetria: "Rozpocznij robote" -> "Tachimetria (pomiar biegunowy)"; stanowisko, punkt nawiazania, orientacja (Enter w lunecie na znaku),
-  tyczka z lustrem, pomiar punktow (F10 luneta, strzalki obracaja i pochylaja); wynik: pomiar_tachimetryczny.csv i .docx w folderze roboty.
+- Tachimetria: "Rozpocznij robote" -> "Tachimetria (pomiar biegunowy)"; tachimetr na statywie, punkt nawiazania z lustrem, orientacja (Enter w lunecie na lustrze),
+  tyczka z lustrem o wybranej wysokosci albo pomiar bezlustrowy (F10 luneta, strzalki obracaja i pochylaja); wynik: pomiar_tachimetryczny.csv i .docx w folderze roboty.
 - Pomiar GNSS (RTK): "Rozpocznij robote" -> "Pomiar GNSS (RTK)"; tyczka z odbiornikiem, panel w lewym gornym rogu,
   "Zapisz punkt" po fixie; wynik: pomiar_gnss.csv i pomiar_gnss.docx w folderze roboty.
 - Wynik: tabela w grze oraz pliki dziennik.docx, dziennik.csv i odczyty.csv w folderze

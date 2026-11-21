@@ -117,23 +117,30 @@ dodatkowe kolumny `blad_N_m`, `blad_E_m`, `blad_H_m`, `blad_2D_m` względem punk
 ## Tachimetria (pomiar biegunowy)
 
 „Rozpocznij robotę” → „Tachimetria (pomiar biegunowy)” (pytanie, czy pokazać prawdziwy błąd po pomiarze). Cel: nauczyć się ustawiać stanowisko,
-orientować tachimetr na nawiązanie i mierzyć punkty metodą biegunową. Współrzędne wychodzą z **odczytanych** kątów i odległości, więc widać
-błąd celowania i szum instrumentu, a nie wynik „z gry”.
+orientować tachimetr na lustro stojące na nawiązaniu i mierzyć punkty metodą biegunową. Współrzędne wychodzą z **odczytanych** kątów i odległości,
+więc widać błąd celowania i szum instrumentu, a nie wynik „z gry”.
 
-Przebieg: **Postaw tachimetr (stanowisko)** (pod stopami; jego współrzędne są znane) → **Postaw punkt nawiązania** (znak reperu, znany azymut) →
-**Orientacja na nawiązanie** (wchodzisz do lunety, celujesz w znak, **Enter** zeruje koło poziome) → **Postaw tyczkę z lustrem** (1,500 m) →
-**Patrz przez lunetę** (**F10**) i mierz punkty: celujesz krzyżem w lustro, **Enter**. Potem **Zakończ robotę**.
+Przebieg: **Postaw tachimetr (stanowisko)** (tachimetr na statywie pod stopami; jego współrzędne są znane) → **Postaw punkt nawiązania (lustro)**
+(znak reperu z tyczką i lustrem, znany azymut) → **Orientacja na lustro nawiązania** (wchodzisz do lunety, celujesz w środek lustra, **Enter** zeruje
+koło poziome; od razu można mierzyć) → **Postaw tyczkę z lustrem** → **Patrz przez lunetę** (**F10**) i mierz punkty: krzyż na środku lustra, **Enter**.
+Potem **Zakończ robotę**.
+
+**Rodzaj pomiaru** (menu): *na lustro* albo *bezlustrowy*. Pomiar bezlustrowy nie wymaga tyczki: celujesz w dowolny punkt terenu lub budynku, a odległość
+mierzy promień (pierwszy trafiony punkt, od 1,5 m do 300 m, szum odległości 3 mm + 2 ppm); wysokość lustra nie jest odejmowana, a punkt ma uwagę
+„bezlustrowy”.
+
+**Wysokość lustra** (menu: 1,500 / 1,800 / 2,000 / 1,300 m) to **fizyczna wysokość środka lustra**: tyczka na punkcie nawiązania i tyczka pomiarowa mają
+model o tej wysokości, a krzyż trzeba ustawić na środku lustra na tej wysokości. Instrument zna tę wysokość i odejmuje ją od wyniku.
 
 W lunecie: **← →** obrót w poziomie, **↑ ↓** pochylanie w pionie, **Shift** = powoli, **Enter** wykonuje orientację albo pomiar, **F10** wychodzi.
-Panel w lewym dolnym rogu pokazuje tryb, Hz i V na żywo (grady), liczbę punktów i ostatni wynik. Pomiar wymaga trafienia środkiem krzyża w lustro
-(±8 cm), odległości 3–300 m i niezasłoniętej linii celowej; przed pomiarem trzeba zorientować tachimetr.
+Panel w lewym dolnym rogu pokazuje tryb, Hz i V na żywo (grady), rodzaj pomiaru, liczbę punktów i ostatni wynik. Pomiar na lustro wymaga trafienia
+środkiem krzyża w środek lustra (±8 cm), odległości 3–300 m i niezasłoniętej linii celowej; przed pomiarem trzeba zorientować tachimetr.
 
 Obliczenia: `Az = azymut nawiązania + Hz`, `d = D·sin V`, `N = Ns + d·cos Az`, `E = Es + d·sin Az`, `H = Hs + ih + D·cos V − wysokość lustra`
-(`ih` = 1,500 m, V = kąt zenitalny). Szum: kąty 5″, odległość 2 mm + 2 ppm. **Wysokość lustra** ma presety 1,500 / 1,800 / 2,000 / 1,300 m
-(prawdziwa 1,500 m; zły preset daje błąd systematyczny w H). Przestawienie stanowiska albo nawiązania unieważnia orientację.
-Kąty w gradach, odległości i współrzędne w metrach (układ lokalny jak w GNSS). Wyniki: `pomiar_tachimetryczny.csv` i `.docx` w folderze roboty
-(przerwana: `pomiar_tachimetryczny_przerwany.csv`), każdy punkt od razu w `odczyty_biezace.csv`; opcja prawdziwego błędu dodaje kolumny
-`blad_N_m`, `blad_E_m`, `blad_H_m`, `blad_2D_m`.
+(`ih` = 1,500 m, V = kąt zenitalny). Szum: kąty 5″, odległość 2 mm + 2 ppm (3 mm + 2 ppm bezlustrowo). Przestawienie stanowiska albo nawiązania
+unieważnia orientację. Kąty w gradach, odległości i współrzędne w metrach (układ lokalny jak w GNSS). Wyniki: `pomiar_tachimetryczny.csv` i `.docx`
+w folderze roboty (przerwana: `pomiar_tachimetryczny_przerwany.csv`), każdy punkt od razu w `odczyty_biezace.csv`; opcja prawdziwego błędu dodaje
+kolumny `blad_N_m`, `blad_E_m`, `blad_H_m`, `blad_2D_m` (przy pomiarze bezlustrowym względem trafionego punktu).
 
 ## Obsadzka (zmiana wysokości niwelatora)
 
