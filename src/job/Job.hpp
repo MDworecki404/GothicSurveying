@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include "calc/FieldBook.hpp"
+#include "calc/Control.hpp"
 #include "calc/GnssReport.hpp"
 #include "calc/TachyReport.hpp"
 
@@ -36,6 +37,7 @@ class IWorld {
   virtual GridPos  PoleGroundGrid() const { return GridPos{0, 0, 0}; }   // prawdziwe wspolrzedne gruntu pod tyczka
   virtual double   NowSec() const { return 0; }                   // czas gry [s]; stoi, gdy gra zatrzymana
   virtual std::string TimeText() const { return ""; }             // czas rzeczywisty GG:MM:SS do dziennika
+  virtual std::string StoreControlPoint(const ControlPoint& cp) { (void)cp; return ""; }   // osnowa: zapis punktu i znak w swiecie; zwraca id ("" = blad)
   // Tachimetria
   virtual GridPos  StationGrid() const { return GridPos{0, 0, 0}; }            // prawdziwe wspolrzedne gruntu pod tachimetrem
   virtual GridPos  PointGrid(int pointId) const { return GridPos{0, 0, 0}; }   // prawdziwe wspolrzedne znaku (nawiazanie)
