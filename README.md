@@ -34,7 +34,7 @@ Jeśli `Signatures_G2A.tsv` nie powstał podczas konfiguracji, uruchom
 
 ## Wydanie (paczka do rozpakowania)
 
-`python scripts/package.py 0.1.1` (po `scripts/build.ps1`) tworzy `release/GothicSurveying-v0.1.1-G2A.zip`. Archiwum ma układ folderu gry
+`python scripts/package.py 0.1.2` (po `scripts/build.ps1`) tworzy `release/GothicSurveying-v0.1.2-G2A.zip`. Archiwum ma układ folderu gry
 (`system/Autorun/...` i `_work/Data/...`) i `INSTALACJA.txt`; wystarczy je rozpakować w folderze Gothic II z zainstalowanym Union.
 
 ## Sterowanie
@@ -43,6 +43,8 @@ Jeśli `Signatures_G2A.tsv` nie powstał podczas konfiguracji, uruchom
 Poza robotą menu ma pozycję „Rozpocznij robotę”: wybierasz typ roboty (na razie ciąg niwelacyjny), rodzaj ciągu
 (dowiązany, zamknięty, otwarty) i tryb liczenia dziennika (automatyczny albo samodzielny). W trakcie roboty menu zawiera
 kroki tej roboty (niedostępne są wyszarzone z podpowiedzią), „Patrz przez lunetę” i „Przerwij robotę”; u dołu ekranu widać bieżący krok.
+
+Na czas roboty bohater zakłada żółty kask i kamizelkę odblaskową (modele doczepione do węzłów `ZS_HELMET` i `ZS_TORSO`, jego pancerz zostaje); zdejmuje je po **Zakończ robotę** (także po „Przerwij” i po wczytaniu zapisu).
 
 Sprzęt staje pod stopami bohatera. Przebieg ciągu niwelacyjnego: **Postaw reper A** → **Postaw niwelator** → **Postaw łatę wstecz** →
 odczyt wstecz w lunecie → **Postaw łatę wprzód** (punkt obrotowy z żabką albo punkt końcowy) → odczyt wprzód →

@@ -4,6 +4,8 @@ namespace GOTHIC_NAMESPACE {
   inline const char*  LV_VIS_ROD   = "LVL_ROD.3DS";
   inline const char*  LV_VIS_PLATE = "LVL_PLATE.3DS";
   inline const char*  LV_VIS_REPER = "LVL_REPER.3DS";
+  inline const char*  LV_VIS_HELMET = "LVL_HELMET.3DS";   // kask i kamizelka odblaskowa bohatera (doczepiane do węzłów szkieletu)
+  inline const char*  LV_VIS_VEST  = "LVL_VEST.3DS";
   inline const float  LV_INSTR_H   = 150.0f;            // wysokość osi lunety nad gruntem [cm]
   inline const float  LV_PLATE_H   = 4.5f;              // wysokość żabki [cm]
   inline const float  LV_REPER_H   = 12.0f;             // wysokość znaku reperu [cm]; łata staje na jego szczycie

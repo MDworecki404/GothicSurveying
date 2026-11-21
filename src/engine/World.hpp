@@ -62,23 +62,47 @@ namespace GOTHIC_NAMESPACE {
         if ( d.Length() > 0.1f ) { d.Normalize(); rod_[r]->SetHeadingAtWorld( d ); }
       }
     }
+    // Kask i kamizelka doczepione do węzłów szkieletu bohatera (ZS_HELMET, ZS_TORSO); nie ruszają jego pancerza ani hełmu.
+    void DressOn() {
+      if ( !player || helmet_ || vest_ ) return;
+      zCModel* model = player->GetModel();
+      if ( !model ) return;
+      helmet_ = AttachToNode( model, LV_VIS_HELMET, "ZS_HELMET" );
+      vest_   = AttachToNode( model, LV_VIS_VEST, "ZS_TORSO" );
+    }
+    void DressOff() {
+      zCModel* model = player ? player->GetModel() : nullptr;
+      for ( zCVob** v : { &helmet_, &vest_ } ) {
+        if ( *v && model ) model->RemoveChildVobFromNode( *v );   // zawsze: model bohatera przeżywa zmianę świata
+        RemoveVobSafe( *v );
+      }
+    }
     // Po zmianie świata: oddaje własne referencje bez dotykania świata (voby zwolnił już świat).
     void ForgetAll() {
       for ( auto& kv : pts_ ) DropVobRef( kv.second.marker );
       DropVobRef( rod_[0] ); DropVobRef( rod_[1] ); DropVobRef( instr_ );
+      DressOff();
       pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false;
     }
     bool Stale() const {                                 // któryś z naszych vobów nie należy już do bieżącego świata
       for ( const auto& kv : pts_ ) if ( VobIsStale( kv.second.marker ) ) return true;
-      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ );
+      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ ) || VobIsStale( helmet_ ) || VobIsStale( vest_ );
     }
     void ClearAll() {
       for ( auto& kv : pts_ ) RemoveVobSafe( kv.second.marker );
       RemoveVobSafe( rod_[0] ); RemoveVobSafe( rod_[1] ); RemoveVobSafe( instr_ );
+      DressOff();
       pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false;
     }
 
    private:
+    static zCVob* AttachToNode( zCModel* model, const char* visual, const char* node ) {
+      zCModelNodeInst* n = model->SearchNode( zSTRING( node ) );
+      if ( !n ) { SvTrace( "brak wezla szkieletu dla ubioru" ); return nullptr; }
+      zCVob* v = SpawnVob( visual, player->GetPositionWorld() );
+      model->AttachChildVobToNode( v, n );
+      return v;
+    }
     struct Pt { zVEC3 pos; zCVob* marker = nullptr; bool reper = false; };
     zVEC3 Foot( int pointId ) const {
       const Pt& pt = pts_.at( pointId );
@@ -88,5 +112,6 @@ namespace GOTHIC_NAMESPACE {
     zCVob* rod_[2] = { nullptr, nullptr };
     int rodPoint_[2] = { -1, -1 };
     zCVob* instr_ = nullptr; zVEC3 instrGround_; bool hasInstr_ = false;
+    zCVob *helmet_ = nullptr, *vest_ = nullptr;
   };
 }

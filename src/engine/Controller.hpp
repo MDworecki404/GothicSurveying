@@ -76,6 +76,7 @@ namespace GOTHIC_NAMESPACE {
   inline void CtrlStartJob( int typeIdx, TraverseKind kind, CalcMode mode ) {
     gJob = JobTypes()[typeIdx].create( gWorld, JobOptions{ kind, mode } );
     gReadingLog = NextReadingLogName();
+    gWorld.DressOn();                                  // zdejmuje CtrlEndJob (Zakończ / Przerwij / zmiana świata)
     HudMessage( ( "Robota: " + gJob->Name() + ". " LV_KEYNAME_MENU " - menu" ).c_str() );
   }
 
