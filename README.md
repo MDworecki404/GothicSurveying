@@ -99,6 +99,13 @@ wypełnione, z rozdzielczością 0,1 m wynikającą z zaokrąglenia do 1 mm. Dwi
 Wszystkie klawisze są stałymi w `src/Keys.hpp`. Pod F11 jest menu GD3D11, F12 to zrzut ekranu Steam, F5/F6 to zapis/odczyt gry,
 więc menu geodezyjne jest pod **Home**, luneta pod **F10**, a obrót na łatę pod **Z** / **X**.
 
+## Licencje modeli
+
+Kask i kamizelka odblaskowa to modele z Sketchfab na licencji [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), uproszczone i
+skonwertowane do `.3DS` (`assets/import_glb.py`): [„Construction Hat”](https://sketchfab.com/3d-models/construction-hat-80094363c4c24725be0ff0bb9f3b65e5)
+autorstwa ermalkoci i [„safety vest”](https://sketchfab.com/3d-models/safety-vest-8510a33da89a41cea6150b2af4d10df0) autorstwa teacherap123.
+Pozostałe modele są generowane przez `assets/make_models.py`.
+
 ## Jak czytać łatę
 
 Opis przy decymetrze to jego numer od podstawy łaty (`14` = 1,40 m). Nieparzyste metry są czerwone. Centymetry liczysz w literze E

@@ -69,21 +69,40 @@ namespace GOTHIC_NAMESPACE {
       zCModel* model = player->GetModel();
       if ( !model ) return;
       helmetNode_ = model->SearchNode( zSTRING( "ZS_HELMET" ) );
-      vestNode_   = model->SearchNode( zSTRING( "ZS_TORSO" ) );
+      for ( const char* name : { "ZS_TORSO", "BIP01 SPINE2", "BIP01 SPINE1", "BIP01 SPINE" } ) {   // ZS_TORSO nie istnieje w modelu bohatera
+        vestNode_ = model->SearchNode( zSTRING( name ) );
+        SvTrace( ( std::string( "wezel " ) + name + ( vestNode_ ? ": jest" : ": brak" ) ).c_str() );
+        if ( vestNode_ ) break;
+      }
       if ( !helmetNode_ || !vestNode_ ) SvTrace( "brak wezla szkieletu dla ubioru" );
+      dressPos_[0] = dressPos_[1] = zVEC3( 1e9f, 0, 0 ); dressAt_[0] = dressAt_[1] = zVEC3( 0, 0, 0 );
       if ( helmetNode_ ) helmet_ = SpawnVob( LV_VIS_HELMET, player->GetPositionWorld() );
       if ( vestNode_ )   vest_   = SpawnVob( LV_VIS_VEST, player->GetPositionWorld() );
       DressTick();
+      for ( int i = 0; i < 2; i++ ) {                   // diagnostyka: gdzie leża węzły względem stóp bohatera
+        zCModelNodeInst* n = i ? vestNode_ : helmetNode_;
+        if ( !n ) continue;
+        zVEC3 d = model->GetNodePositionWorld( n ) - player->GetPositionWorld();
+        char b[96]; sprintf( b, "wezel %s wzgl. bohatera: dx=%.1f dy=%.1f dz=%.1f", i ? "kamizelki" : "ZS_HELMET", d[VX], d[VY], d[VZ] );
+        SvTrace( b );
+      }
     }
-    void DressTick() {
+    void DressTick() {                                 // tanio: ruszamy voba tylko, gdy węzeł lub kierunek bohatera naprawdę się zmieniły
       zCModel* model = player ? player->GetModel() : nullptr;
       if ( !model || ( !helmet_ && !vest_ ) ) return;
       zVEC3 at = player->GetAtVectorWorld(); at[VY] = 0;
+      if ( at.Length() > 0.01f ) at.Normalize();
       for ( int i = 0; i < 2; i++ ) {
         zCVob* v = i ? vest_ : helmet_;
         if ( !v || VobIsStale( v ) ) continue;
-        v->SetPositionWorld( model->GetNodePositionWorld( i ? vestNode_ : helmetNode_ ) );
-        if ( at.Length() > 0.01f ) { at.Normalize(); v->SetHeadingAtWorld( at ); }
+        const zVEC3 pos = model->GetNodePositionWorld( i ? vestNode_ : helmetNode_ );
+        const zVEC3 d = pos - dressPos_[i];
+        const bool moved = d[VX] * d[VX] + d[VY] * d[VY] + d[VZ] * d[VZ] > 0.04f;
+        const bool turned = ( at[VX] * dressAt_[i][VX] + at[VZ] * dressAt_[i][VZ] ) < 0.99995f;
+        if ( moved || turned ) {                        // pełny obrót bohatera (też pochylenie) + pozycja węzła
+          zMAT4 m = player->trafoObjToWorld; m.SetTranslation( pos );
+          v->SetTrafoObjToWorld( m ); dressPos_[i] = pos; dressAt_[i] = at;
+        }
       }
     }
     void DressOff() { RemoveVobSafe( helmet_ ); RemoveVobSafe( vest_ ); helmetNode_ = vestNode_ = nullptr; }
@@ -116,5 +135,6 @@ namespace GOTHIC_NAMESPACE {
     int rodPoint_[2] = { -1, -1 };
     zCVob* instr_ = nullptr; zVEC3 instrGround_; bool hasInstr_ = false;
     zCVob *helmet_ = nullptr, *vest_ = nullptr; zCModelNodeInst *helmetNode_ = nullptr, *vestNode_ = nullptr;
+    zVEC3 dressPos_[2] = { zVEC3( 1e9f, 0, 0 ), zVEC3( 1e9f, 0, 0 ) }, dressAt_[2] = { zVEC3( 0, 0, 0 ), zVEC3( 0, 0, 0 ) };
   };
 }

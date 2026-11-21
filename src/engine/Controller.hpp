@@ -21,7 +21,15 @@ namespace GOTHIC_NAMESPACE {
   inline void CtrlEnterScope() {
     if ( !gJob || !gWorld.HasInstrument() || gJob->ActiveRodPoints().empty() ) { HudMessage( "Najpierw postaw niwelator i late (" LV_KEYNAME_MENU ")" ); return; }
     ScopeCallbacks cb;
-    cb.targets = []() { std::vector<RodTarget> t; if ( gJob ) for ( int pid : gJob->ActiveRodPoints() ) t.push_back( { pid, gWorld.PointFoot( pid ) } ); return t; };
+    cb.targets = []() {
+      std::vector<RodTarget> t;
+      if ( !gJob ) return t;
+      for ( int pid : gJob->ActiveRodPoints() ) {
+        const bool back = gJob->RodPointFor( RodRole::Back ) == pid, fore = gJob->RodPointFor( RodRole::Fore ) == pid;
+        t.push_back( { pid, gWorld.PointFoot( pid ), back && fore ? "wstecz/wprzod" : fore ? "wprzod" : "wstecz" } );
+      }
+      return t;
+    };
     cb.rodFoot = []( bool fore, zVEC3& foot ) {
       const int pid = gJob ? gJob->RodPointFor( fore ? RodRole::Fore : RodRole::Back ) : -1;
       if ( pid < 0 ) return false;
@@ -149,7 +157,7 @@ namespace GOTHIC_NAMESPACE {
       FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); CtrlForgetJob(); gCtrlWorld = w;
     }
     if ( !w ) return;
-    gWorld.DressTick();
+    if ( !MenuIsOpen() && !ScopeActive() ) gWorld.DressTick();   // przy zatrzymanej grze nic się nie rusza
     ScopeTick();
     HudTick();
     if ( ScopeActive() ) { CtrlCloseJobHud(); return; }

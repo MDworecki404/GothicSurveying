@@ -16,7 +16,7 @@ namespace GOTHIC_NAMESPACE {
   inline const float  LV_STADIA_K  = 100.0f;   // stała dalmierza nitkowego (kreski na krzyżu są tylko wizualne; odczyt liczy robota)
   inline const float  LV_TURN_AUTO = 300.0f;   // obrót na łatę [stopnie/s]: 180 stopni w ok. 0,6 s
 
-  struct RodTarget { int pointId; zVEC3 foot; };
+  struct RodTarget { int pointId; zVEC3 foot; const char* role; };   // role: "wstecz", "wprzod" lub "wstecz/wprzod"
   struct ScopeCallbacks {
     std::function<std::vector<RodTarget>()> targets;                           // łaty do wyboru pod pionową kreską
     std::function<bool( bool fore, zVEC3& foot )> rodFoot;                     // stopa łaty wprzód/wstecz; false = brak takiej łaty
@@ -32,6 +32,8 @@ namespace GOTHIC_NAMESPACE {
   inline zCView   *gReticle = nullptr, *gHairU = nullptr, *gHairL = nullptr, *gEntryPanel = nullptr;
   inline ScopeCallbacks gCb;
   inline int       gEntryPoint = -1, gEntryLen = 0, gEntryMm = 0;
+  inline zCView*   gHintPanel = nullptr;               // lewy górny róg: klawisze Z/X i łata pod pionową kreską
+  inline std::string gHintText, gEntryRole;
 
   inline bool ScopeActive() { return gScopeOn; }
 
@@ -68,7 +70,7 @@ namespace GOTHIC_NAMESPACE {
     if ( !gScopeOn ) return;
     gScopeOn = gEntry = false;
     ScopeApplyZoom();                                // przywraca FOV
-    PanelClose( gHairU ); PanelClose( gHairL ); PanelClose( gEntryPanel ); gHairsDone = false;
+    PanelClose( gHairU ); PanelClose( gHairL ); PanelClose( gEntryPanel ); PanelClose( gHintPanel ); gHintText.clear(); gHairsDone = false;
     if ( gReticle ) { gReticle->Close(); screen->RemoveItem( gReticle ); delete gReticle; gReticle = nullptr; }
     HudClose();
     if ( player ) player->showVisual = 1;
@@ -95,17 +97,35 @@ namespace GOTHIC_NAMESPACE {
     SvTrace( "widok lunety: wlaczony" );
   }
 
-  // Enter w widoku: łata pod pionową kreską krzyża, sprawdź celową i przejdź do wpisywania odczytów.
-  inline void ScopeBeginReading() {
-    zCWorld* world = ogame->GetWorld();
+  // Łata pod pionową kreską krzyża (indeks w targets albo -1); fwd = odległość wzdłuż osi lunety.
+  inline int ScopeRodUnderLine( const std::vector<RodTarget>& targets, double* fwdOut = nullptr ) {
     const zVEC3 dir( sinf( gAz ), 0, cosf( gAz ) );
-    std::vector<RodTarget> targets = gCb.targets ? gCb.targets() : std::vector<RodTarget>();
-    int best = -1; double bestLat = 1e9, bestFwd = 0;
+    int best = -1; double bestLat = 1e9;
     for ( size_t i = 0; i < targets.size(); i++ ) {
       double dx = targets[i].foot[VX] - gInstrGround[VX], dz = targets[i].foot[VZ] - gInstrGround[VZ];
       double fwd = dx * dir[VX] + dz * dir[VZ], lat = fabs( dx * dir[VZ] - dz * dir[VX] );
-      if ( fwd > 100.0 && fwd < LV_MAX_DIST && lat < LV_ROD_HALF && lat < bestLat ) { best = (int)i; bestLat = lat; bestFwd = fwd; }
+      if ( fwd > 100.0 && fwd < LV_MAX_DIST && lat < LV_ROD_HALF && lat < bestLat ) { best = (int)i; bestLat = lat; if ( fwdOut ) *fwdOut = fwd; }
     }
+    return best;
+  }
+
+  // Podpowiedź w lewym górnym rogu: skróty Z/X oraz to, na którą łatę celuje pionowa kreska (albo trwający wpis).
+  inline void ScopeUpdateHint( const std::string& aim ) {
+    const std::string line2 = aim.empty() ? "Celujesz: brak lat" : "Celujesz: lata " + aim;
+    if ( line2 == gHintText && gHintPanel ) return;
+    gHintText = line2;
+    if ( !gHintPanel ) gHintPanel = PanelOpen( 150, 150, 3900, 1050 );
+    gHintPanel->ClrPrintwin();
+    gHintPanel->PrintCX( 1800, zSTRING( LV_KEYNAME_ROD_BACK " - lata wstecz   " LV_KEYNAME_ROD_FORE " - lata wprzod" ) );
+    gHintPanel->PrintCX( 4300, zSTRING( line2.c_str() ) );
+  }
+
+  // Enter w widoku: łata pod pionową kreską krzyża, sprawdź celową i przejdź do wpisywania odczytów.
+  inline void ScopeBeginReading() {
+    zCWorld* world = ogame->GetWorld();
+    std::vector<RodTarget> targets = gCb.targets ? gCb.targets() : std::vector<RodTarget>();
+    double bestFwd = 0;
+    int best = ScopeRodUnderLine( targets, &bestFwd );
     if ( best < 0 ) { HudMessage( "Pionowa kreska nie lezy na lacie" ); return; }
     const RodTarget& r = targets[best];
 
@@ -123,7 +143,7 @@ namespace GOTHIC_NAMESPACE {
     double ideal = LevelReading( lineY, r.foot[VY], bestFwd, 0.0, 0.0 );
     if ( ideal < 0 || ideal > LV_ROD_LEN ) { HudMessage( "Pozioma kreska jest poza lata (nad nia lub pod nia)" ); return; }
 
-    gEntry = true; gEntryPoint = r.pointId; gEntryLen = 0; gEntryMm = 0; gTurning = false;
+    gEntryRole = r.role; gEntry = true; gEntryPoint = r.pointId; gEntryLen = 0; gEntryMm = 0; gTurning = false;
     HudClose();
     gEntryPanel = PanelOpen( 2000, 5500, 6200, 7500 );   // pole wpisywania na dole lunety
   }
@@ -155,7 +175,7 @@ namespace GOTHIC_NAMESPACE {
       }
       if ( gEntry && gEntryPanel ) {
         char b[96];
-        sprintf( b, "Lata %d - srodkowa kreska [mm]:", gEntryPoint );
+        sprintf( b, "Lata %s (punkt %d) - srodkowa kreska [mm]:", gEntryRole.c_str(), gEntryPoint );
         gEntryPanel->ClrPrintwin();
         gEntryPanel->PrintCX( 700, zSTRING( b ) );
         sprintf( b, "%d", gEntryMm );
@@ -183,6 +203,16 @@ namespace GOTHIC_NAMESPACE {
         if ( fabsf( diff ) <= step ) { gAz = gTurnTo; gTurning = false; } else gAz += diff > 0 ? step : -step;
       }
       if ( zinput->KeyToggled( KEY_RETURN ) ) ScopeBeginReading();
+    }
+
+    {                                                  // podpowiedź: podczas wpisu - łata wpisywana, inaczej - łata pod pionową kreską
+      std::string aim = gEntryRole;
+      if ( !gEntry ) {
+        std::vector<RodTarget> t = gCb.targets ? gCb.targets() : std::vector<RodTarget>();
+        const int i = ScopeRodUnderLine( t );
+        aim = i < 0 ? "" : t[i].role;
+      }
+      ScopeUpdateHint( aim );
     }
 
     // kamera w osi lunety, patrzy poziomo w kierunku azymutu

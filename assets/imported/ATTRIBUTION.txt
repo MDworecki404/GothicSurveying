@@ -1,0 +1,6 @@
+Modele z Sketchfab na licencji CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), uproszczone i skonwertowane do .3DS (assets/import_glb.py):
+
+- "Construction Hat" autor ermalkoci (https://sketchfab.com/ermalkoci)
+  https://sketchfab.com/3d-models/construction-hat-80094363c4c24725be0ff0bb9f3b65e5   -> LVL_HELMET.3DS (siatka zredukowana, kolor zmieniony)
+- "safety vest" autor teacherap123 (https://sketchfab.com/teacherap123)
+  https://sketchfab.com/3d-models/safety-vest-8510a33da89a41cea6150b2af4d10df0         -> LVL_VEST.3DS, LVL_VESTC.TGA (tekstura zmniejszona do 512x512)

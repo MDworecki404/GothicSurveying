@@ -38,6 +38,10 @@ STEROWANIE
 - Wynik: tabela w grze oraz pliki dziennik_N.docx i dziennik_N.csv w katalogu roboczym gry
   (przerwana robota: dziennik_N_przerwany.csv).
 
+LICENCJE MODELI
+Kask: "Construction Hat" by ermalkoci, kamizelka: "safety vest" by teacherap123 (Sketchfab, CC BY 4.0,
+https://creativecommons.org/licenses/by/4.0/); zmienione: uproszczone i skonwertowane do .3DS. Zrodla: assets/imported/ATTRIBUTION.txt w repozytorium.
+
 ODINSTALOWANIE
 Usun: system\Autorun\GothicSurveying.dll, system\Autorun\UnionAPI.dll, system\Autorun\Signatures\Signatures_G2A.tsv,
 pliki LVL_* z _work\Data\Meshes i _work\Data\Textures (oraz z ich podfolderow _compiled).

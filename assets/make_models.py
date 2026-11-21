@@ -7,6 +7,7 @@ Każdy trójkąt jest zapisany w obu kierunkach (obustronny), więc kierunek śc
 Łata to 6 odcinków po 50 cm, każdy z własną teksturą 256x2048 (~41 px/cm pionowo), żeby w lunecie było widać podziałkę.
 """
 import math
+import shutil
 import struct
 import sys
 from pathlib import Path
@@ -103,36 +104,6 @@ def build_plate():
     m = Mesh()
     prism(m, (0, 0, 0), (0, 0, 3), 10, 12, block(1))              # żabka: stalowy talerz
     prism(m, (0, 0, 3), (0, 0, 4.5), 2.0, 12, block(1))           # grzybek, na którym stoi łata
-    return m
-
-
-def hv(i):  # atlas odzieży 4 bloki po 16 px: żółty | srebrny pasek odblaskowy | ciemny | jasny żółty
-    return lambda p: ((i + 0.5) / 4, 0.5)
-
-
-def build_helmet():
-    """Kask budowlany: kopuła z pierścieni, rondo i daszek z przodu (+Y). Początek = węzeł ZS_HELMET, kopuła nad nim."""
-    m = Mesh()
-    z = 0.0
-    for r, h in ((11.5, 2.0), (11.0, 3.0), (10.0, 3.0), (8.0, 2.5), (5.0, 1.5)):   # kopuła
-        prism(m, (0, 0, z), (0, 0, z + h), r, 12, hv(0)); z += h
-    prism(m, (0, 0, 0), (0, 0, 1.2), 14.0, 12, hv(0))                              # rondo
-    box(m, 0, 11.5, 0.6, 16, 6, 1.2, hv(0))                                         # daszek
-    box(m, 0, 0, 12.8, 2.5, 16, 1.0, hv(3))                                         # grzebień na kopule
-    return m
-
-
-def build_vest():
-    """Kamizelka odblaskowa: przód i tył z poziomymi srebrnymi pasami, szelki na ramionach. Początek = węzeł ZS_TORSO."""
-    m = Mesh()
-    for y in (12.0, -12.0):                                                         # przód (+Y) i tył
-        box(m, 0, y, 0, 36, 1.5, 40, hv(0))
-        for z in (-8.0, 6.0):
-            box(m, 0, y + (0.4 if y > 0 else -0.4), z, 36.4, 1.9, 4, hv(1))
-    for x in (-10.0, 10.0):
-        box(m, x, 0, 20.5, 5, 25, 1.5, hv(0))                                       # szelka przez ramię
-    for x in (-18.0, 18.0):
-        box(m, x, 0, 0, 1.5, 24, 40, hv(0))                                         # boki
     return m
 
 
@@ -291,14 +262,14 @@ def main():
     tga32(tex / "LVL_PANEL.TGA", 64, 64, panel_pixel(64, 64))
     tga32(tex / "LVL_HAIR.TGA", 16, 8, hair_pixel(16, 8))
     one = [("LVL_INSTR", "LVL_INSTR.TGA")]
-    hv_mat = [("LVL_HIVIS", "LVL_HIVIS.TGA")]
-    for fname, mesh, mats in (("LVL_HELMET", build_helmet(), hv_mat), ("LVL_VEST", build_vest(), hv_mat),
-                              ("LVL_ROD", build_rod(), [(f"LVL_ROD{k}", f"LVL_ROD{k}.TGA") for k in range(NSEG)]),
+    for fname, mesh, mats in (("LVL_ROD", build_rod(), [(f"LVL_ROD{k}", f"LVL_ROD{k}.TGA") for k in range(NSEG)]),
                               ("LVL_INSTR", build_instrument(), one),
                               ("LVL_PLATE", build_plate(), one),
                               ("LVL_REPER", build_reper(), one)):
         (meshes / f"{fname}.3DS").write_bytes(to_3ds(fname, mesh, mats))
         print(f"{fname}.3DS: {len(mesh.v)} wierzcholkow, {len(mesh.f)} trojkatow, {len(mats)} mat.")
+    for f in sorted((Path(__file__).parent / "imported").glob("LVL_*")):     # kask i kamizelka z import_glb.py (CC-BY, ATTRIBUTION.txt)
+        shutil.copy(f, (meshes if f.suffix.upper() == ".3DS" else tex) / f.name)
 
 
 if __name__ == "__main__":
