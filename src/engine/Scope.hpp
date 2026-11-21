@@ -60,7 +60,7 @@ namespace GOTHIC_NAMESPACE {
       zCView* v = new zCView( 3500, y - 11, 4700, y + 11 );
       v->InsertBack( "LVL_HAIR.TGA" );
       v->SetAlphaBlendFunc( zRND_ALPHA_FUNC_BLEND );
-      screen->InsertItem( v ); v->Open();
+      screen->InsertItem( v ); ViewOpenNow( v );
       return v;
     };
     gHairU = hair( 4096 - off ); gHairL = hair( 4096 + off );
@@ -91,7 +91,7 @@ namespace GOTHIC_NAMESPACE {
     gReticle->InsertBack( LV_RETICLE );
     gReticle->SetAlphaBlendFunc( zRND_ALPHA_FUNC_BLEND );
     screen->InsertItem( gReticle );
-    gReticle->Open();
+    ViewOpenNow( gReticle );
     gScopeOn = true; gEntry = gTurning = false; gLastTick = GetTickCount();
     ogame->Pause();
     SvTrace( "widok lunety: wlaczony" );

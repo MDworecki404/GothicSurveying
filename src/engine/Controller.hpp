@@ -7,7 +7,8 @@ namespace GOTHIC_NAMESPACE {
   inline zCWorld*           gCtrlWorld = nullptr;
   inline zCView*            gJobHud = nullptr;       // stały panel z bieżącym krokiem roboty
   inline std::string        gJobHudText;
-  inline std::string        gReadingLog;              // niwelacja_N.csv: pomocniczy log odczytów bieżącej roboty
+  inline std::string        gReadingLog;              // GothicSurveying/odczyty_biezace.csv: log odczytów bieżącej roboty (po końcu trafia do folderu roboty)
+  inline std::string        gJobDir;                  // folder zakończonej roboty: GothicSurveying/<data_godzina>
 
   inline FieldBook          gPendingFb;               // dziennik oczekujący na wpisy gracza (tryb samodzielny)
 
@@ -46,9 +47,20 @@ namespace GOTHIC_NAMESPACE {
     ScopeEnter( gWorld.InstrumentGround(), cb );
   }
 
+  // Przerwana robota (Przerwij / wczytanie zapisu): zapisuje, co zmierzono, do nowego folderu; zwraca go albo "" gdy nie było czego zapisać.
+  inline std::string CtrlSavePartial( const FieldBook& part ) {
+    if ( part.rows.empty() && !FileExistsRel( gReadingLog ) ) return "";
+    const std::string dir = MakeJobDir();
+    if ( !part.rows.empty() ) ExportFieldBook( part, dir, true );
+    MoveReadingLog( gReadingLog, dir );
+    return dir;
+  }
+
   inline void CtrlFinish() {
     if ( !gJob ) return;
     FieldBook fb = gJob->Finish( true );
+    gJobDir = MakeJobDir();                            // nazwa folderu = czas zakończenia roboty
+    MoveReadingLog( gReadingLog, gJobDir );
     if ( fb.mode == CalcMode::Manual ) {               // tryb samodzielny: gracz sam liczy dziennik w edytorze
       gPendingFb = fb; CtrlEndJob(); FieldBookEditStart( fb );
       return;
@@ -58,10 +70,8 @@ namespace GOTHIC_NAMESPACE {
       sprintf( b, "Dziennik gotowy: %d stan., fh = %.1f mm (dop. %.1f mm) - %s", (int)fb.rows.size(), fb.sum.fhMm, fb.sum.fhDopMm,
                fb.sum.withinTolerance ? "w tolerancji" : "PRZEKROCZONY" );
     else sprintf( b, "Dziennik gotowy: %d stan., ciag otwarty (brak kontroli)", (int)fb.rows.size() );
-    const int seq = NextExportSeq();
-    const bool ok = ExportFieldBook( fb, seq, false );
-    const std::string files = "dziennik_" + std::to_string( seq ) + ".docx i .csv w katalogu gry";
-    FieldBookShow( fb, ok ? "Zapisano: " + files : "BLAD ZAPISU plikow dziennika" );
+    const bool ok = ExportFieldBook( fb, gJobDir, false );
+    FieldBookShow( fb, ok ? "Zapisano w folderze: " + gJobDir : "BLAD ZAPISU plikow dziennika" );
     SvTrace( b );
     CtrlEndJob();
   }
@@ -69,8 +79,7 @@ namespace GOTHIC_NAMESPACE {
   // Koniec edycji w trybie samodzielnym: sprawdź wpisy, zapisz pliki z werdyktem, pokaż wynik.
   inline void CtrlFinishManual() {
     ManualVerdict v = CheckManual( gPendingFb, FieldBookEditResult() );
-    const int seq = NextExportSeq();
-    const bool ok = ExportFieldBook( gPendingFb, seq, false, &v );
+    const bool ok = ExportFieldBook( gPendingFb, gJobDir, false, &v );
     std::vector<std::string> lines;
     for ( const auto& r : VerdictRows( v ) ) {
       if ( r[4] != "nie" ) continue;
@@ -78,12 +87,12 @@ namespace GOTHIC_NAMESPACE {
     }
     if ( lines.empty() ) lines.push_back( "Wszystkie komorki poprawne!" );
     TextPanelShow( "Sprawdzenie: trafione " + std::to_string( v.ok ) + " z " + std::to_string( v.total ), lines,
-                   ok ? "Zapisano: dziennik_" + std::to_string( seq ) + ".docx i .csv" : "BLAD ZAPISU plikow dziennika" );
+                   ok ? "Zapisano w folderze: " + gJobDir : "BLAD ZAPISU plikow dziennika" );
   }
 
   inline void CtrlStartJob( int typeIdx, TraverseKind kind, CalcMode mode ) {
     gJob = JobTypes()[typeIdx].create( gWorld, JobOptions{ kind, mode } );
-    gReadingLog = NextReadingLogName();
+    gReadingLog = PrepareReadingLog();
     gWorld.DressOn();                                  // zdejmuje CtrlEndJob (Zakończ / Przerwij / zmiana świata)
     HudMessage( ( "Robota: " + gJob->Name() + ". " LV_KEYNAME_MENU " - menu" ).c_str() );
   }
@@ -112,12 +121,12 @@ namespace GOTHIC_NAMESPACE {
 
   inline void CtrlConfirmAbort() {                     // domyślnie „Nie”, żeby jeden Enter nie kasował roboty
     MenuOpen( MenuView{ "Przerwac robote?", { { "no", "Nie, wracam do roboty", "", true },
-                                              { "yes", "Tak, przerwij (zapisze dziennik_N_przerwany.csv)", "", true } } },
+                                              { "yes", "Tak, przerwij (zapisze to, co zmierzono)", "", true } } },
               []( const std::string& id ) {
       if ( id != "yes" || !gJob ) return;
       FieldBook part = gJob->Finish( false );
-      if ( !part.rows.empty() ) ExportFieldBook( part, NextExportSeq(), true );
-      HudMessage( part.rows.empty() ? "Robota przerwana" : "Robota przerwana, zapisano dziennik_N_przerwany.csv" );
+      const std::string dir = CtrlSavePartial( part );
+      HudMessage( dir.empty() ? "Robota przerwana" : ( "Robota przerwana, zapisano w folderze: " + dir ).c_str() );
       CtrlEndJob();
     } );
   }
@@ -152,8 +161,8 @@ namespace GOTHIC_NAMESPACE {
   inline void ControllerTick() {
     zCWorld* w = ogame->GetWorld();
     if ( w != gCtrlWorld || ( w && gWorld.Stale() ) ) {   // inny świat albo ten sam obiekt świata po wczytaniu zapisu (voby zniknęły)                           // zmiana świata (wczytanie zapisu): zapisz, co się zmierzyło, i posprzątaj
-      if ( gJob ) { FieldBook part = gJob->Finish( false ); if ( !part.rows.empty() ) ExportFieldBook( part, NextExportSeq(), true ); }
-      if ( FieldBookEditActive() ) { gPendingFb.complete = false; ExportFieldBook( gPendingFb, NextExportSeq(), true ); }
+      if ( gJob ) CtrlSavePartial( gJob->Finish( false ) );
+      if ( FieldBookEditActive() ) { gPendingFb.complete = false; ExportFieldBook( gPendingFb, gJobDir, true ); }
       FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); CtrlForgetJob(); gCtrlWorld = w;
     }
     if ( !w ) return;

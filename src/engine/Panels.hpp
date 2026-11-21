@@ -15,10 +15,15 @@ namespace GOTHIC_NAMESPACE {
   inline const int LV_FRAME_PX = 5;                           // grubość złotej ramki paneli [piksele ekranu]
   inline std::map<zCView*, std::vector<zCView*>> gPanelFrames;   // cztery paski ramki każdego panelu (zamykane razem z nim)
 
+  inline void ViewOpenNow( zCView* v ) {                       // bez animacji powiększania przy otwieraniu i zamykaniu
+    v->fxOpen = zCView::VIEW_FX_NONE; v->fxClose = zCView::VIEW_FX_NONE;
+    v->Open(); v->ForceOpen();
+  }
+
   inline zCView* PanelBar( int x0, int y0, int x1, int y1, const char* tex ) {
     zCView* b = new zCView( x0, y0, x1, y1 );
     b->InsertBack( tex );
-    screen->InsertItem( b ); b->Open();
+    screen->InsertItem( b ); ViewOpenNow( b );
     return b;
   }
 
@@ -28,7 +33,7 @@ namespace GOTHIC_NAMESPACE {
     v->SetAlphaBlendFunc( zRND_ALPHA_FUNC_BLEND );
     v->SetFont( LV_FONT );
     screen->InsertItem( v );
-    v->Open();
+    ViewOpenNow( v );
     const int tx = screen->nax( LV_FRAME_PX ), ty = screen->nay( LV_FRAME_PX );   // stała grubość w pikselach, niezależnie od rozmiaru panelu
     gPanelFrames[v] = { PanelBar( x0, y0, x1, y0 + ty, "LVL_GOLDH.TGA" ), PanelBar( x0, y1 - ty, x1, y1, "LVL_GOLDH.TGA" ),
                         PanelBar( x0, y0, x0 + tx, y1, "LVL_GOLDV.TGA" ), PanelBar( x1 - tx, y0, x1, y1, "LVL_GOLDV.TGA" ) };

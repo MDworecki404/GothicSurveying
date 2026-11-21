@@ -67,16 +67,16 @@ Pierwszy odczyt na stanowisku może być wstecz lub wprzód (kolejność dowolna
 
 - „Powtórz odczyty na tym stanowisku” kasuje odczyty bieżącego stanowiska (np. po pomyłce przy wpisywaniu), a „Przestaw niwelator” pozwala
   postawić go w innym miejscu, dopóki nie ma odczytów.
-- „Przerwij robotę” pyta o potwierdzenie (domyślnie „Nie”) i zapisuje to, co zmierzono, do `dziennik_N_przerwany.csv`.
-- W trakcie roboty każdy przyjęty odczyt trafia też do pomocniczego logu `niwelacja_N.csv` (punkt, odczyt środkowy).
+- „Przerwij robotę” pyta o potwierdzenie (domyślnie „Nie”) i zapisuje to, co zmierzono, jako `dziennik_przerwany.csv` w folderze roboty.
+- W trakcie roboty każdy przyjęty odczyt trafia też do pomocniczego logu `GothicSurveying/odczyty_biezace.csv` (punkt, odczyt środkowy); po zakończeniu roboty log trafia do jej folderu jako `odczyty.csv`.
 
 ## Dziennik i pliki
 
 Po **Zakończ robotę** gra pokazuje tabelę dziennika (z celowymi z dalmierza) (↑/↓ przewijanie, Enter zamyka) i zapisuje w katalogu głównym gry:
-`dziennik_N.docx` (A4 pozioma, do wydruku: tabela, Σ, fh, fh dop., wynik, data) oraz `dziennik_N.csv` (dane, średniki).
+`dziennik.docx` (A4 pozioma, do wydruku: tabela, Σ, fh, fh dop., wynik, data) oraz `dziennik.csv` (dane, średniki). Wszystko ląduje w folderze `GothicSurveying/RRRR-MM-DD_GG-MM-SS/` w katalogu gry (nazwa = czas zakończenia roboty).
 Dziennik liczy fh = ΣΔh − (H_koniec − H_start), poprawki równomierne na stanowisko i wysokości wyrównane;
 dopuszczalny błąd fh_dop = 20 mm·√L (L w km, suma celowych). Ciąg otwarty nie ma kontroli ani poprawek.
-Jeśli w trakcie roboty wczytasz zapis, plugin zapisze to, co zmierzono, do `dziennik_N_przerwany.csv` (bez DOCX).
+Jeśli w trakcie roboty wczytasz zapis, plugin zapisze to, co zmierzono, jako `dziennik_przerwany.csv` w folderze roboty (bez DOCX).
 „Przerwij robotę” kończy robotę bez zapisu dziennika.
 
 ## Tryb samodzielny

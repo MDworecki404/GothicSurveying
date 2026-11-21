@@ -35,8 +35,8 @@ STEROWANIE
   "Przeloz na nastepne stanowisko", ..., punkt koncowy, "Zakoncz robote".
 - F10: widok przez lunete (strzalki - obrot, Shift - powoli, Enter - odczyt; wpisz odczyt
   srodkowej kreski w mm cyframi 0-9; dalmierz liczy sie sam; Z / X - obrot na late wstecz / wprzod).
-- Wynik: tabela w grze oraz pliki dziennik_N.docx i dziennik_N.csv w katalogu roboczym gry
-  (przerwana robota: dziennik_N_przerwany.csv).
+- Wynik: tabela w grze oraz pliki dziennik.docx, dziennik.csv i odczyty.csv w folderze
+  GothicSurveying\RRRR-MM-DD_GG-MM-SS (czas zakonczenia roboty) w katalogu gry (przerwana robota: dziennik_przerwany.csv).
 
 LICENCJE MODELI
 Kask: "Construction Hat" by ermalkoci, kamizelka: "safety vest" by teacherap123 (Sketchfab, CC BY 4.0,
