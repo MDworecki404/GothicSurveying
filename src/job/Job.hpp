@@ -4,12 +4,14 @@
 #include <string>
 #include <vector>
 #include "calc/FieldBook.hpp"
+#include "calc/GnssReport.hpp"
 
 enum class RodRole { Back, Fore };
 enum class MarkerKind { Reper, Turning };
+enum class JobKind { Leveling, Gnss };
 
 struct MenuItem { std::string id, label, hint; bool enabled; };
-struct JobOptions { TraverseKind kind; CalcMode mode; };
+struct JobOptions { TraverseKind kind; CalcMode mode; bool showTrueError = false; };
 
 // Świat gry z punktu widzenia roboty. Implementacja silnikowa: engine/World.hpp; w testach: sztuczna.
 class IWorld {
@@ -26,6 +28,13 @@ class IWorld {
   virtual double Random01() = 0;                                  // 0..1 (los obsadzki)
   virtual void   ShiftInstrumentMm(double dyMm) = 0;              // podnosi (+) / obniża (-) niwelator stojący na stanowisku
   virtual void   Say(const std::string& textAscii) = 0;
+  // GNSS (domyslne ciala, zeby swiaty niwelacji ich nie musialy znac)
+  virtual bool     PlacePole() { return false; }                  // tyczka z antena pod stopami; false = brak gruntu
+  virtual void     RemovePole() {}
+  virtual SkyMask  SkyHorizon() const { return SkyMask{}; }       // maska horyzontu z promieni ku niebu z miejsca tyczki
+  virtual GridPos  PoleGroundGrid() const { return GridPos{0, 0, 0}; }   // prawdziwe wspolrzedne gruntu pod tyczka
+  virtual double   NowSec() const { return 0; }                   // czas gry [s]; stoi, gdy gra zatrzymana
+  virtual std::string TimeText() const { return ""; }             // czas rzeczywisty GG:MM:SS do dziennika
 };
 
 class Job {
@@ -40,6 +49,10 @@ class Job {
   virtual std::string Hud() const = 0;                            // ASCII
   virtual bool CanFinish() const = 0;
   virtual FieldBook Finish(bool complete) = 0;                    // complete=false przy przerwaniu
+  virtual JobKind Kind() const { return JobKind::Leveling; }
+  virtual GnssReport FinishGnss(bool complete) { (void)complete; return GnssReport{}; }
+  virtual void Tick() {}                                          // co klatke (symulacje czasu rzeczywistego)
+  virtual std::vector<std::string> StatusLines() const { return {}; }   // panel statusu (ASCII); pusty = brak panelu
 };
 
-struct JobType { std::string id, name; std::unique_ptr<Job> (*create)(IWorld&, const JobOptions&); };
+struct JobType { std::string id, name; std::unique_ptr<Job> (*create)(IWorld&, const JobOptions&); bool gnss = false; };
