@@ -116,6 +116,38 @@ def build_pole():
     return m
 
 
+def build_prism_pole(h_cm):
+    """Tyczka z lustrem (pryzmatem) na wysokosci h_cm: pret, oprawa i tarcza lustra zwrocona w +Y (ku tachimetrowi). Poczatek = grunt."""
+    m = Mesh()
+    prism(m, (0, 0, 0), (0, 0, h_cm - 5.5), 1.2, 8, block(2))              # pret
+    box(m, 0, 0, h_cm, 11, 6, 11, block(2))                                  # oprawa lustra, srodek na wysokosci h
+    prism(m, (0, 3.0, h_cm), (0, 3.8, h_cm), 4.5, 12, block(3))             # szklo lustra (pomaranczowa tarcza)
+    prism(m, (0, 3.8, h_cm), (0, 4.1, h_cm), 1.0, 8, block(1))              # srodek tarczy
+    return m
+
+
+def build_tachy():
+    """Tachimetr na statywie: statyw, spodarka, alidada z dwoma slupkami, luneta (os 150 cm), uchwyt, panel sterowania."""
+    m = Mesh()
+    for ang in (90, 210, 330):                                               # statyw: 3 nogi
+        a = math.radians(ang)
+        prism(m, (55 * math.cos(a), 55 * math.sin(a), 0), (4 * math.cos(a), 4 * math.sin(a), 128), 2.2, 4, block(0))
+    prism(m, (0, 0, 126), (0, 0, 132), 10, 12, block(1))                     # glowica statywu
+    prism(m, (0, 0, 132), (0, 0, 136), 8.5, 12, block(2))                    # spodarka (trojnog ze sruba)
+    prism(m, (0, 0, 136), (0, 0, 141), 8.0, 12, block(1))                    # podstawa alidady
+    box(m, -10, 0, 151, 5, 10, 22, block(1))                                 # lewy slupek alidady
+    box(m, 10, 0, 151, 5, 10, 22, block(1))                                  # prawy slupek alidady
+    box(m, 0, 0, 164, 25, 7, 3, block(1))                                    # mostek / uchwyt nad luneta
+    box(m, 0, 0, 168, 3, 14, 3, block(2))                                    # raczka do przenoszenia
+    prism(m, (-12, 0, 150), (12, 0, 150), 2.0, 12, block(2))                 # os pozioma lunety
+    prism(m, (0, -9, 150), (0, 13, 150), 4.2, 12, block(1))                  # tubus lunety, os = 150 cm
+    prism(m, (0, 13, 150), (0, 19, 150), 5.4, 12, block(2))                  # obiektyw
+    prism(m, (0, -14, 150), (0, -9, 150), 3.0, 12, block(2))                 # okular
+    box(m, 12.6, 0, 148, 1.5, 8, 10, block(3))                               # panel sterowania (pomaranczowy)
+    box(m, 0, 9, 142, 10, 2, 4, block(2))                                    # wyswietlacz/libela na podstawie
+    return m
+
+
 def build_reper():
     m = Mesh()
     prism(m, (0, 0, 0), (0, 0, 10), 3.5, 12, block(1))            # słupek znaku wysokościowego
@@ -281,6 +313,11 @@ def main():
                               ("LVL_INSTR", build_instrument(), one),
                               ("LVL_PLATE", build_plate(), one),
                               ("LVL_POLE", build_pole(), one),
+                              ("LVL_TACHY", build_tachy(), one),
+                              ("LVL_PRISM13", build_prism_pole(130.0), one),
+                              ("LVL_PRISM15", build_prism_pole(150.0), one),
+                              ("LVL_PRISM18", build_prism_pole(180.0), one),
+                              ("LVL_PRISM20", build_prism_pole(200.0), one),
                               ("LVL_REPER", build_reper(), one)):
         (meshes / f"{fname}.3DS").write_bytes(to_3ds(fname, mesh, mats))
         print(f"{fname}.3DS: {len(mesh.v)} wierzcholkow, {len(mesh.f)} trojkatow, {len(mats)} mat.")

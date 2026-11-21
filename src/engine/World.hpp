@@ -54,10 +54,73 @@ namespace GOTHIC_NAMESPACE {
       zVEC3 p;
       if ( !FeetGround( p ) ) return false;
       RemoveVobSafe( pole_ );
-      pole_ = SpawnVob( LV_VIS_POLE, p ); poleGround_ = p; hasPole_ = true;
+      pole_ = SpawnVob( LV_VIS_POLE, p ); poleGround_ = p; hasPole_ = true; poleIsPrism_ = false;
       return true;
     }
-    void RemovePole() override { RemoveVobSafe( pole_ ); hasPole_ = false; }
+    bool PlacePrism() override {                       // ten sam slot co tyczka GNSS (jedna tyczka naraz), inny model
+      zVEC3 p;
+      if ( !FeetGround( p ) ) return false;
+      RemoveVobSafe( pole_ );
+      pole_ = SpawnVob( PrismModel( prismH_ ), p ); poleGround_ = p; hasPole_ = true; poleIsPrism_ = true;
+      FaceInstrument( pole_ );
+      return true;
+    }
+    bool PlaceTachymeter() override {                  // tachimetr na statywie (inny model niz niwelator)
+      zVEC3 p;
+      if ( !FeetGround( p ) ) return false;
+      RemoveVobSafe( instr_ );
+      instr_ = SpawnVob( LV_VIS_TACHY, p ); instrGround_ = p; hasInstr_ = true;
+      if ( poleIsPrism_ ) FaceInstrument( pole_ );
+      FaceInstrument( backPrism_ );
+      return true;
+    }
+    bool PlaceBacksight() override {                   // znak nawiazania + lustro na tyczce
+      auto old = pts_.find( 1 );
+      if ( old != pts_.end() ) RemoveVobSafe( old->second.marker );
+      if ( !PlaceMarker( 1, MarkerKind::Reper ) ) return false;
+      RemoveVobSafe( backPrism_ );
+      backPrism_ = SpawnVob( PrismModel( prismH_ ), pts_[1].pos );
+      FaceInstrument( backPrism_ );
+      return true;
+    }
+    void SetPrismHeightM( double h ) override {        // fizyczna wysokosc lustra: modele tyczek tej wysokosci
+      prismH_ = h;
+      if ( poleIsPrism_ && pole_ ) { const zVEC3 p = poleGround_; RemoveVobSafe( pole_ ); pole_ = SpawnVob( PrismModel( prismH_ ), p ); FaceInstrument( pole_ ); }
+      auto it = pts_.find( 1 );
+      if ( backPrism_ && it != pts_.end() ) { const zVEC3 p = it->second.pos; RemoveVobSafe( backPrism_ ); backPrism_ = SpawnVob( PrismModel( prismH_ ), p ); FaceInstrument( backPrism_ ); }
+    }
+    // Pomiar bezlustrowy: promien z oka lunety wzdluz celowej; pierwszy trafiony punkt (teren, budynki) i odleglosc skosna [m].
+    bool TraceSight( double camAzDeg, double camPitchDeg, GridPos& hit, double& slopeM ) const override {
+      zCWorld* w = ogame->GetWorld();
+      if ( !w || !hasInstr_ ) return false;
+      const float rad = 3.14159265f / 180.0f, az = (float)camAzDeg * rad, p = (float)camPitchDeg * rad;
+      const zVEC3 from = instrGround_ + zVEC3( 0, LV_INSTR_H, 0 );
+      const zVEC3 dir( sinf( az ) * cosf( p ), sinf( p ), cosf( az ) * cosf( p ) );
+      if ( !w->TraceRayNearestHit( from, dir * 30000.0f, (zCVob*)nullptr,
+           zTRACERAY_VOB_IGNORE_NO_CD_DYN | zTRACERAY_VOB_IGNORE_CHARACTER | zTRACERAY_POLY_IGNORE_TRANSP ) ) return false;
+      const zVEC3 h = w->traceRayReport.foundIntersection;
+      hit = GnssToGrid( h[VX], h[VY], h[VZ] ); slopeM = ( h - from ).Length() / 100.0;
+      return true;
+    }
+    GridPos StationGrid() const override { return GnssToGrid( instrGround_[VX], instrGround_[VY], instrGround_[VZ] ); }
+    GridPos PointGrid( int pointId ) const override {
+      auto it = pts_.find( pointId );
+      return it == pts_.end() ? GridPos{ 0, 0, 0 } : GnssToGrid( it->second.pos[VX], it->second.pos[VY], it->second.pos[VZ] );
+    }
+    // Linia celowa od oka tachimetru do lustra / znaku nawiazania: bez trafienia w teren lub voby (ostatnie 30 cm pomijamy).
+    bool LineClear( bool toPrism ) const override {
+      zCWorld* w = ogame->GetWorld();
+      if ( !w || !hasInstr_ ) return true;
+      zVEC3 target;
+      if ( toPrism ) { if ( !hasPole_ ) return true; target = poleGround_ + zVEC3( 0, (float)( prismH_ * 100.0 ), 0 ); }
+      else { auto it = pts_.find( 1 ); if ( it == pts_.end() ) return true; target = it->second.pos + zVEC3( 0, (float)( prismH_ * 100.0 ), 0 ); }
+      const zVEC3 from = instrGround_ + zVEC3( 0, LV_INSTR_H, 0 );
+      zVEC3 to = target - from; const float len = to.Length();
+      if ( len < 40.0f ) return true;
+      to = to * ( ( len - 30.0f ) / len );
+      return !w->TraceRayNearestHit( from, to, (zCVob*)nullptr, zTRACERAY_VOB_IGNORE_NO_CD_DYN | zTRACERAY_VOB_IGNORE_CHARACTER | zTRACERAY_POLY_IGNORE_TRANSP );
+    }
+    void RemovePole() override { RemoveVobSafe( pole_ ); RemoveVobSafe( backPrism_ ); hasPole_ = false; poleIsPrism_ = false; }
     GridPos PoleGroundGrid() const override { return GnssToGrid( poleGround_[VX], poleGround_[VY], poleGround_[VZ] ); }
     double NowSec() const override { return clock_; }
     std::string TimeText() const override {
@@ -173,13 +236,13 @@ namespace GOTHIC_NAMESPACE {
     // Po zmianie świata: oddaje własne referencje bez dotykania świata (voby zwolnił już świat).
     void ForgetAll() {
       for ( auto& kv : pts_ ) DropVobRef( kv.second.marker );
-      DropVobRef( rod_[0] ); DropVobRef( rod_[1] ); DropVobRef( instr_ ); DropVobRef( pole_ ); hasPole_ = false;
+      DropVobRef( rod_[0] ); DropVobRef( rod_[1] ); DropVobRef( instr_ ); DropVobRef( pole_ ); DropVobRef( backPrism_ ); hasPole_ = false; poleIsPrism_ = false;
       DropVobRef( helmet_ ); DropVobRef( vest_ ); helmetNode_ = vestNode_ = nullptr;
       pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false;
     }
     bool Stale() const {                                 // któryś z naszych vobów nie należy już do bieżącego świata
       for ( const auto& kv : pts_ ) if ( VobIsStale( kv.second.marker ) ) return true;
-      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ ) || VobIsStale( helmet_ ) || VobIsStale( vest_ ) || VobIsStale( pole_ );
+      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ ) || VobIsStale( helmet_ ) || VobIsStale( vest_ ) || VobIsStale( pole_ ) || VobIsStale( backPrism_ );
     }
     void ClearAll() {
       for ( auto& kv : pts_ ) RemoveVobSafe( kv.second.marker );
@@ -198,6 +261,13 @@ namespace GOTHIC_NAMESPACE {
     zCVob* rod_[2] = { nullptr, nullptr };
     int rodPoint_[2] = { -1, -1 };
     zCVob* instr_ = nullptr; zVEC3 instrGround_; bool hasInstr_ = false;
+    zCVob* backPrism_ = nullptr; double prismH_ = 1.5; bool poleIsPrism_ = false;   // tachimetria: lustro na nawiazaniu, wysokosc lustra
+    void FaceInstrument( zCVob* v ) {                  // tyczka z lustrem zwrocona tarcza ku tachimetrowi
+      if ( !v || !hasInstr_ ) return;
+      const zVEC3 p = v->GetPositionWorld();
+      zVEC3 d( instrGround_[VX] - p[VX], 0, instrGround_[VZ] - p[VZ] );
+      if ( d.Length() > 0.1f ) { d.Normalize(); v->SetHeadingAtWorld( d ); }
+    }
     zCVob* pole_ = nullptr; zVEC3 poleGround_; bool hasPole_ = false; double clock_ = 0;   // GNSS: tyczka i zegar gry [s]
     zCVob *helmet_ = nullptr, *vest_ = nullptr; zCModelNodeInst *helmetNode_ = nullptr, *vestNode_ = nullptr;
     zVEC3 dressPos_[2] = { zVEC3( 1e9f, 0, 0 ), zVEC3( 1e9f, 0, 0 ) }, dressAt_[2] = { zVEC3( 0, 0, 0 ), zVEC3( 0, 0, 0 ) };

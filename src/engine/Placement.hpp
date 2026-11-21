@@ -4,6 +4,9 @@ namespace GOTHIC_NAMESPACE {
   inline const char*  LV_VIS_ROD   = "LVL_ROD.3DS";
   inline const char*  LV_VIS_PLATE = "LVL_PLATE.3DS";
   inline const char*  LV_VIS_REPER = "LVL_REPER.3DS";
+  inline const char*  LV_VIS_TACHY = "LVL_TACHY.3DS";    // tachimetr na statywie (os lunety 150 cm nad gruntem)
+  // Tyczka z lustrem: model o wysokosci srodka lustra h (1,3 / 1,5 / 1,8 / 2,0 m).
+  inline const char* PrismModel( double h ) { return h < 1.4 ? "LVL_PRISM13.3DS" : h < 1.65 ? "LVL_PRISM15.3DS" : h < 1.9 ? "LVL_PRISM18.3DS" : "LVL_PRISM20.3DS"; }
   inline const char*  LV_VIS_POLE  = "LVL_POLE.3DS";     // tyczka z odbiornikiem GNSS (2,00 m + antena)
   inline const float  LV_POLE_H    = 200.0f;             // wysokość tyczki [cm]; promienie do nieba idą od jej szczytu
   inline const char*  LV_VIS_HELMET = "LVL_HELMET.3DS";   // kask i kamizelka odblaskowa bohatera (doczepiane do węzłów szkieletu)

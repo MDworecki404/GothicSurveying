@@ -18,7 +18,7 @@ namespace GOTHIC_NAMESPACE {
   inline void CtrlEndJob() { gJob.reset(); gWorld.ClearAll(); CtrlCloseJobHud(); }
   inline void CtrlForgetJob() {                        // po zmianie świata: obiekty zniknęły razem ze światem
     gWorld.ForgetAll();                                // najpierw oddaj vob-y, potem callbacki lunety nie dotkną starych obiektów
-    ScopeLeave(); PoleFineLeave(); MenuClose(); gJob.reset(); CtrlCloseJobHud();
+    ScopeLeave(); PoleFineLeave(); TachyViewLeave(); MenuClose(); gJob.reset(); CtrlCloseJobHud();
   }
 
   inline void CtrlEnterScope() {
@@ -59,6 +59,52 @@ namespace GOTHIC_NAMESPACE {
   }
 
   // Przerwana robota GNSS (Przerwij / wczytanie zapisu): zapisuje zmierzone punkty do nowego folderu; "" gdy nie bylo punktow.
+  // Tachimetria: przerwana robota / zmiana swiata zapisuje zmierzone punkty do nowego folderu; "" gdy nie bylo punktow.
+  inline std::string CtrlSavePartialTachy( const TachyReport& part ) {
+    if ( part.points.empty() && !FileExistsRel( gReadingLog ) ) return "";
+    const std::string dir = MakeJobDir();
+    if ( !part.points.empty() ) ExportTachy( part, dir, true );
+    MoveReadingLog( gReadingLog, dir );
+    return dir;
+  }
+
+  inline void CtrlFinishTachy() {
+    const TachyReport r = gJob->FinishTachy( true );
+    gJobDir = MakeJobDir();
+    MoveReadingLog( gReadingLog, gJobDir );             // log punktow zapisywany na biezaco -> odczyty.csv w folderze roboty
+    const bool ok = ExportTachy( r, gJobDir, false );
+    std::vector<std::string> lines = TachySummaryLines( r );
+    lines.push_back( "" );
+    for ( const TachyPoint& p : r.points ) {
+      char b[220];
+      sprintf( b, "%s  Hz %.4f g  V %.4f g  D %.3f m  N %.3f  E %.3f  H %.3f", p.name.c_str(), p.hzGon, p.vGon, p.slopeM, p.n, p.e, p.h );
+      lines.push_back( b );
+      if ( r.showTrueError && p.hasTrue ) {
+        sprintf( b, "    blad: N %.3f  E %.3f  H %.3f  2D %.3f m", p.dNm, p.dEm, p.dHm, p.d2Dm );
+        lines.push_back( b );
+      }
+    }
+    TextPanelShow( "Tachimetria - podsumowanie", lines, ok ? "Zapisano w folderze: " + gJobDir : "BLAD ZAPISU plikow dziennika" );
+    SvTrace( "Tachimetria zakonczona" );
+    CtrlEndJob();
+  }
+
+  // Widok lunety tachimetru; wymaga stanowiska. Enter w widoku wykonuje orientacje albo pomiar (wg trybu roboty).
+  inline void CtrlEnterTachyView() {
+    if ( !gJob || !gWorld.HasInstrument() ) { HudMessage( "Najpierw postaw tachimetr" ); return; }
+    TachyCallbacks cb;
+    cb.fire = []( double az, double pitch ) {
+      if ( !gJob ) return std::string();
+      const size_t before = gJob->FinishTachy( false ).points.size();
+      const std::string msg = gJob->TachyFire( az, pitch );
+      const TachyReport r = gJob->FinishTachy( false );
+      if ( r.points.size() > before ) AppendTachyLog( gReadingLog, r.points.back(), (int)r.points.size(), r.showTrueError );   // punkt od razu do logu
+      return msg;
+    };
+    cb.panel = []( double az, double pitch ) { return gJob ? gJob->TachyPanel( az, pitch ) : std::vector<std::string>(); };
+    TachyViewEnter( cb );
+  }
+
   inline std::string CtrlSavePartialGnss( const GnssReport& part ) {
     if ( part.points.empty() && !FileExistsRel( gReadingLog ) ) return "";
     const std::string dir = MakeJobDir();
@@ -91,6 +137,7 @@ namespace GOTHIC_NAMESPACE {
   inline void CtrlFinish() {
     if ( !gJob ) return;
     if ( gJob->Kind() == JobKind::Gnss ) { CtrlFinishGnss(); return; }
+    if ( gJob->Kind() == JobKind::Tachy ) { CtrlFinishTachy(); return; }
     FieldBook fb = gJob->Finish( true );
     gJobDir = MakeJobDir();                            // nazwa folderu = czas zakończenia roboty
     MoveReadingLog( gReadingLog, gJobDir );
@@ -157,7 +204,7 @@ namespace GOTHIC_NAMESPACE {
     for ( size_t i = 0; i < types.size(); i++ ) v.items.push_back( { std::to_string( i ), types[i].name, "", true } );
     MenuOpen( v, []( const std::string& id ) {
       const int idx = std::stoi( id );
-      if ( JobTypes()[idx].gnss ) CtrlOpenTrueErrorMenu( idx ); else CtrlOpenKindMenu( idx );
+      if ( JobTypes()[idx].gnss || JobTypes()[idx].tachy ) CtrlOpenTrueErrorMenu( idx ); else CtrlOpenKindMenu( idx );
     } );
   }
 
@@ -166,7 +213,8 @@ namespace GOTHIC_NAMESPACE {
                                               { "yes", "Tak, przerwij (zapisze to, co zmierzono)", "", true } } },
               []( const std::string& id ) {
       if ( id != "yes" || !gJob ) return;
-      const std::string dir = gJob->Kind() == JobKind::Gnss ? CtrlSavePartialGnss( gJob->FinishGnss( false ) ) : CtrlSavePartial( gJob->Finish( false ) );
+      const std::string dir = gJob->Kind() == JobKind::Gnss ? CtrlSavePartialGnss( gJob->FinishGnss( false ) )
+                            : gJob->Kind() == JobKind::Tachy ? CtrlSavePartialTachy( gJob->FinishTachy( false ) ) : CtrlSavePartial( gJob->Finish( false ) );
       HudMessage( dir.empty() ? "Robota przerwana" : ( "Robota przerwana, zapisano w folderze: " + dir ).c_str() );
       CtrlEndJob();
     } );
@@ -185,6 +233,7 @@ namespace GOTHIC_NAMESPACE {
       if ( id == "finish" ) CtrlFinish();
       else if ( id == "scope" ) CtrlEnterScope();
       else if ( id == "fine" ) PoleFineEnter();
+      else if ( id == "orient" || id == "view" ) { gJob->OnMenu( id ); CtrlEnterTachyView(); }
       else if ( id == "abort" ) CtrlConfirmAbort();
       else {
         gJob->OnMenu( id );
@@ -221,7 +270,11 @@ namespace GOTHIC_NAMESPACE {
   inline void ControllerTick() {
     zCWorld* w = ogame->GetWorld();
     if ( w != gCtrlWorld || ( w && gWorld.Stale() ) ) {   // inny świat albo ten sam obiekt świata po wczytaniu zapisu (voby zniknęły)                           // zmiana świata (wczytanie zapisu): zapisz, co się zmierzyło, i posprzątaj
-      if ( gJob ) { if ( gJob->Kind() == JobKind::Gnss ) CtrlSavePartialGnss( gJob->FinishGnss( false ) ); else CtrlSavePartial( gJob->Finish( false ) ); }
+      if ( gJob ) {
+        if ( gJob->Kind() == JobKind::Gnss ) CtrlSavePartialGnss( gJob->FinishGnss( false ) );
+        else if ( gJob->Kind() == JobKind::Tachy ) CtrlSavePartialTachy( gJob->FinishTachy( false ) );
+        else CtrlSavePartial( gJob->Finish( false ) );
+      }
       if ( FieldBookEditActive() ) { gPendingFb.complete = false; ExportFieldBook( gPendingFb, gJobDir, true ); }
       FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); CtrlForgetJob(); gCtrlWorld = w;
     }
@@ -230,19 +283,24 @@ namespace GOTHIC_NAMESPACE {
     const DWORD nowClock = GetTickCount();
     double dtClock = ( nowClock - lastClock ) / 1000.0; lastClock = nowClock;
     if ( dtClock > 0.2 ) dtClock = 0.2;
-    const bool gamePaused = MenuIsOpen() || ScopeActive() || FieldBookVisible() || TextPanelVisible() || FieldBookEditActive() || PoleFineActive();
+    const bool gamePaused = MenuIsOpen() || ScopeActive() || FieldBookVisible() || TextPanelVisible() || FieldBookEditActive() || PoleFineActive() || TachyViewActive();
     if ( !gamePaused ) { gWorld.AdvanceClock( dtClock ); if ( gJob ) gJob->Tick(); }   // zegar symulacji stoi, gdy gra zatrzymana
-    if ( !MenuIsOpen() && !ScopeActive() && !PoleFineActive() ) gWorld.DressTick();   // przy zatrzymanej grze nic się nie rusza
+    if ( !MenuIsOpen() && !ScopeActive() && !PoleFineActive() && !TachyViewActive() ) gWorld.DressTick();   // przy zatrzymanej grze nic się nie rusza
     ScopeTick();
     PoleFineTick();
+    TachyViewTick();
     HudTick();
-    if ( ScopeActive() || PoleFineActive() ) { CtrlCloseJobHud(); return; }
+    if ( ScopeActive() || PoleFineActive() || TachyViewActive() ) { CtrlCloseJobHud(); return; }
     if ( FieldBookEditActive() ) { if ( FieldBookEditTick() ) CtrlFinishManual(); return; }
     if ( TextPanelVisible() ) { TextPanelTick(); return; }
     if ( FieldBookVisible() ) { FieldBookTick(); return; }
     if ( MenuIsOpen() ) { MenuTick(); return; }
     if ( zinput->KeyToggled( LV_KEY_MENU ) ) { CtrlOpenMenu(); return; }
     if ( gJob && gJob->Kind() == JobKind::Leveling && zinput->KeyToggled( LV_KEY_SCOPE ) ) CtrlEnterScope();
+    if ( gJob && gJob->Kind() == JobKind::Tachy && zinput->KeyToggled( LV_KEY_SCOPE ) ) {
+      bool canView = false; for ( const MenuItem& m : gJob->Menu() ) if ( m.id == "view" && m.enabled ) canView = true;
+      if ( canView ) { gJob->OnMenu( "view" ); CtrlEnterTachyView(); } else HudMessage( "Najpierw orientacja i tyczka z lustrem" );
+    }
     CtrlUpdateJobHud();
     CtrlUpdateStatusPanel();
   }
