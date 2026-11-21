@@ -34,7 +34,7 @@ Jeśli `Signatures_G2A.tsv` nie powstał podczas konfiguracji, uruchom
 
 ## Wydanie (paczka do rozpakowania)
 
-`python scripts/package.py 0.1.2` (po `scripts/build.ps1`) tworzy `release/GothicSurveying-v0.1.2-G2A.zip`. Archiwum ma układ folderu gry
+`python scripts/package.py 0.2.0` (po `scripts/build.ps1`) tworzy `release/GothicSurveying-v0.1.2-G2A.zip`. Archiwum ma układ folderu gry
 (`system/Autorun/...` i `_work/Data/...`) i `INSTALACJA.txt`; wystarczy je rozpakować w folderze Gothic II z zainstalowanym Union.
 
 ## Sterowanie
@@ -85,6 +85,28 @@ Przy starcie roboty możesz wybrać „Dziennik liczę sam”. Po **Zakończ rob
 (Δh, poprawki v, wysokości wyrównane, Σ Δh, fh). Strzałki zmieniają komórkę, cyfry, `-` i `.` wpisują wartość (Δh i v w mm, H w m),
 Backspace kasuje, **Home** kończy. Plugin porównuje każdą komórkę z poprawną wartością (tolerancja 1 mm), pokazuje listę chybionych
 i zapisuje CSV oraz DOCX z tabelą „Sprawdzenie” (wartości poprawne, Twoje, różnice).
+
+## Pomiar GNSS (RTK)
+
+„Rozpocznij robotę” → „Pomiar GNSS (RTK)” (pytanie, czy pokazać prawdziwy błąd po pomiarze). Cel: nauczyć się obsługi odbiornika i zebrać
+współrzędne punktów. Odbiornik **nie zna prawdziwej wysokości**: podaje wynik z szumem, typem rozwiązania i wskaźnikami jakości.
+
+Przebieg: **Postaw tyczkę z odbiornikiem** (pod stopami bohatera, tyczka 2,000 m) → ewentualnie **Wysokość anteny** (presety 1,500 / 1,800 /
+2,000 / 2,100 / 2,500 m; zły preset daje błąd systematyczny w H) → **Rozpocznij pomiar punktu** → czekaj, aż w panelu w lewym górnym rogu
+pojawi się „fix RTK” → **Zapisz punkt** (fix i co najmniej 10 epok; bez fixu po 5 epokach z adnotacją „zapis bez fixu”) → kolejne punkty →
+**Zakończ robotę**. „Odrzuć pomiar” kasuje bieżącą sesję.
+
+Panel odbiornika pokazuje rozwiązanie, satelity (użyte/widoczne), PDOP, epoki (co 1 s czasu gry; gdy gra zatrzymana, epoki nie płyną), RMS i bieżące
+N, E, H. Typy rozwiązania i orientacyjna dokładność: fix RTK ok. 1–2 cm, float RTK kilkadziesiąt cm, DGPS ok. metra, autonomiczne kilka metrów.
+Fix pojawia się po 15–40 s, float po 5–12 s – o ile pozwalają warunki.
+
+Jakość zależy od otoczenia: z miejsca tyczki liczone są promienie ku niebu (36 kierunków × 6 elewacji), z nich maska horyzontu, z maski liczba
+użytych satelitów i prawdziwy PDOP, a bliska ściana lub drzewo zwiększa wielodrogowość. Pod gołym niebem fix łapie się szybko, przy ścianie
+tylko float, pod dachem często wcale. Uśrednianie epok zmniejsza szum, ale nie błąd systematyczny sesji (jak w prawdziwym GNSS).
+
+Współrzędne w lokalnym układzie: N = z_gry/100 + 5 500 000 m, E = x_gry/100 + 6 500 000 m, H = y_gry/100 m (stałe w `src/calc/Gnss.hpp`).
+Wyniki w folderze roboty: `pomiar_gnss.csv`, `pomiar_gnss.docx` (przerwana robota: `pomiar_gnss_przerwany.csv`); przy opcji prawdziwego błędu
+dodatkowe kolumny `blad_N_mm`, `blad_E_mm`, `blad_H_mm`, `blad_2D_mm` względem punktu w grze.
 
 ## Obsadzka (zmiana wysokości niwelatora)
 
@@ -139,7 +161,8 @@ Jeśli cyfry na łacie są w grze do góry nogami, ustaw `FLIP_V = True` w `asse
 ## Znane ograniczenia
 
 - Plugin nie zapisuje stanu: po wyjściu z gry sprzęt trzeba postawić od nowa (wyniki zostają w CSV).
-- Tylko jedna robota (ciąg niwelacyjny); tachimetria i niwelacja trygonometryczna dojdą jako kolejne moduły `Job`.
+- Dwie roboty: ciąg niwelacyjny i pomiar GNSS (RTK); tachimetria i niwelacja trygonometryczna dojdą jako kolejne moduły `Job`.
+- Pomiar GNSS: bez stacji bazowej, bez pomiaru statycznego i bez logu na żywo (raport zapisuje się przy końcu lub przerwaniu roboty).
 - Kreski dalmiercze liczone są dla pola widzenia gry; przy bardzo wąskim FOV mogą wypaść poza lunetę (wtedy są pomijane, wpis w `GothicSurveying.log`).
 - Hook na `zCWorld::Render` sprawdzono tylko na Gothic II NotR 2.6 (fix) ze Steam Gold Classic.
 
