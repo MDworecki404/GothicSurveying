@@ -36,10 +36,10 @@ inline std::string Para(const std::string& text, bool bold = false, int halfPts 
   if (bold || halfPts) { o += "<w:rPr>"; if (bold) o += "<w:b/>"; if (halfPts) o += "<w:sz w:val=\"" + std::to_string(halfPts) + "\"/>"; o += "</w:rPr>"; }
   return o + "<w:t xml:space=\"preserve\">" + Esc(text) + "</w:t></w:r></w:p>";
 }
-inline std::string Row(const std::vector<std::string>& cells, bool header) {
+inline std::string Row(const std::vector<std::string>& cells, bool header, int widthDxa = 1500) {
   std::string o = "<w:tr>";
   for (const std::string& c : cells)
-    o += "<w:tc><w:tcPr><w:tcW w:w=\"1500\" w:type=\"dxa\"/></w:tcPr>" + Para(c, header) + "</w:tc>";
+    o += "<w:tc><w:tcPr><w:tcW w:w=\"" + std::to_string(widthDxa) + "\" w:type=\"dxa\"/></w:tcPr>" + Para(c, header) + "</w:tc>";
   return o + "</w:tr>";
 }
 }  // namespace docxdetail
@@ -65,6 +65,28 @@ inline std::string ZipStore(const std::vector<std::pair<std::string, std::string
   P32(out, (uint32_t)central.size()); P32(out, cdOffset); P16(out, 0);
   return out;
 }
+
+namespace docxdetail {
+// Pakiet .docx z gotowego XML-a treści (strona A4 pozioma).
+inline std::string WrapDocx(const std::string& body) {
+  const std::string doc =
+      "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+      "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>" + body +
+      "<w:sectPr><w:pgSz w:w=\"16838\" w:h=\"11906\" w:orient=\"landscape\"/>"
+      "<w:pgMar w:top=\"1134\" w:right=\"1134\" w:bottom=\"1134\" w:left=\"1134\" w:header=\"708\" w:footer=\"708\" w:gutter=\"0\"/></w:sectPr></w:body></w:document>";
+  const std::string types =
+      "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+      "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
+      "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>"
+      "<Default Extension=\"xml\" ContentType=\"application/xml\"/>"
+      "<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/></Types>";
+  const std::string rels =
+      "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+      "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
+      "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/></Relationships>";
+  return ZipStore({{"[Content_Types].xml", types}, {"_rels/.rels", rels}, {"word/document.xml", doc}});
+}
+}  // namespace docxdetail
 
 inline std::string BuildDocx(const FieldBook& fb, const std::string& dateText, const ManualVerdict* verdict = nullptr) {
   using namespace docxdetail; using namespace fbdetail;
@@ -105,20 +127,5 @@ inline std::string BuildDocx(const FieldBook& fb, const std::string& dateText, c
     for (const auto& r : VerdictRows(*verdict)) t += Row(r, false);
     body += t + "</w:tbl>" + Para("");
   }
-  const std::string doc =
-      "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
-      "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>" + body +
-      "<w:sectPr><w:pgSz w:w=\"16838\" w:h=\"11906\" w:orient=\"landscape\"/>"
-      "<w:pgMar w:top=\"1134\" w:right=\"1134\" w:bottom=\"1134\" w:left=\"1134\" w:header=\"708\" w:footer=\"708\" w:gutter=\"0\"/></w:sectPr></w:body></w:document>";
-  const std::string types =
-      "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
-      "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
-      "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>"
-      "<Default Extension=\"xml\" ContentType=\"application/xml\"/>"
-      "<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/></Types>";
-  const std::string rels =
-      "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
-      "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
-      "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/></Relationships>";
-  return ZipStore({{"[Content_Types].xml", types}, {"_rels/.rels", rels}, {"word/document.xml", doc}});
+  return docxdetail::WrapDocx(body);
 }

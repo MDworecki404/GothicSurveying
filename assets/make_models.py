@@ -107,6 +107,15 @@ def build_plate():
     return m
 
 
+def build_pole():
+    """Tyczka z odbiornikiem GNSS: pret 2,00 m, antena (walec) i pierscien na szczycie. Poczatek = grunt pod tyczka."""
+    m = Mesh()
+    prism(m, (0, 0, 0), (0, 0, 200), 1.2, 8, block(2))              # pret
+    prism(m, (0, 0, 200), (0, 0, 206), 9.0, 12, block(1))           # antena
+    prism(m, (0, 0, 206), (0, 0, 208), 10.0, 12, block(3))          # pierscien
+    return m
+
+
 def build_reper():
     m = Mesh()
     prism(m, (0, 0, 0), (0, 0, 10), 3.5, 12, block(1))            # słupek znaku wysokościowego
@@ -271,6 +280,7 @@ def main():
     for fname, mesh, mats in (("LVL_ROD", build_rod(), [(f"LVL_ROD{k}", f"LVL_ROD{k}.TGA") for k in range(NSEG)]),
                               ("LVL_INSTR", build_instrument(), one),
                               ("LVL_PLATE", build_plate(), one),
+                              ("LVL_POLE", build_pole(), one),
                               ("LVL_REPER", build_reper(), one)):
         (meshes / f"{fname}.3DS").write_bytes(to_3ds(fname, mesh, mats))
         print(f"{fname}.3DS: {len(mesh.v)} wierzcholkow, {len(mesh.f)} trojkatow, {len(mats)} mat.")
