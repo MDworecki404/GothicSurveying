@@ -2,6 +2,7 @@
 // Azymut od północy (+Z = N) zgodnie z ruchem wskazówek zegara (+X = E). Odległości i współrzędne w metrach.
 #pragma once
 #include <cmath>
+#include <vector>
 #include "Gnss.hpp"
 
 inline const double TACHY_PI = 3.14159265358979323846;
@@ -55,14 +56,31 @@ inline TachyResult TachyPolar(const TachyStation& st, const TachyReading& r, dou
 
 struct TachyAim { double lateralM, verticalM, distM; bool ok; };
 
-// Błąd celowania: (dN, dE, dH) od oka lunety do środka celu; ok gdy linia celowa mija cel o <= 8 cm w obu osiach i odległość to 3-300 m.
+// Różnica kątów a - b zawinięta do [-180, 180] stopni.
+inline double AngleDiffDeg(double a, double b) {
+  double d = std::fmod(a - b, 360.0);
+  if (d > 180.0) d -= 360.0;
+  if (d < -180.0) d += 360.0;
+  return d;
+}
+
+// Średnia kołowa kierunków [stopnie] w [0,360); pusta lista daje 0.
+inline double TachyCircularMeanDeg(const std::vector<double>& deg) {
+  if (deg.empty()) return 0.0;
+  double sx = 0, sy = 0;
+  for (double d : deg) { sx += std::cos(d * TACHY_PI / 180.0); sy += std::sin(d * TACHY_PI / 180.0); }
+  return NormDeg(std::atan2(sy, sx) * 180.0 / TACHY_PI);
+}
+
+// Błąd celowania: (dN, dE, dH) od oka lunety do środka celu. ok gdy kąt boczny i pionowy ≤ 0,02° (nie mniej niż 1,5 cm liniowo)
+// oraz odległość skośna to 3-300 m.
 inline TachyAim TachyAimError(double dN, double dE, double dH, double camAzDeg, double camPitchDeg) {
   const double hDist = std::hypot(dN, dE), slope = std::hypot(hDist, dH);
-  double diff = std::fmod(std::atan2(dE, dN) * 180.0 / TACHY_PI - camAzDeg, 360.0);
-  if (diff > 180.0) diff -= 360.0;
-  if (diff < -180.0) diff += 360.0;
+  const double diff = AngleDiffDeg(std::atan2(dE, dN) * 180.0 / TACHY_PI, camAzDeg);
   const double lateral = std::fabs(diff) < 90.0 ? hDist * std::sin(diff * TACHY_PI / 180.0) : hDist;   // za plecami: nigdy ok
   const double vdiff = (std::atan2(dH, hDist) * 180.0 / TACHY_PI - camPitchDeg) * TACHY_PI / 180.0;
   const double vertical = slope * std::sin(vdiff);
-  return {lateral, vertical, slope, std::fabs(lateral) <= 0.08 && std::fabs(vertical) <= 0.08 && slope >= 3.0 && slope <= 300.0};
+  const double tanTol = std::tan(0.02 * TACHY_PI / 180.0);
+  const double tolLat = (std::max)(0.015, hDist * tanTol), tolVert = (std::max)(0.015, slope * tanTol);
+  return {lateral, vertical, slope, std::fabs(lateral) <= tolLat && std::fabs(vertical) <= tolVert && slope >= 3.0 && slope <= 300.0};
 }
