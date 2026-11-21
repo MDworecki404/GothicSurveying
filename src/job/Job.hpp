@@ -40,13 +40,18 @@ class IWorld {
   virtual std::string StoreControlPoint(const ControlPoint& cp) { (void)cp; return ""; }   // osnowa: zapis punktu i znak w swiecie; zwraca id ("" = blad)
   // Tachimetria
   virtual GridPos  StationGrid() const { return GridPos{0, 0, 0}; }            // prawdziwe wspolrzedne gruntu pod tachimetrem
-  virtual GridPos  PointGrid(int pointId) const { return GridPos{0, 0, 0}; }   // prawdziwe wspolrzedne znaku (nawiazanie)
+  virtual GridPos  PointGrid(int slot) const { (void)slot; return GridPos{0, 0, 0}; }   // prawdziwe wspolrzedne znaku nawiazania nr slot (1-5)
   virtual bool     PlaceTachymeter() { return false; }                         // tachimetr (nie niwelator) na statywie pod stopami
-  virtual bool     PlaceBacksight() { return false; }                          // znak nawiazania z lustrem na tyczce, pod stopami
+  virtual bool     PlaceBacksight(int slot) { (void)slot; return false; }      // znak nawiazania nr slot (1-5) z lustrem na tyczce, pod stopami
+  virtual void     RemoveBacksight(int slot) { (void)slot; }
+  virtual bool     PlaceBacksightAt(int slot, const ControlPoint& cp) { (void)slot; (void)cp; return false; }   // nawiazanie na znaku punktu osnowy
+  virtual bool     PlaceTachymeterAt(const ControlPoint& cp) { (void)cp; return false; }                        // tachimetr na znaku punktu osnowy
+  virtual std::vector<ControlPoint> ControlNearHero(double maxM) const { (void)maxM; return {}; }               // punkty osnowy tego swiata w promieniu od bohatera
+  virtual std::vector<ControlPoint> ControlNearStation(double minM, double maxM) const { (void)minM; (void)maxM; return {}; }   // ... od stanowiska
   virtual void     SetPrismHeightM(double heightM) { (void)heightM; }          // fizyczna wysokosc lustra (model tyczek)
   virtual bool     TraceSight(double camAzDeg, double camPitchDeg, GridPos& hit, double& slopeM) const { (void)camAzDeg; (void)camPitchDeg; (void)hit; (void)slopeM; return false; }   // pomiar bezlustrowy: pierwszy trafiony punkt
   virtual bool     PlacePrism() { return false; }                              // tyczka z lustrem (w miejscu tyczki GNSS); false = brak gruntu
-  virtual bool     LineClear(bool toPrism) const { (void)toPrism; return true; }   // linia celowa od oka do lustra / znaku niezaslonieta
+  virtual bool     LineClear(bool toPrism, int slot = 1) const { (void)toPrism; (void)slot; return true; }   // linia celowa od oka do lustra (tyczki) albo do lustra nawiazania nr slot niezaslonieta
 };
 
 class Job {
@@ -63,6 +68,8 @@ class Job {
   virtual FieldBook Finish(bool complete) = 0;                    // complete=false przy przerwaniu
   virtual JobKind Kind() const { return JobKind::Leveling; }
   virtual TachyReport FinishTachy(bool complete) { (void)complete; return TachyReport{}; }
+  virtual bool NeedsChoice(const std::string& menuId) const { (void)menuId; return false; }    // pozycja menu wymaga wyboru punktu z listy (osnowa)
+  virtual std::vector<MenuItem> TachyChoices(const std::string& menuId) const { (void)menuId; return {}; }   // lista wyboru: id pozycji "<menuId>:<punkt>"
   virtual std::string TachyFire(double camAzDeg, double camPitchDeg) { (void)camAzDeg; (void)camPitchDeg; return ""; }   // Enter w lunecie; komunikat ASCII
   virtual std::vector<std::string> TachyPanel(double camAzDeg, double camPitchDeg) const { (void)camAzDeg; (void)camPitchDeg; return {}; }
   virtual GnssReport FinishGnss(bool complete) { (void)complete; return GnssReport{}; }
