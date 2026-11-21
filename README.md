@@ -32,6 +32,11 @@ Konfiguracja pobiera Union API i Gothic API (przez CMake, [szablon](https://gith
 Jeśli `Signatures_G2A.tsv` nie powstał podczas konfiguracji, uruchom
 `scripts\convert-gothic-names.bat <Names.txt z union-api> out\build\x86-release\Signatures\Signatures_G2A.tsv`.
 
+## Wydanie (paczka do rozpakowania)
+
+`python scripts/package.py 0.1.0` (po `scripts/build.ps1`) tworzy `release/GothicSurveying-v0.1.0-G2A.zip`. Archiwum ma układ folderu gry
+(`system/Autorun/...` i `_work/Data/...`) i `INSTALACJA.txt`; wystarczy je rozpakować w folderze Gothic II z zainstalowanym Union.
+
 ## Sterowanie
 
 **F12** otwiera menu geodezyjne (↑/↓ wybór, Enter zatwierdza, F12 zamyka; gra jest wtedy zatrzymana).
