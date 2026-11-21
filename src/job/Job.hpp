@@ -5,10 +5,11 @@
 #include <vector>
 #include "calc/FieldBook.hpp"
 #include "calc/GnssReport.hpp"
+#include "calc/TachyReport.hpp"
 
 enum class RodRole { Back, Fore };
 enum class MarkerKind { Reper, Turning };
-enum class JobKind { Leveling, Gnss };
+enum class JobKind { Leveling, Gnss, Tachy };
 
 struct MenuItem { std::string id, label, hint; bool enabled; };
 struct JobOptions { TraverseKind kind; CalcMode mode; bool showTrueError = false; };
@@ -35,6 +36,11 @@ class IWorld {
   virtual GridPos  PoleGroundGrid() const { return GridPos{0, 0, 0}; }   // prawdziwe wspolrzedne gruntu pod tyczka
   virtual double   NowSec() const { return 0; }                   // czas gry [s]; stoi, gdy gra zatrzymana
   virtual std::string TimeText() const { return ""; }             // czas rzeczywisty GG:MM:SS do dziennika
+  // Tachimetria
+  virtual GridPos  StationGrid() const { return GridPos{0, 0, 0}; }            // prawdziwe wspolrzedne gruntu pod tachimetrem
+  virtual GridPos  PointGrid(int pointId) const { return GridPos{0, 0, 0}; }   // prawdziwe wspolrzedne znaku (nawiazanie)
+  virtual bool     PlacePrism() { return false; }                              // tyczka z lustrem (w miejscu tyczki GNSS); false = brak gruntu
+  virtual bool     LineClear(bool toPrism) const { (void)toPrism; return true; }   // linia celowa od oka do lustra / znaku niezaslonieta
 };
 
 class Job {
@@ -50,9 +56,12 @@ class Job {
   virtual bool CanFinish() const = 0;
   virtual FieldBook Finish(bool complete) = 0;                    // complete=false przy przerwaniu
   virtual JobKind Kind() const { return JobKind::Leveling; }
+  virtual TachyReport FinishTachy(bool complete) { (void)complete; return TachyReport{}; }
+  virtual std::string TachyFire(double camAzDeg, double camPitchDeg) { (void)camAzDeg; (void)camPitchDeg; return ""; }   // Enter w lunecie; komunikat ASCII
+  virtual std::vector<std::string> TachyPanel(double camAzDeg, double camPitchDeg) const { (void)camAzDeg; (void)camPitchDeg; return {}; }
   virtual GnssReport FinishGnss(bool complete) { (void)complete; return GnssReport{}; }
   virtual void Tick() {}                                          // co klatke (symulacje czasu rzeczywistego)
   virtual std::vector<std::string> StatusLines() const { return {}; }   // panel statusu (ASCII); pusty = brak panelu
 };
 
-struct JobType { std::string id, name; std::unique_ptr<Job> (*create)(IWorld&, const JobOptions&); bool gnss = false; };
+struct JobType { std::string id, name; std::unique_ptr<Job> (*create)(IWorld&, const JobOptions&); bool gnss = false, tachy = false; };
