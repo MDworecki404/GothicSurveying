@@ -7,7 +7,7 @@ namespace GOTHIC_NAMESPACE {
   inline FieldBook gFb;
   inline std::string gFbFooter;
   inline int      gFbOffset = 0;
-  inline const int LV_FB_VISIBLE_ROWS = 14;
+  inline const int LV_FB_VISIBLE_ROWS = 18;
 
   inline bool FieldBookVisible() { return gFbPanel != nullptr; }
 
@@ -19,12 +19,12 @@ namespace GOTHIC_NAMESPACE {
     const char* head[6] = { "Punkt", "Wstecz", "Wprzod", "dh [mm]", "popr.", "H [m]" };
     int y = 900;
     for ( int c = 0; c < 6; c++ ) gFbPanel->Print( X[c], y, zSTRING( head[c] ) );
-    y += 380;
+    y += 320;
     char b[64];
     gFbPanel->Print( X[0], y, zSTRING( gFb.startName.c_str() ) );
     sprintf( b, "%.3f", gFb.startHeightM ); gFbPanel->Print( X[5], y, zSTRING( b ) );
-    y += 330;
-    for ( int i = gFbOffset; i < (int)gFb.rows.size() && i < gFbOffset + LV_FB_VISIBLE_ROWS; i++, y += 330 ) {
+    y += 270;
+    for ( int i = gFbOffset; i < (int)gFb.rows.size() && i < gFbOffset + LV_FB_VISIBLE_ROWS; i++, y += 270 ) {
       const FbRow& r = gFb.rows[i];
       gFbPanel->Print( X[0], y, zSTRING( r.pointName.c_str() ) );
       sprintf( b, "%d", r.backMm );  gFbPanel->Print( X[1], y, zSTRING( b ) );
@@ -65,7 +65,7 @@ namespace GOTHIC_NAMESPACE {
   inline std::string gTxtTitle, gTxtFooter;
   inline std::vector<std::string> gTxtLines;
   inline int         gTxtOffset = 0;
-  inline const int   LV_TXT_VISIBLE = 16;
+  inline const int   LV_TXT_VISIBLE = 20;
 
   inline bool TextPanelVisible() { return gTxtPanel != nullptr; }
   inline void TextPanelRedraw() {
@@ -73,7 +73,7 @@ namespace GOTHIC_NAMESPACE {
     gTxtPanel->ClrPrintwin();
     gTxtPanel->PrintCX( 250, zSTRING( gTxtTitle.c_str() ) );
     int y = 1000;
-    for ( int i = gTxtOffset; i < (int)gTxtLines.size() && i < gTxtOffset + LV_TXT_VISIBLE; i++, y += 380 )
+    for ( int i = gTxtOffset; i < (int)gTxtLines.size() && i < gTxtOffset + LV_TXT_VISIBLE; i++, y += 300 )
       gTxtPanel->Print( 300, y, zSTRING( gTxtLines[i].c_str() ) );
     gTxtPanel->PrintCX( 7450, zSTRING( gTxtFooter.c_str() ) );
   }

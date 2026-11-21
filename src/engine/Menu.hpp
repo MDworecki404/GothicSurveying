@@ -32,9 +32,9 @@ namespace GOTHIC_NAMESPACE {
       const MenuItem& m = gMenu.items[i];
       std::string line = (int)i == gMenuCursor ? "> " : "  ";
       line += m.enabled ? m.label : "[" + m.label + "] - " + m.hint;
-      gMenuPanel->PrintCX( 1100 + (int)i * 520, zSTRING( line.c_str() ) );
+      gMenuPanel->PrintCX( 1000 + (int)i * 400, zSTRING( line.c_str() ) );
     }
-    gMenuPanel->PrintCX( 1100 + (int)gMenu.items.size() * 520 + 400, zSTRING( "Gora/Dol - wybor, Enter - zatwierdz, F12 - zamknij" ) );
+    gMenuPanel->PrintCX( 1000 + (int)gMenu.items.size() * 400 + 350, zSTRING( "Gora/Dol - wybor, Enter - zatwierdz, F12 - zamknij" ) );
   }
 
   inline int MenuNextEnabled( int from, int dir ) {   // pomija pozycje nieaktywne; -1 gdy żadnej nie ma
@@ -51,7 +51,7 @@ namespace GOTHIC_NAMESPACE {
     gMenu = view; gMenuChoose = onChoose;
     gMenuCursor = 0;
     if ( !gMenu.items.empty() && !gMenu.items[0].enabled ) { int i = MenuNextEnabled( 0, 1 ); gMenuCursor = i < 0 ? 0 : i; }
-    gMenuPanel = PanelOpen( 1500, 900, 6700, 1100 + ( (int)view.items.size() + 2 ) * 520 + 900 );
+    gMenuPanel = PanelOpen( 1500, 900, 6700, 1000 + ( (int)view.items.size() + 2 ) * 400 + 700 );
     gMenuOpen = true;
     ogame->Pause();
     MenuRedraw();

@@ -8,11 +8,13 @@ namespace GOTHIC_NAMESPACE {
     if ( f ) { fputs( s, f ); fputs( "\n", f ); fclose( f ); }
   }
 
+  inline const char* LV_FONT = "FONT_OLD_10_WHITE.TGA";   // mniejsza czcionka; większa: FONT_OLD_20_WHITE.TGA
+
   inline zCView* PanelOpen( int x0, int y0, int x1, int y1 ) {
     zCView* v = new zCView( x0, y0, x1, y1 );
     v->InsertBack( "LVL_PANEL.TGA" );
     v->SetAlphaBlendFunc( zRND_ALPHA_FUNC_BLEND );
-    v->SetFont( "FONT_OLD_20_WHITE.TGA" );
+    v->SetFont( LV_FONT );
     screen->InsertItem( v );
     v->Open();
     return v;

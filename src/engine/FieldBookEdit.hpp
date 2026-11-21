@@ -41,13 +41,13 @@ namespace GOTHIC_NAMESPACE {
     const int n = (int)gEditFb.rows.size();
     char b[32];
     for ( int r = 0; r < n; r++ ) {
-      const int y = 1500 + r * 330;
+      const int y = 1500 + r * 270;
       gEditPanel->Print( X[0], y, zSTRING( gEditFb.rows[r].pointName.c_str() ) );
       sprintf( b, "%d", gEditFb.rows[r].backMm ); gEditPanel->Print( X[1], y, zSTRING( b ) );
       sprintf( b, "%d", gEditFb.rows[r].foreMm ); gEditPanel->Print( X[2], y, zSTRING( b ) );
       for ( int c = 0; c < EditCols( r ); c++ ) cell( r, c, X[c + 3], y );
     }
-    const int ys = 1500 + n * 330 + 250;
+    const int ys = 1500 + n * 270 + 200;
     gEditPanel->Print( X[0], ys, zSTRING( "Suma dh [mm]" ) );
     cell( n, 0, X[3], ys );
     if ( closure ) { gEditPanel->Print( X[4], ys, zSTRING( "fh [mm]" ) ); cell( n, 1, X[5], ys ); }
