@@ -10,7 +10,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = sys.argv[1] if len(sys.argv) > 1 else "0.3.0"
+VERSION = sys.argv[1] if len(sys.argv) > 1 else "0.4.0"
 BIN = ROOT / "out" / "install" / "x86-release" / "bin"
 
 README = r"""GothicSurveying v{version} - niwelacja geometryczna w Gothic II: Noc Kruka (plugin Union)
@@ -35,6 +35,8 @@ STEROWANIE
   "Przeloz na nastepne stanowisko", ..., punkt koncowy, "Zakoncz robote".
 - F10: widok przez lunete (strzalki - obrot, Shift - powoli, Enter - odczyt; wpisz odczyt
   srodkowej kreski w mm cyframi 0-9; dalmierz liczy sie sam; Z / X - obrot na late wstecz / wprzod).
+- Osnowa GNSS: w robocie GNSS "Zaloz punkt osnowy" (fix, 20 epok) zapisuje punkt do GothicSurveying\\osnowa.csv i stawia znak; "Pokaz osnowe" w menu glownym.
+  Tachimetria moze stac na punktach osnowy, do 5 nawiazan, orientacja ze sredniej, odchylki kontrolne w dzienniku.
 - Tachimetria: "Rozpocznij robote" -> "Tachimetria (pomiar biegunowy)"; tachimetr na statywie, punkt nawiazania z lustrem, orientacja (Enter w lunecie na lustrze),
   tyczka z lustrem o wybranej wysokosci albo pomiar bezlustrowy (F10 luneta, strzalki obracaja i pochylaja); wynik: pomiar_tachimetryczny.csv i .docx w folderze roboty.
 - Pomiar GNSS (RTK): "Rozpocznij robote" -> "Pomiar GNSS (RTK)"; tyczka z odbiornikiem, panel w lewym gornym rogu,

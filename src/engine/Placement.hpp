@@ -30,6 +30,7 @@ namespace GOTHIC_NAMESPACE {
     zCVob* v = new zCVob();
     v->SetVisual( visual );
     v->SetCollDet( 0 );                                  // nie blokuje promieni ani gracza
+    v->dontWriteIntoArchive = 1;                         // nie trafia do zapisu gry (inaczej po wczytaniu zostaja duplikaty / duchy)
     v->SetPositionWorld( p );
     ogame->GetWorld()->AddVob( v );
     return v;                                            // zachowujemy własną referencję: wskaźnik zostaje ważny także po zwolnieniu świata

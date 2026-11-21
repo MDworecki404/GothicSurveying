@@ -21,6 +21,7 @@ class GnssRover : public Job {
       {"antenna", ant, "nie w trakcie pomiaru punktu", !measuring_},
       {"start", "Rozpocznij pomiar punktu", "najpierw postaw tyczke", poleUp_ && !measuring_},
       {"store", "Zapisz punkt", "fix i 10 epok (bez fixu: 5 epok z rozwiazaniem)", CanStore()},
+      {"control", "Zaloz punkt osnowy", "fix i 20 epok", CanControl()},
       {"discard", "Odrzuc pomiar", "trwa pomiar punktu", measuring_},
       {"finish", "Zakoncz robote", "najpierw zapisz co najmniej jeden punkt", CanFinish()},
     };
@@ -39,6 +40,13 @@ class GnssRover : public Job {
       lastEpoch_ = w_.NowSec(); measuring_ = true;
     } else if (id == "store") {
       Store();
+    } else if (id == "control") {
+      const GnssFix& f = session_->Fix();
+      ControlPoint cp; cp.n = f.n; cp.e = f.e; cp.h = f.h; cp.solution = GnssSolName(f.type); cp.pdop = f.pdop; cp.epochs = f.epochs; cp.timeText = w_.TimeText();
+      GnssFromGrid(w_.PoleGroundGrid(), cp.x, cp.y, cp.z);       // prawdziwe polozenie znaku w grze [cm]
+      const std::string cid = w_.StoreControlPoint(cp);
+      if (cid.empty()) { w_.Say("Blad zapisu osnowy"); return; }
+      Store("osnowa " + cid);
     } else if (id == "discard") {
       measuring_ = false; session_.reset();
     }
@@ -96,18 +104,22 @@ class GnssRover : public Job {
   static constexpr int kAntennaCount = 5;
   static constexpr double kAntenna[kAntennaCount] = {2.0, 2.1, 2.5, 1.5, 1.8};   // presety [m]; pierwszy = prawdziwa wysokosc tyczki
 
+  bool CanControl() const {                                          // osnowa tylko z fixem i co najmniej 20 epokami
+    return measuring_ && session_ && session_->Fix().type == SolType::Fix && session_->Fix().epochs >= 20;
+  }
+
   bool CanStore() const {
     if (!measuring_ || !session_) return false;
     const GnssFix& f = session_->Fix();
     return (f.type == SolType::Fix && f.epochs >= 10) || (f.type != SolType::None && f.type != SolType::Fix && f.epochs >= 5);
   }
 
-  void Store() {
+  void Store(const std::string& forcedNote = "") {
     const GnssFix& f = session_->Fix();
     GnssPoint p; p.name = "P" + std::to_string(points_.size() + 1); p.timeText = w_.TimeText();
     p.n = f.n; p.e = f.e; p.h = f.h; p.solution = GnssSolName(f.type); p.used = f.used; p.pdop = f.pdop;
     p.hRmsMm = f.hRmsMm; p.vRmsMm = f.vRmsMm; p.epochs = f.epochs; p.antennaM = kAntenna[antIdx_];
-    p.note = f.type == SolType::Fix ? "" : "zapis bez fixu";
+    p.note = !forcedNote.empty() ? forcedNote : f.type == SolType::Fix ? "" : "zapis bez fixu";
     if (opt_.showTrueError) {
       p.hasTrue = true; p.dNmm = (f.n - truth_.n) * 1000.0; p.dEmm = (f.e - truth_.e) * 1000.0; p.dHmm = (f.h - truth_.h) * 1000.0;
       p.d2Dmm = std::sqrt(p.dNmm * p.dNmm + p.dEmm * p.dEmm);

@@ -25,6 +25,8 @@ struct FakeGnss : IWorld {
   GridPos PoleGroundGrid() const override { return {5500100.0, 6500200.0, 12.5}; }
   double NowSec() const override { return now; }
   std::string TimeText() const override { return "09:15:03"; }
+  std::vector<ControlPoint> stored; std::string nextId = "O1";                 // osnowa: zapisane punkty i id nadawane przez swiat
+  std::string StoreControlPoint(const ControlPoint& cp) override { if (nextId.empty()) return ""; stored.push_back(cp); return nextId; }
 };
 
 struct Fx {
@@ -49,7 +51,7 @@ static void registry_lists_gnss() {
 static void menu_enablement_follows_state() {
   Fx f;
   assert(f.enabled("pole") && f.enabled("antenna"));
-  for (const char* id : {"start", "store", "discard", "finish", "fine"}) assert(!f.enabled(id));
+  for (const char* id : {"start", "store", "control", "discard", "finish", "fine"}) assert(!f.enabled(id));
   f.menu("pole"); assert(f.enabled("start") && f.enabled("fine"));      // precyzyjne ustawienie tyczki: gdy stoi i nie trwa pomiar
   f.menu("start");
   assert(!f.enabled("pole") && !f.enabled("antenna") && !f.enabled("start") && !f.enabled("fine") && f.enabled("discard") && !f.enabled("store"));
@@ -130,10 +132,45 @@ static void discard_clears_measurement() {
   assert(f.enabled("start") && f.job->FinishGnss(true).points.empty() && !f.enabled("discard") && !f.job->CanFinish());
 }
 
+static void control_requires_fix_and_20_epochs() {
+  Fx f; f.menu("pole"); f.menu("start"); bool sawEnabled = false, sawFixBelow20 = false;
+  for (int t = 1; t <= 60; t++) {
+    f.advance(1);
+    const bool fix = has(f.status(), "fix RTK"); const int ep = epochsOf(f.status());
+    assert(f.enabled("control") == (fix && ep >= 20));
+    if (f.enabled("control")) sawEnabled = true;
+    if (fix && ep < 20) sawFixBelow20 = true;
+  }
+  assert(sawEnabled && sawFixBelow20);
+  Fx g; g.w.mask.nearestObstacleM = 2.5; g.menu("pole"); g.menu("start");        // wielodrogowosc: nigdy fix
+  for (int t = 1; t <= 60; t++) { g.advance(1); assert(!g.enabled("control")); }
+}
+
+static void control_stores_point_and_report() {
+  Fx f; f.measure(60); assert(f.enabled("control"));
+  f.menu("control");
+  assert(f.w.stored.size() == 1);
+  GnssReport r = f.job->FinishGnss(true);
+  assert(r.points.size() == 1 && r.points[0].note == "osnowa O1");
+  const ControlPoint& cp = f.w.stored[0];
+  assert(cp.n == r.points[0].n && cp.e == r.points[0].e && cp.h == r.points[0].h && cp.solution == "fix RTK" && cp.epochs >= 20 && cp.timeText == "09:15:03");
+  double x, y, z; GnssFromGrid(f.w.PoleGroundGrid(), x, y, z);
+  assert(std::fabs(cp.x - x) < 1e-6 && std::fabs(cp.y - y) < 1e-6 && std::fabs(cp.z - z) < 1e-6);
+  assert(f.enabled("start") && !f.enabled("control"));                          // pomiar zakonczony, mozna mierzyc nastepny
+}
+
+static void control_failure_does_not_store() {
+  Fx f; f.w.nextId = ""; f.measure(60);
+  f.menu("control");
+  assert(f.w.stored.empty() && f.job->FinishGnss(true).points.empty());
+  assert(!f.w.said.empty() && has(f.w.said.back(), "osnowy") && f.enabled("control"));   // nadal mierzymy, mozna ponowic
+}
+
 int main() {
   registry_lists_gnss(); menu_enablement_follows_state(); pole_blocked_without_ground(); open_sky_fix_then_store();
   store_without_fix_is_flagged(); blocked_sky_never_enables_store(); clock_frozen_means_no_epochs();
   antenna_presets_cycle_and_bias_height(); true_error_columns_when_enabled(); abort_returns_partial_report(); discard_clears_measurement();
+  control_requires_fix_and_20_epochs(); control_stores_point_and_report(); control_failure_does_not_store();
   std::puts("test_gnss_job OK");
   return 0;
 }

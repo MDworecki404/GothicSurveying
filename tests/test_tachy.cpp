@@ -59,11 +59,26 @@ static void extreme_pitch_stays_finite() {
 static void aim_error_and_limits() {
   TachyAim a = TachyAimError(0.0, 100.0, 0.0, 90.0, 0.0);          // cel 100 m na wschod, kamera na wschod, poziomo
   assert(a.ok && near(a.lateralM, 0.0, 1e-6) && near(a.distM, 100.0, 1e-6));
-  assert(TachyAimError(-0.05, 100.0, 0.0, 90.0, 0.0).ok);          // 5 cm w poprzek
-  assert(!TachyAimError(-0.10, 100.0, 0.0, 90.0, 0.0).ok);         // 10 cm w poprzek
+  assert(TachyAimError(-0.03, 100.0, 0.0, 90.0, 0.0).ok);          // 3 cm w poprzek na 100 m (tolerancja katowa 0,02 st. = 3,5 cm)
+  assert(!TachyAimError(-0.05, 100.0, 0.0, 90.0, 0.0).ok);         // 5 cm w poprzek
   assert(!TachyAimError(0.0, 100.0, 0.10, 90.0, 0.0).ok);          // 10 cm wyzej
   assert(!TachyAimError(0.0, 2.0, 0.0, 90.0, 0.0).ok);             // za blisko
   assert(!TachyAimError(0.0, 301.0, 0.0, 90.0, 0.0).ok);           // za daleko
+}
+
+static void aim_tolerance_is_angular() {
+  assert(TachyAimError(-0.02, 100.0, 0.0, 90.0, 0.0).ok && !TachyAimError(-0.036, 100.0, 0.0, 90.0, 0.0).ok);     // 100 m: 3,49 cm
+  assert(TachyAimError(-0.01, 10.0, 0.0, 90.0, 0.0).ok && !TachyAimError(-0.02, 10.0, 0.0, 90.0, 0.0).ok);        // 10 m: dolny limit 1,5 cm
+  assert(TachyAimError(-0.10, 299.0, 0.0, 90.0, 0.0).ok && !TachyAimError(-0.12, 299.0, 0.0, 90.0, 0.0).ok);      // 300 m: 10,5 cm
+  assert(TachyAimError(0.0, 299.0, 0.10, 90.0, 0.0).ok && !TachyAimError(0.0, 299.0, 0.12, 90.0, 0.0).ok);        // to samo w pionie
+  assert(TachyAimError(0.0, 10.0, 0.01, 90.0, 0.0).ok && !TachyAimError(0.0, 10.0, 0.02, 90.0, 0.0).ok);
+}
+
+static void angle_diff_and_circular_mean() {
+  assert(near(AngleDiffDeg(10, 350), 20) && near(AngleDiffDeg(350, 10), -20) && near(AngleDiffDeg(90, 90), 0));
+  assert(near(AngleDiffDeg(TachyCircularMeanDeg({350.0, 10.0}), 0.0), 0.0, 1e-9));            // 0 albo 360 - to samo (porownanie kolowe)
+  assert(near(TachyCircularMeanDeg({10.0, 20.0}), 15.0, 1e-9) && near(AngleDiffDeg(TachyCircularMeanDeg({359.0, 1.0}), 0.0), 0.0, 1e-9));
+  assert(near(TachyCircularMeanDeg({}), 0.0, 1e-12) && near(TachyCircularMeanDeg({90.0}), 90.0, 1e-9));
 }
 
 static void noise_statistics() {
@@ -81,7 +96,7 @@ static void noise_statistics() {
 
 int main() {
   conversions(); azimuth_directions(); polar_east_level(); polar_sloped_north(); orientation_zeroes_hz();
-  extreme_pitch_stays_finite(); aim_error_and_limits(); noise_statistics();
+  extreme_pitch_stays_finite(); aim_error_and_limits(); aim_tolerance_is_angular(); angle_diff_and_circular_mean(); noise_statistics();
   std::puts("test_tachy OK");
   return 0;
 }
