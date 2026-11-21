@@ -149,6 +149,7 @@ namespace GOTHIC_NAMESPACE {
       FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); CtrlForgetJob(); gCtrlWorld = w;
     }
     if ( !w ) return;
+    gWorld.DressTick();
     ScopeTick();
     HudTick();
     if ( ScopeActive() ) { CtrlCloseJobHud(); return; }
