@@ -123,10 +123,19 @@ static void extreme_aim_does_not_crash() {
   assert(f.job->FinishTachy(true).points.empty());
 }
 
+static void orientation_switches_view_to_measure() {
+  Fx f; f.setup();
+  f.menu("orient");
+  assert(has(f.fireAt(f.w.back, 0.1), "Orientacja"));
+  std::string m = f.fireAt(f.w.prism, 1.5);                          // bez wychodzenia z lunety: od razu pomiar lustra
+  assert(has(m, "T1") && f.job->FinishTachy(true).points.size() == 1);
+  assert(has(f.job->TachyPanel(90.0, 0.0)[0], "pomiar"));
+}
+
 int main() {
   registry_lists_tachy(); menu_enablement_follows_state(); measure_before_orient_refused(); orient_then_measure_gives_coordinates();
   aim_off_target_refused_and_blocked_line(); prism_height_mismatch_biases_h(); reposition_invalidates_orientation();
-  true_error_and_abort(); extreme_aim_does_not_crash();
+  true_error_and_abort(); extreme_aim_does_not_crash(); orientation_switches_view_to_measure();
   std::puts("test_tachy_job OK");
   return 0;
 }

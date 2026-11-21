@@ -110,7 +110,7 @@ class TachyStationJob : public Job {
     st_.n = Mm(s.n); st_.e = Mm(s.e); st_.h = Mm(s.h);
     st_.azBackDeg = TachyAzimuthDeg(st_.n, st_.e, Mm(b.n), Mm(b.e));
     az0_ = TachyOrient(camAz, noise_, rng_); st_.az0Deg = az0_;
-    oriented_ = true;
+    oriented_ = true; mode_ = Mode::Measure;               // po orientacji od razu mierzymy (bez wychodzenia z lunety)
     return lastMsg_ = "Orientacja ustawiona";
   }
 
