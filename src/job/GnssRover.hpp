@@ -17,6 +17,7 @@ class GnssRover : public Job {
     char ant[64]; std::snprintf(ant, sizeof ant, "Wysokosc anteny: %.3f m (zmien)", kAntenna[antIdx_]);
     return {
       {"pole", poleUp_ ? "Przestaw tyczke z odbiornikiem" : "Postaw tyczke z odbiornikiem", "nie w trakcie pomiaru punktu", !measuring_},
+      {"fine", "Precyzyjne ustawienie tyczki (milimetry)", "najpierw postaw tyczke; nie w trakcie pomiaru punktu", poleUp_ && !measuring_},   // obsluguje kontroler
       {"antenna", ant, "nie w trakcie pomiaru punktu", !measuring_},
       {"start", "Rozpocznij pomiar punktu", "najpierw postaw tyczke", poleUp_ && !measuring_},
       {"store", "Zapisz punkt", "fix i 10 epok (bez fixu: 5 epok z rozwiazaniem)", CanStore()},
@@ -63,7 +64,9 @@ class GnssRover : public Job {
     char b[128]; std::vector<std::string> out;
     out.push_back(std::string("Rozwiazanie: ") + GnssSolName(f.type));
     std::snprintf(b, sizeof b, "Satelity: %d/%d  PDOP: %.1f", f.used, f.visible, f.pdop); out.push_back(b);
-    std::snprintf(b, sizeof b, "Epoki: %d  RMS H/V: %.0f/%.0f mm", f.epochs, f.hRmsMm, f.vRmsMm); out.push_back(b);
+    std::snprintf(b, sizeof b, "Epoki: %d  RMS H/V: %.3f/%.3f m", f.epochs, f.hRmsMm / 1000.0, f.vRmsMm / 1000.0); out.push_back(b);
+    std::snprintf(b, sizeof b, "Niebo zasloniete: %.0f%%  najblizsza przeszkoda: %.1f m", f.blockedPct, f.nearestObstacleM); out.push_back(b);
+    if (f.type != SolType::Fix) out.push_back("Brak fixu: " + GnssFixHint(f));
     if (f.type == SolType::None) out.push_back("brak rozwiazania");
     else { std::snprintf(b, sizeof b, "N %.3f  E %.3f  H %.3f", f.n, f.e, f.h); out.push_back(b); }
     return out;

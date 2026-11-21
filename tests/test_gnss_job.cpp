@@ -49,10 +49,10 @@ static void registry_lists_gnss() {
 static void menu_enablement_follows_state() {
   Fx f;
   assert(f.enabled("pole") && f.enabled("antenna"));
-  for (const char* id : {"start", "store", "discard", "finish"}) assert(!f.enabled(id));
-  f.menu("pole"); assert(f.enabled("start"));
+  for (const char* id : {"start", "store", "discard", "finish", "fine"}) assert(!f.enabled(id));
+  f.menu("pole"); assert(f.enabled("start") && f.enabled("fine"));      // precyzyjne ustawienie tyczki: gdy stoi i nie trwa pomiar
   f.menu("start");
-  assert(!f.enabled("pole") && !f.enabled("antenna") && !f.enabled("start") && f.enabled("discard") && !f.enabled("store"));
+  assert(!f.enabled("pole") && !f.enabled("antenna") && !f.enabled("start") && !f.enabled("fine") && f.enabled("discard") && !f.enabled("store"));
 }
 
 static void pole_blocked_without_ground() {
@@ -62,7 +62,7 @@ static void pole_blocked_without_ground() {
 
 static void open_sky_fix_then_store() {
   Fx f; f.measure(60);
-  assert(has(f.status(), "fix RTK") && f.enabled("store"));
+  assert(has(f.status(), "fix RTK") && has(f.status(), "Niebo zasloniete: 0%") && f.enabled("store"));
   f.menu("store");
   GnssReport r = f.job->FinishGnss(true);
   assert(r.points.size() == 1 && r.points[0].name == "P1" && r.points[0].solution == "fix RTK" && r.points[0].note.empty());
@@ -72,6 +72,7 @@ static void open_sky_fix_then_store() {
 
 static void store_without_fix_is_flagged() {
   Fx f; f.w.mask.nearestObstacleM = 2.5; f.measure(20);                 // wielodrogowosc 0,5: float, nigdy fix
+  assert(has(f.status(), "przeszkoda blisko"));                          // powod braku fixu widoczny w panelu
   assert(f.enabled("store")); f.menu("store");
   GnssReport r = f.job->FinishGnss(true);
   assert(r.points.size() == 1 && r.points[0].note == "zapis bez fixu" && r.points[0].solution == "float RTK");
@@ -79,6 +80,7 @@ static void store_without_fix_is_flagged() {
 
 static void blocked_sky_never_enables_store() {
   Fx f; for (double& h : f.w.mask.horizonDeg) h = 90; f.measure(120);
+  assert(has(f.status(), "Niebo zasloniete: 100%"));
   assert(!f.enabled("store") && has(f.status(), "brak rozwiazania") && !has(f.status(), "nan") && !has(f.status(), "inf"));
 }
 

@@ -107,7 +107,8 @@ static void session_reaches_fix_in_open_sky() {
   GnssSession s(1, 0.0, TRUTH, 2.0);
   for (int t = 1; t <= 60; t++) {
     s.Step(t, SkyMask{});
-    if (t == 3) assert(s.Fix().type == SolType::Dgps || s.Fix().type == SolType::Autonomous);
+    if (t == 2) assert(s.Fix().type == SolType::Dgps || s.Fix().type == SolType::Autonomous);
+    if (t == 21) assert(s.Fix().type == SolType::Fix);                  // fix najpozniej po 20 s w dobrych warunkach
     if (t == 45) assert(s.Fix().type == SolType::Fix);
   }
   assert(s.Fix().epochs >= 5);
@@ -141,10 +142,24 @@ static void blocked_sky_gives_no_solution() {
   assert(std::isfinite(f.n) && std::isfinite(f.e) && std::isfinite(f.h));
 }
 
+static void sky_blocked_percent_and_hint() {
+  SkyMask open; assert(std::fabs(GnssSkyBlockedPct(open)) < 1e-9);
+  SkyMask all; for (double& h : all.horizonDeg) h = 90; assert(std::fabs(GnssSkyBlockedPct(all) - 100.0) < 1e-9);
+  SkyMask half; for (int i = 0; i < 18; i++) half.horizonDeg[i] = 90; assert(std::fabs(GnssSkyBlockedPct(half) - 50.0) < 1e-9);
+  SkyMask low; for (double& h : low.horizonDeg) h = 5; assert(std::fabs(GnssSkyBlockedPct(low)) < 1e-9);   // ponizej odciecia 10 stopni nic nie zaslania
+  GnssFix f; f.type = SolType::Fix; assert(GnssFixHint(f).empty());
+  f.type = SolType::Float; f.used = 4; f.pdop = 1.5; f.multipath = 0;   assert(GnssFixHint(f).find("satelit") != std::string::npos);
+  f.used = 8; f.pdop = 3.0;                                              assert(GnssFixHint(f).find("PDOP") != std::string::npos);
+  f.pdop = 1.5; f.multipath = 0.5; f.nearestObstacleM = 2.5;             assert(GnssFixHint(f).find("przeszkoda blisko") != std::string::npos);
+  f.multipath = 0;                                                       assert(GnssFixHint(f).find("czekaj") != std::string::npos);
+  f.type = SolType::None; f.used = 0;                                    assert(GnssFixHint(f).find("satelit") != std::string::npos);
+}
+
 int main() {
   pdop_matches_analytic_geometry(); constellation_is_deterministic_and_open_sky_is_good();
   mask_removes_exactly_blocked_satellites(); multipath_scales_with_obstacle_distance(); classify_table();
   grid_roundtrip(); sigma_ordering(); rng_is_deterministic(); session_reaches_fix_in_open_sky();
+  sky_blocked_percent_and_hint();
   fix_error_is_centimeters_but_bias_survives_averaging(); antenna_mismatch_biases_height(); blocked_sky_gives_no_solution();
   std::puts("test_gnss OK");
   return 0;

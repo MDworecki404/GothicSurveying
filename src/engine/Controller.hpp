@@ -2,7 +2,6 @@
 #include <memory>
 
 namespace GOTHIC_NAMESPACE {
-  inline EngineWorld        gWorld;
   inline std::unique_ptr<Job> gJob;
   inline zCWorld*           gCtrlWorld = nullptr;
   inline zCView*            gJobHud = nullptr;       // stały panel z bieżącym krokiem roboty
@@ -19,7 +18,7 @@ namespace GOTHIC_NAMESPACE {
   inline void CtrlEndJob() { gJob.reset(); gWorld.ClearAll(); CtrlCloseJobHud(); }
   inline void CtrlForgetJob() {                        // po zmianie świata: obiekty zniknęły razem ze światem
     gWorld.ForgetAll();                                // najpierw oddaj vob-y, potem callbacki lunety nie dotkną starych obiektów
-    ScopeLeave(); MenuClose(); gJob.reset(); CtrlCloseJobHud();
+    ScopeLeave(); PoleFineLeave(); MenuClose(); gJob.reset(); CtrlCloseJobHud();
   }
 
   inline void CtrlEnterScope() {
@@ -77,10 +76,10 @@ namespace GOTHIC_NAMESPACE {
     lines.push_back( "" );
     for ( const GnssPoint& p : r.points ) {
       char b[220];
-      sprintf( b, "%s  %s  N %.3f  E %.3f  H %.3f  PDOP %.1f  RMS %.0f/%.0f mm", p.name.c_str(), p.solution.c_str(), p.n, p.e, p.h, p.pdop, p.hRmsMm, p.vRmsMm );
+      sprintf( b, "%s  %s  N %.3f  E %.3f  H %.3f  PDOP %.1f  RMS %.3f/%.3f m", p.name.c_str(), p.solution.c_str(), p.n, p.e, p.h, p.pdop, p.hRmsMm / 1000.0, p.vRmsMm / 1000.0 );
       lines.push_back( b );
       if ( r.showTrueError && p.hasTrue ) {
-        sprintf( b, "    blad: N %.1f  E %.1f  H %.1f  2D %.1f mm", p.dNmm, p.dEmm, p.dHmm, p.d2Dmm );
+        sprintf( b, "    blad: N %.3f  E %.3f  H %.3f  2D %.3f m", p.dNmm / 1000.0, p.dEmm / 1000.0, p.dHmm / 1000.0, p.d2Dmm / 1000.0 );
         lines.push_back( b );
       }
     }
@@ -185,6 +184,7 @@ namespace GOTHIC_NAMESPACE {
       if ( !gJob ) return;
       if ( id == "finish" ) CtrlFinish();
       else if ( id == "scope" ) CtrlEnterScope();
+      else if ( id == "fine" ) PoleFineEnter();
       else if ( id == "abort" ) CtrlConfirmAbort();
       else {
         gJob->OnMenu( id );
@@ -212,8 +212,9 @@ namespace GOTHIC_NAMESPACE {
     std::string text; for ( const std::string& l : lines ) text += l + "|";
     if ( gStatusPanel && text == gStatusText ) return;
     PanelClose( gStatusPanel );
-    gStatusPanel = PanelOpen( 150, 150, 3700, 1650 );
-    for ( size_t i = 0; i < lines.size(); i++ ) gStatusPanel->Print( 400, 700 + (int)i * 1700, zSTRING( lines[i].c_str() ) );
+    const int H = 130 + (int)lines.size() * 235 + 150;   // stały odstęp wierszy [jednostki ekranu]; Print liczy y w 8192 na wysokość panelu
+    gStatusPanel = PanelOpen( 150, 150, 3900, 150 + H );
+    for ( size_t i = 0; i < lines.size(); i++ ) gStatusPanel->Print( 300, ( 130 + (int)i * 235 ) * 8192 / H, zSTRING( lines[i].c_str() ) );
     gStatusText = text;
   }
 
@@ -229,12 +230,13 @@ namespace GOTHIC_NAMESPACE {
     const DWORD nowClock = GetTickCount();
     double dtClock = ( nowClock - lastClock ) / 1000.0; lastClock = nowClock;
     if ( dtClock > 0.2 ) dtClock = 0.2;
-    const bool gamePaused = MenuIsOpen() || ScopeActive() || FieldBookVisible() || TextPanelVisible() || FieldBookEditActive();
+    const bool gamePaused = MenuIsOpen() || ScopeActive() || FieldBookVisible() || TextPanelVisible() || FieldBookEditActive() || PoleFineActive();
     if ( !gamePaused ) { gWorld.AdvanceClock( dtClock ); if ( gJob ) gJob->Tick(); }   // zegar symulacji stoi, gdy gra zatrzymana
-    if ( !MenuIsOpen() && !ScopeActive() ) gWorld.DressTick();   // przy zatrzymanej grze nic się nie rusza
+    if ( !MenuIsOpen() && !ScopeActive() && !PoleFineActive() ) gWorld.DressTick();   // przy zatrzymanej grze nic się nie rusza
     ScopeTick();
+    PoleFineTick();
     HudTick();
-    if ( ScopeActive() ) { CtrlCloseJobHud(); return; }
+    if ( ScopeActive() || PoleFineActive() ) { CtrlCloseJobHud(); return; }
     if ( FieldBookEditActive() ) { if ( FieldBookEditTick() ) CtrlFinishManual(); return; }
     if ( TextPanelVisible() ) { TextPanelTick(); return; }
     if ( FieldBookVisible() ) { FieldBookTick(); return; }

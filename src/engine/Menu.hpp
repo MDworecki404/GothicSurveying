@@ -10,6 +10,7 @@ namespace GOTHIC_NAMESPACE {
   inline bool      gMenuOpen = false;
   inline MenuView  gMenu;
   inline int       gMenuCursor = 0;
+  inline int       gMenuH = 4800;                      // wysokość panelu menu [jednostki ekranu]; wiersze mają stały odstęp niezależnie od liczby pozycji
   inline zCView*   gMenuPanel = nullptr;
   inline std::function<void( const std::string& )> gMenuChoose;
 
@@ -25,14 +26,16 @@ namespace GOTHIC_NAMESPACE {
   inline void MenuRedraw() {
     if ( !gMenuPanel ) return;
     gMenuPanel->ClrPrintwin();
-    gMenuPanel->PrintCX( 350, zSTRING( gMenu.title.c_str() ) );
+    const int pitch = 235;                              // odstęp wierszy w jednostkach ekranu; PrintCX liczy y w 8192 na wysokość panelu
+    auto L = [&]( int v ) { return v * 8192 / gMenuH; };
+    gMenuPanel->PrintCX( L( 130 ), zSTRING( gMenu.title.c_str() ) );
     for ( size_t i = 0; i < gMenu.items.size(); i++ ) {
       const MenuItem& m = gMenu.items[i];
       std::string line = (int)i == gMenuCursor ? "> " : "  ";
       line += m.enabled ? m.label : "[" + m.label + "] - " + m.hint;
-      gMenuPanel->PrintCX( 1000 + (int)i * 400, zSTRING( line.c_str() ) );
+      gMenuPanel->PrintCX( L( 520 + (int)i * pitch ), zSTRING( line.c_str() ) );
     }
-    gMenuPanel->PrintCX( 1000 + (int)gMenu.items.size() * 400 + 350, zSTRING( "Gora/Dol - wybor, Enter - zatwierdz, " LV_KEYNAME_MENU " - zamknij" ) );
+    gMenuPanel->PrintCX( L( 520 + (int)gMenu.items.size() * pitch + 150 ), zSTRING( "Gora/Dol - wybor, Enter - zatwierdz, " LV_KEYNAME_MENU " - zamknij" ) );
   }
 
   inline int MenuNextEnabled( int from, int dir ) {   // pomija pozycje nieaktywne; -1 gdy żadnej nie ma
@@ -49,7 +52,8 @@ namespace GOTHIC_NAMESPACE {
     gMenu = view; gMenuChoose = onChoose;
     gMenuCursor = 0;
     if ( !gMenu.items.empty() && !gMenu.items[0].enabled ) { int i = MenuNextEnabled( 0, 1 ); gMenuCursor = i < 0 ? 0 : i; }
-    gMenuPanel = PanelOpen( 1500, 900, 6700, 1000 + ( (int)view.items.size() + 2 ) * 400 + 700 );
+    gMenuH = 520 + (int)view.items.size() * 235 + 150 + 350;
+    gMenuPanel = PanelOpen( 1500, 900, 6700, 900 + gMenuH );
     gMenuOpen = true;
     ogame->Pause();
     MenuRedraw();
