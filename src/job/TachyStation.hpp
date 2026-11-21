@@ -202,6 +202,7 @@ class TachyStationJob : public Job {
       const GridPos g = w_.PointGrid(i + 1);
       const TachyAim a = TachyAimError(g.n - s.n, g.e - s.e, (g.h + kPrism[prismIdx_]) - (s.h + st_.instrH), camAz, camPitch);
       if (!a.ok) continue;
+      if (!points_.empty()) return lastMsg_ = "Orientacja zablokowana po pierwszym punkcie (nawiazania bez zmian)";   // inaczej az0 zmieniloby sie w trakcie serii
       if (!w_.LineClear(false, i + 1)) return lastMsg_ = "Linia celowa zaslonieta";
       Back& b = backs_[i];
       b.azMeasDeg = TachyOrient(camAz, noise_, rng_);

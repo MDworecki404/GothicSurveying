@@ -141,6 +141,17 @@ static void changes_clear_readings() {
   assert(f.job->FinishTachy(true).backsights.empty() && !f.enabled("view"));      // przestawienie stanowiska usuwa nawiazania i odczyty
 }
 
+static void orientation_locked_after_first_point() {
+  Fx f; f.setup(2); f.readBack(1);                                                // zmierzone tylko nawiazanie 1, drugie nie
+  f.w.prism = GridPos{5500040.0, 6500030.0, 100.0};
+  assert(has(f.fireAt(f.w.prism, 1.5), "T1"));
+  const double before = f.job->FinishTachy(true).backsights[0].dirResidMgon;
+  std::string m = f.readBack(2);                                                  // po pierwszym punkcie odczyt nawiazania nie moze zmienic orientacji
+  assert(has(m, "zablokowana"));
+  TachyReport r = f.job->FinishTachy(true);
+  assert(r.backsights.size() == 1 && near(r.backsights[0].dirResidMgon, before, 1e-9) && r.points.size() == 1);
+}
+
 static void limit_five_backsights() {
   Fx f; f.menu("station");
   for (int i = 0; i < 5; i++) { assert(f.enabled("backsight")); f.menu("backsight"); }
@@ -247,7 +258,7 @@ static void extreme_aim_does_not_crash() {
 
 int main() {
   registry_lists_tachy(); menu_state_true_mode(); multiple_backsights_orientation_mean(); single_backsight_works(); measure_before_orient_refused();
-  backsight_aiming_is_angular(); remeasure_overwrites(); changes_clear_readings(); limit_five_backsights();
+  backsight_aiming_is_angular(); remeasure_overwrites(); orientation_locked_after_first_point(); changes_clear_readings(); limit_five_backsights();
   uncertain_flag_direction(); uncertain_flag_distance(); control_source_uses_gnss_coordinates(); no_control_nearby_refused();
   prism_height_is_the_physical_height(); aim_must_be_on_prism_not_ground(); reflectorless_measures_surface_point();
   true_error_and_abort(); extreme_aim_does_not_crash();
