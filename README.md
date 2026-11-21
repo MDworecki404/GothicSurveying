@@ -121,8 +121,9 @@ W robocie GNSS, gdy odbiornik ma **fix** i co najmniej **20 epok**, menu ma pozy
 położenie znaku w grze, rozwiązanie, PDOP, epoki, czas) i **stawia znak (reper)**, który zostaje po zakończeniu roboty. Po wczytaniu zapisu albo wejściu
 do świata znaki wracają z pliku. W menu głównym (bez roboty) pozycja **Pokaż osnowę** wyświetla punkty bieżącego świata.
 
-Współrzędne osnowy mają błąd GNSS (centymetry), więc przechodzą na pomiary tachimetryczne oparte na osnowie. Ograniczenie: jeśli zapiszesz grę, gdy znaki stoją,
-po wczytaniu mogą być w tym samym miejscu dwa identyczne znaki (zapisany i postawiony z pliku); nie wpływa to na pomiary.
+Współrzędne osnowy mają błąd GNSS (centymetry), więc przechodzą na pomiary tachimetryczne oparte na osnowie. Obiekty pluginu (znaki, tyczki, sprzęt) nie są
+zapisywane w zapisach gry, a znaki osnowy są stawiane na nowo z pliku, więc nie powinny się dublować po wczytaniu zapisu. Zapisy zrobione starszą wersją pluginu mogą mieć
+„duchy” (zapisany kask, tyczkę lub znak) - wczytaj zapis sprzed pomiarów.
 
 ## Tachimetria (pomiar biegunowy)
 
