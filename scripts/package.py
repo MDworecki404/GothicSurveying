@@ -10,7 +10,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = sys.argv[1] if len(sys.argv) > 1 else "0.1.0"
+VERSION = sys.argv[1] if len(sys.argv) > 1 else "0.1.1"
 BIN = ROOT / "out" / "install" / "x86-release" / "bin"
 
 README = r"""GothicSurveying v{version} - niwelacja geometryczna w Gothic II: Noc Kruka (plugin Union)
@@ -26,15 +26,15 @@ WYMAGANIA
 INSTALACJA
 1. Rozpakuj to archiwum w folderze gry, tam gdzie leza foldery "system" i "_work"
    (zgodz sie na scalenie folderow).
-2. Uruchom Gothic2.exe, wczytaj zapis i nacisnij F12.
+2. Uruchom Gothic2.exe, wczytaj zapis i nacisnij Home.
 
 STEROWANIE
-- F12: menu geodezyjne (Gora/Dol - wybor, Enter - zatwierdz, F12 - zamknij). "Rozpocznij robote" ->
+- Home: menu geodezyjne (Gora/Dol - wybor, Enter - zatwierdz, Home - zamknij; F12 to zrzut ekranu Steam, F11 - GD3D11). "Rozpocznij robote" ->
   typ roboty (ciag niwelacyjny) -> rodzaj ciagu (dowiazany/zamkniety/otwarty) -> tryb liczenia dziennika.
 - Sprzet staje pod stopami bohatera. Kroki: reper A, niwelator, lata wstecz, odczyt, lata wprzod, odczyt,
   "Przeloz na nastepne stanowisko", ..., punkt koncowy, "Zakoncz robote".
-- F10: widok przez lunete (strzalki - obrot, Shift - powoli, Enter - odczyt; wpisz odczyt w mm cyframi 0-9,
-  potem opcjonalnie gorna i dolna kreska dalmiercza; Enter bez liczby pomija).
+- F10: widok przez lunete (strzalki - obrot, Shift - powoli, Enter - odczyt; wpisz odczyt
+  srodkowej kreski w mm cyframi 0-9; dalmierz liczy sie sam; Z / X - obrot na late wstecz / wprzod).
 - Wynik: tabela w grze oraz pliki dziennik_N.docx i dziennik_N.csv w katalogu roboczym gry
   (przerwana robota: dziennik_N_przerwany.csv).
 

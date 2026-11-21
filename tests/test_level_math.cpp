@@ -22,6 +22,12 @@ int main() {
   assert( std::fabs( up - 157.8 ) < 1e-9 && std::fabs( lo - 137.8 ) < 1e-9 );
   assert( std::fabs( LevelStadiaDist( up, lo ) - 2000.0 ) < 1e-9 );
   assert( std::fabs( LevelStadiaDist( lo, up ) - 2000.0 ) < 1e-9 );   // kolejność odczytów nie gra roli
+  // dalmierz z prawdziwej celowej: 20 m, środek 1500 mm -> kreski 1600 i 1400 mm, D = 20,0 m
+  assert( std::fabs( LevelStadiaMeasured( 1500, 2000 ) - 2000.0 ) < 1e-9 );
+  // kreski zaokrąglone do 1 mm jak przy odczycie na oko: 20,25 m -> 101,25 mm od środka -> 1601 i 1399 mm -> D = 20,2 m
+  assert( std::fabs( LevelStadiaMeasured( 1500, 2003 ) - 2000.0 ) < 1e-9 );
+  assert( std::fabs( LevelStadiaMeasured( 1500, 2025 ) - 2020.0 ) < 1e-9 );
+  assert( std::fabs( LevelStadiaMeasured( 1234, 3000 ) - 3000.0 ) < 1e-9 );
   std::puts( "OK" );
   return 0;
 }

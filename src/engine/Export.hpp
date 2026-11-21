@@ -28,11 +28,11 @@ namespace GOTHIC_NAMESPACE {
   }
 
   // Pomocniczy log pojedynczych odczytów (niwelacja_N.csv) dopisywany w trakcie roboty.
-  inline void AppendReadingLog( const std::string& file, int pointId, int midMm, int upMm, int loMm ) {
+  inline void AppendReadingLog( const std::string& file, int pointId, int midMm ) {
     const bool fresh = !FileExistsRel( file );
     std::ofstream f( file, std::ios::app );
-    if ( fresh ) f << "punkt;odczyt_srodkowa_mm;gorna_mm;dolna_mm\n";
-    f << pointId << ";" << midMm << ";" << ( upMm >= 0 ? std::to_string( upMm ) : "" ) << ";" << ( loMm >= 0 ? std::to_string( loMm ) : "" ) << "\n";
+    if ( fresh ) f << "punkt;odczyt_srodkowa_mm\n";
+    f << pointId << ";" << midMm << "\n";
   }
   inline std::string NextReadingLogName() {
     for ( int n = 1; n < 10000; n++ ) { std::string f = "niwelacja_" + std::to_string( n ) + ".csv"; if ( !FileExistsRel( f ) ) return f; }

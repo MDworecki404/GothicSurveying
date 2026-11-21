@@ -1,4 +1,4 @@
-// Podgląd dziennika w grze: tabela w panelu, ↑/↓ przewijanie, Enter/F12 zamyka (gra zatrzymana). Bez strażnika include.
+// Podgląd dziennika w grze: tabela w panelu, ↑/↓ przewijanie, Enter/klawisz menu zamyka (gra zatrzymana). Bez strażnika include.
 #include <string>
 #include <vector>
 

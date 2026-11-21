@@ -32,7 +32,7 @@ struct Fx {
   }
   bool enabled(const std::string& id) const { for (auto& m : job->Menu()) if (m.id == id) return m.enabled; return false; }
   void menu(const std::string& id) { job->OnMenu(id); }
-  bool read(int p, int mid, int up = -1, int lo = -1) { return job->OnReading(p, mid, up, lo); }
+  bool read(int p, int mid) { return job->OnReading(p, mid); }
 };
 
 static void menu_at_start_only_allows_reper_a() {
@@ -117,10 +117,7 @@ static void reading_rejects_out_of_range() {
   Fx f; f.menu("reper_a"); f.menu("instrument"); f.menu("rod_back");
   assert(!f.read(1, 3001));
   assert(!f.read(1, -5));
-  assert(!f.read(1, 1500, 1600, -1));                                 // górna bez dolnej
-  assert(!f.read(1, 1500, -1, 1600));
-  assert(!f.read(1, 1500, 3001, 1400));
-  assert(f.read(1, 1500, 1400, 1600));                                // kolejność górna/dolna dowolna
+  assert(f.read(1, 1500));
 }
 
 static void reading_on_unplaced_rod_is_rejected() {
@@ -145,13 +142,21 @@ static void job_registry_lists_traverse() {
   assert(j && j->Name() == "Ciag niwelacyjny");
 }
 
-static void stadia_is_stored_and_validated() {
+static void stadia_is_measured_automatically() {
   Fx f; f.menu("reper_a"); f.menu("instrument"); f.menu("rod_back");
-  assert(!f.read(1, 1500, 1400, 1450));                               // środkowa poza przedziałem kresek
-  assert(f.read(1, 1500, 1578, 1378));
+  assert(f.read(1, 1500));                                            // celowa 30 m (FakeWorld) -> D = 30,0 m
   f.menu("rod_fore_end"); assert(f.read(2, 1200));
   FieldBook fb = f.job->Finish(true);
-  assert(near(fb.rows[0].stadiaBackCm, 2000.0, 1e-6) && fb.rows[0].stadiaForeCm < 0);
+  assert(near(fb.rows[0].stadiaBackCm, 3000.0, 1e-6) && near(fb.rows[0].stadiaForeCm, 3000.0, 1e-6));
+}
+
+static void rod_point_for_reports_roles() {
+  Fx f; f.menu("reper_a");
+  assert(f.job->RodPointFor(RodRole::Back) < 0 && f.job->RodPointFor(RodRole::Fore) < 0);
+  f.menu("instrument"); f.menu("rod_back");
+  assert(f.job->RodPointFor(RodRole::Back) == 1 && f.job->RodPointFor(RodRole::Fore) < 0);
+  f.menu("rod_fore_turn");
+  assert(f.job->RodPointFor(RodRole::Fore) == 2);
 }
 
 static void redo_readings_allows_second_reading() {
@@ -181,7 +186,7 @@ int main() {
   closed_end_requires_feet_on_reper_a(); open_end_finishes_without_closure(); finish_disabled_until_end_point_read();
   abort_without_stands_returns_incomplete_empty_book(); reading_rejects_out_of_range(); reading_on_unplaced_rod_is_rejected();
   readings_order_is_free(); job_registry_lists_traverse();
-  stadia_is_stored_and_validated(); redo_readings_allows_second_reading(); instrument_can_be_repositioned_before_readings();
+  stadia_is_measured_automatically(); rod_point_for_reports_roles(); redo_readings_allows_second_reading(); instrument_can_be_repositioned_before_readings();
   std::puts("test_traverse_job OK");
   return 0;
 }

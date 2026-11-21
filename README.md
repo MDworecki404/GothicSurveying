@@ -34,12 +34,12 @@ Jeśli `Signatures_G2A.tsv` nie powstał podczas konfiguracji, uruchom
 
 ## Wydanie (paczka do rozpakowania)
 
-`python scripts/package.py 0.1.0` (po `scripts/build.ps1`) tworzy `release/GothicSurveying-v0.1.0-G2A.zip`. Archiwum ma układ folderu gry
+`python scripts/package.py 0.1.1` (po `scripts/build.ps1`) tworzy `release/GothicSurveying-v0.1.1-G2A.zip`. Archiwum ma układ folderu gry
 (`system/Autorun/...` i `_work/Data/...`) i `INSTALACJA.txt`; wystarczy je rozpakować w folderze Gothic II z zainstalowanym Union.
 
 ## Sterowanie
 
-**F12** otwiera menu geodezyjne (↑/↓ wybór, Enter zatwierdza, F12 zamyka; gra jest wtedy zatrzymana).
+**Home** otwiera menu geodezyjne (↑/↓ wybór, Enter zatwierdza, Home zamyka; gra jest wtedy zatrzymana).
 Poza robotą menu ma pozycję „Rozpocznij robotę”: wybierasz typ roboty (na razie ciąg niwelacyjny), rodzaj ciągu
 (dowiązany, zamknięty, otwarty) i tryb liczenia dziennika (automatyczny albo samodzielny). W trakcie roboty menu zawiera
 kroki tej roboty (niedostępne są wyszarzone z podpowiedzią), „Patrz przez lunetę” i „Przerwij robotę”; u dołu ekranu widać bieżący krok.
@@ -52,10 +52,11 @@ na punkcie końcowym **Zakończ robotę**. Punkt końcowy: dla ciągu dowiązane
 
 | Klawisz | Akcja |
 |---|---|
-| **F12** | menu geodezyjne |
+| **Home** | menu geodezyjne |
 | **F10** | wejdź do widoku niwelatora / wyjdź z niego (gra zatrzymana, zbliżenie 20×, krzyż kresek) |
 | **←/→** | w lunecie: obrót niwelatora w poziomie (**Shift** = powoli) |
-| **Enter** | w lunecie: odczyt; pionowa kreska musi leżeć na łacie; wpisz odczyt środkowej kreski w mm (0–9, Backspace, Enter), potem opcjonalnie górnej i dolnej kreski dalmierczej (Enter bez liczby pomija odległość); F10 anuluje |
+| **Z** / **X** | w lunecie: płynny obrót na łatę wstecz / wprzód (przerywa go ręczny obrót strzałkami); po dolocie pionowa kreska leży na łacie |
+| **Enter** | w lunecie: odczyt; pionowa kreska musi leżeć na łacie; wpisz odczyt środkowej kreski w mm (0–9, Backspace, Enter); F10 anuluje |
 
 Pierwszy odczyt na stanowisku może być wstecz lub wprzód (kolejność dowolna); przewyższenie to wstecz − wprzód. Wysokość punktu to wysokość stopy łaty
 (szczyt znaku reperu lub żabki).
@@ -65,11 +66,11 @@ Pierwszy odczyt na stanowisku może być wstecz lub wprzód (kolejność dowolna
 - „Powtórz odczyty na tym stanowisku” kasuje odczyty bieżącego stanowiska (np. po pomyłce przy wpisywaniu), a „Przestaw niwelator” pozwala
   postawić go w innym miejscu, dopóki nie ma odczytów.
 - „Przerwij robotę” pyta o potwierdzenie (domyślnie „Nie”) i zapisuje to, co zmierzono, do `dziennik_N_przerwany.csv`.
-- W trakcie roboty każdy przyjęty odczyt trafia też do pomocniczego logu `niwelacja_N.csv` (punkt, odczyt środkowy, górna i dolna kreska).
+- W trakcie roboty każdy przyjęty odczyt trafia też do pomocniczego logu `niwelacja_N.csv` (punkt, odczyt środkowy).
 
 ## Dziennik i pliki
 
-Po **Zakończ robotę** gra pokazuje tabelę dziennika (z celowymi z dalmierza, jeśli wpisano kreski) (↑/↓ przewijanie, Enter zamyka) i zapisuje w katalogu głównym gry:
+Po **Zakończ robotę** gra pokazuje tabelę dziennika (z celowymi z dalmierza) (↑/↓ przewijanie, Enter zamyka) i zapisuje w katalogu głównym gry:
 `dziennik_N.docx` (A4 pozioma, do wydruku: tabela, Σ, fh, fh dop., wynik, data) oraz `dziennik_N.csv` (dane, średniki).
 Dziennik liczy fh = ΣΔh − (H_koniec − H_start), poprawki równomierne na stanowisko i wysokości wyrównane;
 dopuszczalny błąd fh_dop = 20 mm·√L (L w km, suma celowych). Ciąg otwarty nie ma kontroli ani poprawek.
@@ -80,15 +81,21 @@ Jeśli w trakcie roboty wczytasz zapis, plugin zapisze to, co zmierzono, do `dzi
 
 Przy starcie roboty możesz wybrać „Dziennik liczę sam”. Po **Zakończ robotę** pojawia się edytor: tabela z pustymi komórkami
 (Δh, poprawki v, wysokości wyrównane, Σ Δh, fh). Strzałki zmieniają komórkę, cyfry, `-` i `.` wpisują wartość (Δh i v w mm, H w m),
-Backspace kasuje, **F12** kończy. Plugin porównuje każdą komórkę z poprawną wartością (tolerancja 1 mm), pokazuje listę chybionych
+Backspace kasuje, **Home** kończy. Plugin porównuje każdą komórkę z poprawną wartością (tolerancja 1 mm), pokazuje listę chybionych
 i zapisuje CSV oraz DOCX z tabelą „Sprawdzenie” (wartości poprawne, Twoje, różnice).
 
 ## Dalmierz nitkowy
 
-Nad i pod poziomą kreską leżą dwie krótkie kreski dalmiercze (stała k = 100). Odległość do łaty to
-**D = 100 × (odczyt górnej − odczyt dolnej)**, np. 1,578 m − 1,378 m = 0,200 m, czyli 20,0 m. Po odczycie środkowej kreski
-wpisz odczyty górnej i dolnej (albo pomiń Enterem). Plugin porównuje wynik z prawdziwą odległością i zapisuje oba w CSV
-(`dalmierz_m`, `blad_dalmierza_m`). Odstęp kresek na ekranie jest liczony z pola widzenia gry, więc zgadza się ze stałą k niezależnie od ustawień FOV.
+Dalmierz mierzy się sam. Odległość nitkowa (k = 100) to **D = 100 × (odczyt górnej − odczyt dolnej)**. Po odczycie środkowej kreski
+plugin bierze prawdziwą poziomą odległość instrument→łata, wyznacza idealne odczyty górnej i dolnej kreski (środek ± D/200), zaokrągla każdy do 1 mm
+(jak przy odczycie na oko, bez szumu) i liczy z nich D. Dlatego celowe wstecz i wprzód (`celowa_wstecz_m`, `celowa_wprzod_m`) są w CSV i DOCX zawsze
+wypełnione, z rozdzielczością 0,1 m wynikającą z zaokrąglenia do 1 mm. Dwie krótkie kreski dalmiercze na krzyżu lunety są tylko elementem wizualnym
+(odstęp liczony z pola widzenia gry, zgodny ze stałą k).
+
+## Klawisze (zmiana w jednym miejscu)
+
+Wszystkie klawisze są stałymi w `src/Keys.hpp`. Pod F11 jest menu GD3D11, F12 to zrzut ekranu Steam, F5/F6 to zapis/odczyt gry,
+więc menu geodezyjne jest pod **Home**, luneta pod **F10**, a obrót na łatę pod **Z** / **X**.
 
 ## Jak czytać łatę
 

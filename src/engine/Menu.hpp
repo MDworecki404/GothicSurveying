@@ -1,12 +1,10 @@
-// Menu geodezyjne: panel z listą pozycji, nawigacja ↑/↓, Enter wybiera, F12 zamyka; gra zatrzymana, gdy menu otwarte.
+// Menu geodezyjne: panel z listą pozycji, nawigacja ↑/↓, Enter wybiera, klawisz menu zamyka; gra zatrzymana, gdy menu otwarte.
 // Dołączane raz z Plugin.hpp, bez strażnika include. Wymaga job/Job.hpp (MenuItem) dołączonego wcześniej.
 #include <functional>
 #include <string>
 #include <vector>
 
 namespace GOTHIC_NAMESPACE {
-  inline const int LV_KEY_MENU = KEY_F12;
-
   struct MenuView { std::string title; std::vector<MenuItem> items; };
 
   inline bool      gMenuOpen = false;
@@ -34,7 +32,7 @@ namespace GOTHIC_NAMESPACE {
       line += m.enabled ? m.label : "[" + m.label + "] - " + m.hint;
       gMenuPanel->PrintCX( 1000 + (int)i * 400, zSTRING( line.c_str() ) );
     }
-    gMenuPanel->PrintCX( 1000 + (int)gMenu.items.size() * 400 + 350, zSTRING( "Gora/Dol - wybor, Enter - zatwierdz, F12 - zamknij" ) );
+    gMenuPanel->PrintCX( 1000 + (int)gMenu.items.size() * 400 + 350, zSTRING( "Gora/Dol - wybor, Enter - zatwierdz, " LV_KEYNAME_MENU " - zamknij" ) );
   }
 
   inline int MenuNextEnabled( int from, int dir ) {   // pomija pozycje nieaktywne; -1 gdy żadnej nie ma

@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <map>
 #include "Job.hpp"
+#include "Keys.hpp"
 #include "calc/LevelMath.hpp"
 
 class LevelingTraverse : public Job {
@@ -74,30 +75,30 @@ class LevelingTraverse : public Job {
     return p;
   }
 
-  bool OnReading(int pointId, int midMm, int upMm, int loMm) override {
+  int RodPointFor(RodRole role) const override {
+    return role == RodRole::Back ? (backRod_ ? curBack_ : -1) : (foreRod_ ? forePoint_ : -1);
+  }
+
+  bool OnReading(int pointId, int midMm) override {
     if (!instrument_ || midMm < 0 || midMm > 3000) return false;
-    const bool hasStadia = upMm >= 0 || loMm >= 0;
-    if (hasStadia && (upMm < 0 || loMm < 0 || upMm > 3000 || loMm > 3000)) return false;
-    if (hasStadia && (midMm < (upMm < loMm ? upMm : loMm) || midMm > (upMm < loMm ? loMm : upMm))) return false;   // środkowa leży między kreskami
-    const double stadiaCm = hasStadia ? LevelStadiaDist(upMm / 10.0, loMm / 10.0) : -1.0;
     if (backRod_ && !backRead_ && pointId == curBack_) {
-      backMm_ = midMm; backSight_ = w_.SightDistCm(pointId); backStadia_ = stadiaCm; backRead_ = true; return true;
+      backMm_ = midMm; backSight_ = w_.SightDistCm(pointId); backStadia_ = LevelStadiaMeasured(midMm, backSight_); backRead_ = true; return true;
     }
     if (foreRod_ && !foreRead_ && pointId == forePoint_) {
-      foreMm_ = midMm; foreSight_ = w_.SightDistCm(pointId); foreStadia_ = stadiaCm; foreRead_ = true; return true;
+      foreMm_ = midMm; foreSight_ = w_.SightDistCm(pointId); foreStadia_ = LevelStadiaMeasured(midMm, foreSight_); foreRead_ = true; return true;
     }
     return false;
   }
 
   std::string Hud() const override {
     char b[160]; const int k = (int)stands_.size() + 1;
-    if (!hasA_) return "Postaw reper A (F12 - menu)";
-    if (Ended()) return "Ciag domkniety. Zakoncz robote (F12 - menu)";
+    if (!hasA_) return "Postaw reper A (" LV_KEYNAME_MENU " - menu)";
+    if (Ended()) return "Ciag domkniety. Zakoncz robote (" LV_KEYNAME_MENU " - menu)";
     const char* todo = !instrument_ ? "postaw niwelator"
                      : !backRod_ ? "postaw late wstecz"
-                     : !backRead_ && !foreRod_ ? "odczyt wstecz (F10 - luneta) lub postaw late wprzod"
+                     : !backRead_ && !foreRod_ ? "odczyt wstecz (" LV_KEYNAME_SCOPE " - luneta) lub postaw late wprzod"
                      : !foreRod_ ? "postaw late wprzod"
-                     : !backRead_ || !foreRead_ ? "odczyty (F10 - luneta)"
+                     : !backRead_ || !foreRead_ ? "odczyty (" LV_KEYNAME_SCOPE " - luneta)"
                      : "przeloz na nastepne stanowisko";
     std::snprintf(b, sizeof b, "Stanowisko %d: %s", k, todo);
     return b;

@@ -1,5 +1,5 @@
 // Widok przez lunetę niwelatora: kamera w osi lunety, zbliżenie, krzyż i kreski dalmiercze, obrót, wybór łaty pod kreską,
-// wpisywanie odczytów (środkowa, górna, dolna kreska). Dołączane raz z Plugin.hpp, bez strażnika include.
+// wpisywanie odczytu środkowej kreski i szybki obrót na łatę wstecz / wprzód (dalmierz liczy się sam w robocie). Dołączane raz z Plugin.hpp, bez strażnika include.
 #include <cmath>
 #include <functional>
 #include <vector>
@@ -13,22 +13,25 @@ namespace GOTHIC_NAMESPACE {
   inline const float  LV_ZOOM      = 20.0f;    // powiększenie lunety
   inline const float  LV_TURN_FAST = 12.0f;    // obrót niwelatora [stopnie/s]
   inline const float  LV_TURN_SLOW = 1.0f;     // obrót powolny (Shift) [stopnie/s]
-  inline const float  LV_STADIA_K  = 100.0f;   // stała dalmierza nitkowego: odległość = k * (górny - dolny odczyt)
+  inline const float  LV_STADIA_K  = 100.0f;   // stała dalmierza nitkowego (kreski na krzyżu są tylko wizualne; odczyt liczy robota)
+  inline const float  LV_TURN_AUTO = 300.0f;   // obrót na łatę [stopnie/s]: 180 stopni w ok. 0,6 s
 
   struct RodTarget { int pointId; zVEC3 foot; };
   struct ScopeCallbacks {
     std::function<std::vector<RodTarget>()> targets;                           // łaty do wyboru pod pionową kreską
-    std::function<bool( int pointId, int midMm, int upMm, int loMm )> onReading;  // false = odczyt odrzucony
+    std::function<bool( bool fore, zVEC3& foot )> rodFoot;                     // stopa łaty wprzód/wstecz; false = brak takiej łaty
+    std::function<bool( int pointId, int midMm )> onReading;                   // false = odczyt odrzucony
     std::function<void()> onEnter, onLeave;                                    // np. ukrycie niwelatora, obrót łat
   };
 
-  inline bool      gScopeOn = false, gEntry = false, gFovSaved = false, gHairsDone = false;
+  inline bool      gScopeOn = false, gEntry = false, gTurning = false, gFovSaved = false, gHairsDone = false;
   inline float     gAz = 0, gFovX = 0, gFovY = 0;      // azymut osi lunety [rad]: kierunek (sin az, 0, cos az)
   inline DWORD     gLastTick = 0;
+  inline float     gTurnTo = 0;                        // docelowy azymut obrotu na łatę [rad]
   inline zVEC3     gInstrGround;
   inline zCView   *gReticle = nullptr, *gHairU = nullptr, *gHairL = nullptr, *gEntryPanel = nullptr;
   inline ScopeCallbacks gCb;
-  inline int       gEntryPoint = -1, gEntryLen = 0, gEntryMm = 0, gEntryStep = 0, gMidMm = 0, gUpMm = 0;
+  inline int       gEntryPoint = -1, gEntryLen = 0, gEntryMm = 0;
 
   inline bool ScopeActive() { return gScopeOn; }
 
@@ -87,7 +90,7 @@ namespace GOTHIC_NAMESPACE {
     gReticle->SetAlphaBlendFunc( zRND_ALPHA_FUNC_BLEND );
     screen->InsertItem( gReticle );
     gReticle->Open();
-    gScopeOn = true; gEntry = false; gLastTick = GetTickCount();
+    gScopeOn = true; gEntry = gTurning = false; gLastTick = GetTickCount();
     ogame->Pause();
     SvTrace( "widok lunety: wlaczony" );
   }
@@ -120,14 +123,14 @@ namespace GOTHIC_NAMESPACE {
     double ideal = LevelReading( lineY, r.foot[VY], bestFwd, 0.0, 0.0 );
     if ( ideal < 0 || ideal > LV_ROD_LEN ) { HudMessage( "Pozioma kreska jest poza lata (nad nia lub pod nia)" ); return; }
 
-    gEntry = true; gEntryPoint = r.pointId; gEntryLen = 0; gEntryMm = 0; gEntryStep = 0;
+    gEntry = true; gEntryPoint = r.pointId; gEntryLen = 0; gEntryMm = 0; gTurning = false;
     HudClose();
     gEntryPanel = PanelOpen( 2000, 5500, 6200, 7500 );   // pole wpisywania na dole lunety
   }
 
-  inline void ScopeFinishEntry( int upMm, int loMm ) {
+  inline void ScopeFinishEntry( int midMm ) {
     gEntry = false; PanelClose( gEntryPanel );
-    if ( !gCb.onReading || !gCb.onReading( gEntryPoint, gMidMm, upMm, loMm ) ) HudMessage( "Odczyt odrzucony (ta lata juz ma odczyt albo nie jest na tym stanowisku)" );
+    if ( !gCb.onReading || !gCb.onReading( gEntryPoint, midMm ) ) HudMessage( "Odczyt odrzucony (ta lata juz ma odczyt albo nie jest na tym stanowisku)" );
   }
 
   inline void ScopeTick() {
@@ -138,7 +141,7 @@ namespace GOTHIC_NAMESPACE {
     if ( dt > 0.1f ) dt = 0.1f;
     if ( !gHairsDone && gFovSaved ) { gHairsDone = true; ScopeOpenHairs(); }     // FOV gry znany dopiero po pierwszym zastosowaniu zbliżenia
 
-    if ( zinput->KeyToggled( KEY_F10 ) ) {           // F10: anuluj wpisywanie, a gdy go nie ma - wyjdź z widoku
+    if ( zinput->KeyToggled( LV_KEY_SCOPE ) ) {        // klawisz lunety: anuluj wpisywanie, a gdy go nie ma - wyjdź z widoku
       if ( gEntry ) { gEntry = false; PanelClose( gEntryPanel ); } else { ScopeLeave(); return; }
     }
 
@@ -148,27 +151,37 @@ namespace GOTHIC_NAMESPACE {
         if ( zinput->KeyToggled( digitKeys[d] ) && gEntryLen < 4 ) { gEntryMm = gEntryMm * 10 + d; gEntryLen++; }
       if ( zinput->KeyToggled( KEY_BACK ) && gEntryLen > 0 ) { gEntryMm /= 10; gEntryLen--; }
       if ( zinput->KeyToggled( KEY_RETURN ) ) {
-        // krok 0: kreska środkowa (wymagana), kroki 1-2: kreski dalmiercze (Enter bez liczby pomija odległość)
-        bool valid = gEntryLen > 0 && gEntryMm <= 3000;
-        if ( gEntryStep == 0 && valid ) { gMidMm = gEntryMm; gEntryStep = 1; gEntryLen = gEntryMm = 0; }
-        else if ( gEntryStep == 1 && valid ) { gUpMm = gEntryMm; gEntryStep = 2; gEntryLen = gEntryMm = 0; }
-        else if ( gEntryStep == 2 && valid ) ScopeFinishEntry( gUpMm, gEntryMm );
-        else if ( gEntryStep > 0 && gEntryLen == 0 ) ScopeFinishEntry( -1, -1 );
+        if ( gEntryLen > 0 && gEntryMm <= 3000 ) ScopeFinishEntry( gEntryMm );
       }
       if ( gEntry && gEntryPanel ) {
-        static const char* titles[3] = { "srodkowa kreska [mm]:", "gorna kreska dalmiercza [mm]:", "dolna kreska dalmiercza [mm]:" };
         char b[96];
-        sprintf( b, "Lata %d - %s", gEntryPoint, titles[gEntryStep] );
+        sprintf( b, "Lata %d - srodkowa kreska [mm]:", gEntryPoint );
         gEntryPanel->ClrPrintwin();
         gEntryPanel->PrintCX( 700, zSTRING( b ) );
         sprintf( b, "%d", gEntryMm );
         gEntryPanel->PrintCX( 3500, zSTRING( gEntryLen ? b : "_" ) );       // wpisana wartość
-        gEntryPanel->PrintCX( 6300, zSTRING( gEntryStep ? "Enter bez liczby - pomin odleglosc   F10 - anuluj" : "Enter - zatwierdz   F10 - anuluj" ) );
+        gEntryPanel->PrintCX( 6300, zSTRING( "Enter - zatwierdz   " LV_KEYNAME_SCOPE " - anuluj" ) );
       }
     } else {
       const float rate = ( zinput->KeyPressed( KEY_LSHIFT ) ? LV_TURN_SLOW : LV_TURN_FAST ) * 3.14159265f / 180.0f;
-      if ( zinput->KeyPressed( KEY_LEFT ) )  gAz -= rate * dt;
-      if ( zinput->KeyPressed( KEY_RIGHT ) ) gAz += rate * dt;
+      if ( zinput->KeyPressed( KEY_LEFT ) )  { gAz -= rate * dt; gTurning = false; }   // ręczny obrót przerywa automatyczny
+      if ( zinput->KeyPressed( KEY_RIGHT ) ) { gAz += rate * dt; gTurning = false; }
+      for ( int fore = 0; fore < 2; fore++ ) {
+        if ( !zinput->KeyToggled( fore ? LV_KEY_ROD_FORE : LV_KEY_ROD_BACK ) ) continue;
+        zVEC3 foot;
+        if ( !gCb.rodFoot || !gCb.rodFoot( fore != 0, foot ) ) { HudMessage( fore ? "Brak lata wprzod" : "Brak lata wstecz" ); continue; }
+        const double dx = foot[VX] - gInstrGround[VX], dz = foot[VZ] - gInstrGround[VZ];
+        if ( dx * dx + dz * dz < 100.0 ) { HudMessage( "Lata stoi pod niwelatorem" ); continue; }
+        gTurnTo = (float)atan2( dx, dz ); gTurning = true;
+      }
+      if ( gTurning ) {                                // po najkrótszym łuku, stałą prędkością; na końcu pionowa kreska leży na łacie
+        const float pi = 3.14159265f;
+        float diff = gTurnTo - gAz;
+        while ( diff > pi ) diff -= 2 * pi;
+        while ( diff < -pi ) diff += 2 * pi;
+        const float step = LV_TURN_AUTO * pi / 180.0f * dt;
+        if ( fabsf( diff ) <= step ) { gAz = gTurnTo; gTurning = false; } else gAz += diff > 0 ? step : -step;
+      }
       if ( zinput->KeyToggled( KEY_RETURN ) ) ScopeBeginReading();
     }
 

@@ -14,7 +14,7 @@ struct FbRow {
   double dhMm = 0, vMm = 0, dhAdjMm = 0, heightM = 0;
   std::string note;
   double sightBackCm = 0, sightForeCm = 0;
-  double stadiaBackCm = -1, stadiaForeCm = -1;     // z dalmierza nitkowego; < 0 = nie wpisano
+  double stadiaBackCm = -1, stadiaForeCm = -1;     // z dalmierza nitkowego; < 0 = brak
 };
 
 struct FieldBook {

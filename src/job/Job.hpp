@@ -33,7 +33,8 @@ class Job {
   virtual std::vector<MenuItem> Menu() const = 0;
   virtual void OnMenu(const std::string& id) = 0;
   virtual std::vector<int> ActiveRodPoints() const = 0;           // punkty z łatą, do wyboru pod pionową kreską
-  virtual bool OnReading(int pointId, int midMm, int upMm, int loMm) = 0;   // up/lo < 0 = brak dalmierza
+  virtual int  RodPointFor(RodRole role) const = 0;               // punkt, na którym stoi łata o tej roli; < 0 = brak
+  virtual bool OnReading(int pointId, int midMm) = 0;             // odczyt środkowej kreski; dalmierz liczy robota sama
   virtual std::string Hud() const = 0;                            // ASCII
   virtual bool CanFinish() const = 0;
   virtual FieldBook Finish(bool complete) = 0;                    // complete=false przy przerwaniu

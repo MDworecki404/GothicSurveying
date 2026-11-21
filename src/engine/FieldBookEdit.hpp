@@ -1,5 +1,5 @@
 // Edytor dziennika w trybie samodzielnym: siatka komórek (dh, [v], H na stanowisko + Σdh, [fh]); strzałki zmieniają komórkę,
-// cyfry/minus/kropka wpisują wartość, Backspace kasuje, F12 kończy (sprawdzenie robi kontroler). Bez strażnika include.
+// cyfry/minus/kropka wpisują wartość, Backspace kasuje, klawisz menu kończy (sprawdzenie robi kontroler). Bez strażnika include.
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -51,7 +51,7 @@ namespace GOTHIC_NAMESPACE {
     gEditPanel->Print( X[0], ys, zSTRING( "Suma dh [mm]" ) );
     cell( n, 0, X[3], ys );
     if ( closure ) { gEditPanel->Print( X[4], ys, zSTRING( "fh [mm]" ) ); cell( n, 1, X[5], ys ); }
-    gEditPanel->PrintCX( 7300, zSTRING( "Strzalki - komorka, cyfry - . - wartosc, Backspace - kasuj, F12 - sprawdz" ) );
+    gEditPanel->PrintCX( 7300, zSTRING( "Strzalki - komorka, cyfry - . - wartosc, Backspace - kasuj, " LV_KEYNAME_MENU " - sprawdz" ) );
   }
 
   inline void FieldBookEditStart( const FieldBook& fb ) {
@@ -84,7 +84,7 @@ namespace GOTHIC_NAMESPACE {
     return p;
   }
 
-  // Zwraca true, gdy gracz zakończył edycję (F12); wtedy panel jest już zamknięty, a wpisy dostępne przez FieldBookEditResult().
+  // Zwraca true, gdy gracz zakończył edycję (klawisz menu); wtedy panel jest już zamknięty, a wpisy dostępne przez FieldBookEditResult().
   inline bool FieldBookEditTick() {
     if ( !gEditOn ) return false;
     if ( zinput->KeyToggled( LV_KEY_MENU ) ) { gEditOn = false; PanelClose( gEditPanel ); ogame->Unpause(); return true; }

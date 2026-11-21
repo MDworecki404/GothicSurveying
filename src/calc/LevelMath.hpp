@@ -20,3 +20,11 @@ inline double LevelStadiaDist( double upperReading, double lowerReading, double 
 inline double LevelStadiaReading( double midReading, double dist, bool upper, double k = 100.0 ) {
   return midReading + ( upper ? 1 : -1 ) * dist / ( 2 * k );
 }
+
+// Dalmierz liczony sam z prawdziwej celowej [cm]: kreski górna/dolna odczytane z dokładnością 1 mm (jak na oko, bez szumu), D = k*(g-d).
+// Środkowa w mm (całkowita); wynik w cm.
+inline double LevelStadiaMeasured( double midMm, double sightCm, double k = 100.0 ) {
+  const double up = std::round( LevelStadiaReading( midMm, sightCm * 10.0, true, k ) );
+  const double lo = std::round( LevelStadiaReading( midMm, sightCm * 10.0, false, k ) );
+  return LevelStadiaDist( up, lo, k ) / 10.0;
+}

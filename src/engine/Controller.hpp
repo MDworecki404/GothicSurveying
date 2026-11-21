@@ -19,12 +19,18 @@ namespace GOTHIC_NAMESPACE {
   }
 
   inline void CtrlEnterScope() {
-    if ( !gJob || !gWorld.HasInstrument() || gJob->ActiveRodPoints().empty() ) { HudMessage( "Najpierw postaw niwelator i late (F12)" ); return; }
+    if ( !gJob || !gWorld.HasInstrument() || gJob->ActiveRodPoints().empty() ) { HudMessage( "Najpierw postaw niwelator i late (" LV_KEYNAME_MENU ")" ); return; }
     ScopeCallbacks cb;
     cb.targets = []() { std::vector<RodTarget> t; if ( gJob ) for ( int pid : gJob->ActiveRodPoints() ) t.push_back( { pid, gWorld.PointFoot( pid ) } ); return t; };
-    cb.onReading = []( int p, int m, int u, int l ) {
-      if ( !gJob || !gJob->OnReading( p, m, u, l ) ) return false;
-      AppendReadingLog( gReadingLog, p, m, u, l );
+    cb.rodFoot = []( bool fore, zVEC3& foot ) {
+      const int pid = gJob ? gJob->RodPointFor( fore ? RodRole::Fore : RodRole::Back ) : -1;
+      if ( pid < 0 ) return false;
+      foot = gWorld.PointFoot( pid );
+      return true;
+    };
+    cb.onReading = []( int p, int m ) {
+      if ( !gJob || !gJob->OnReading( p, m ) ) return false;
+      AppendReadingLog( gReadingLog, p, m );
       return true;
     };
     cb.onEnter = []() { gWorld.TurnRodsToInstrument(); gWorld.SetInstrumentVisible( false ); };
@@ -70,7 +76,7 @@ namespace GOTHIC_NAMESPACE {
   inline void CtrlStartJob( int typeIdx, TraverseKind kind, CalcMode mode ) {
     gJob = JobTypes()[typeIdx].create( gWorld, JobOptions{ kind, mode } );
     gReadingLog = NextReadingLogName();
-    HudMessage( ( "Robota: " + gJob->Name() + ". F12 - menu" ).c_str() );
+    HudMessage( ( "Robota: " + gJob->Name() + ". " LV_KEYNAME_MENU " - menu" ).c_str() );
   }
 
   inline void CtrlOpenModeMenu( int typeIdx, TraverseKind kind ) {
@@ -113,7 +119,7 @@ namespace GOTHIC_NAMESPACE {
       return;
     }
     MenuView v{ gJob->Name(), gJob->Menu() };
-    v.items.push_back( { "scope", "Patrz przez lunete (F10)", "najpierw niwelator i lata", gWorld.HasInstrument() && !gJob->ActiveRodPoints().empty() } );
+    v.items.push_back( { "scope", "Patrz przez lunete (" LV_KEYNAME_SCOPE ")", "najpierw niwelator i lata", gWorld.HasInstrument() && !gJob->ActiveRodPoints().empty() } );
     v.items.push_back( { "abort", "Przerwij robote (bez dziennika)", "", true } );
     MenuOpen( v, []( const std::string& id ) {
       if ( !gJob ) return;
@@ -150,7 +156,7 @@ namespace GOTHIC_NAMESPACE {
     if ( FieldBookVisible() ) { FieldBookTick(); return; }
     if ( MenuIsOpen() ) { MenuTick(); return; }
     if ( zinput->KeyToggled( LV_KEY_MENU ) ) { CtrlOpenMenu(); return; }
-    if ( gJob && zinput->KeyToggled( KEY_F10 ) ) CtrlEnterScope();
+    if ( gJob && zinput->KeyToggled( LV_KEY_SCOPE ) ) CtrlEnterScope();
     CtrlUpdateJobHud();
   }
 }

@@ -5,7 +5,7 @@
 
 enum class TraverseKind { Anchored, Closed, Open };   // dowiązany, zamknięty, otwarty
 
-// stadiaCm: odległość z dalmierza nitkowego [cm] albo < 0, gdy nie wpisano kresek dalmierczych.
+// stadiaCm: odległość z dalmierza nitkowego [cm] (< 0 tylko w danych ręcznych/testach).
 struct Stand { int backMm; int foreMm; double sightBackCm; double sightForeCm; double stadiaBackCm = -1, stadiaForeCm = -1; };
 
 struct TraverseResult {
