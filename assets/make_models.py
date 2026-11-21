@@ -116,6 +116,15 @@ def build_pole():
     return m
 
 
+def build_prism():
+    """Tyczka z lustrem tachimetrycznym: pret 1,50 m, tarcza lustra i pierscien na szczycie. Poczatek = grunt pod tyczka."""
+    m = Mesh()
+    prism(m, (0, 0, 0), (0, 0, 150), 1.2, 8, block(2))              # pret
+    prism(m, (0, 0, 150), (0, 0, 152), 8.0, 12, block(1))           # tarcza lustra
+    prism(m, (0, 0, 152), (0, 0, 153), 9.0, 12, block(3))           # pierscien
+    return m
+
+
 def build_reper():
     m = Mesh()
     prism(m, (0, 0, 0), (0, 0, 10), 3.5, 12, block(1))            # słupek znaku wysokościowego
@@ -281,6 +290,7 @@ def main():
                               ("LVL_INSTR", build_instrument(), one),
                               ("LVL_PLATE", build_plate(), one),
                               ("LVL_POLE", build_pole(), one),
+                              ("LVL_PRISM", build_prism(), one),
                               ("LVL_REPER", build_reper(), one)):
         (meshes / f"{fname}.3DS").write_bytes(to_3ds(fname, mesh, mats))
         print(f"{fname}.3DS: {len(mesh.v)} wierzcholkow, {len(mesh.f)} trojkatow, {len(mats)} mat.")

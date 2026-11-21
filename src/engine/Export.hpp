@@ -66,6 +66,23 @@ namespace GOTHIC_NAMESPACE {
     f << GnssCsvRow( p, nr, showTrueError ) << "\n";
   }
 
+  // Log punktow tachimetrycznych na biezaco (ten sam plik co log odczytow niwelacji).
+  inline void AppendTachyLog( const std::string& file, const TachyPoint& p, int nr, bool showTrueError ) {
+    const bool fresh = !FileExistsRel( file );
+    std::ofstream f( file, std::ios::app );
+    if ( fresh ) f << TachyCsvHeader( showTrueError ) << "\n";
+    f << TachyCsvRow( p, nr, showTrueError ) << "\n";
+  }
+
+  // Raport tachimetryczny: pomiar_tachimetryczny.csv + .docx; aborted: tylko pomiar_tachimetryczny_przerwany.csv.
+  inline bool ExportTachy( TachyReport r, const std::string& dir, bool aborted ) {
+    r.dateText = DateTodayText();
+    if ( aborted ) return WriteBytes( dir + "/pomiar_tachimetryczny_przerwany.csv", TachyToCsv( r ) );
+    bool ok = WriteBytes( dir + "/pomiar_tachimetryczny.csv", TachyToCsv( r ) );
+    ok = WriteBytes( dir + "/pomiar_tachimetryczny.docx", TachyBuildDocx( r ) ) && ok;
+    return ok;
+  }
+
   // Raport GNSS: pomiar_gnss.csv + pomiar_gnss.docx; aborted: tylko pomiar_gnss_przerwany.csv.
   inline bool ExportGnss( GnssReport r, const std::string& dir, bool aborted ) {
     r.dateText = DateTodayText();

@@ -57,6 +57,31 @@ namespace GOTHIC_NAMESPACE {
       pole_ = SpawnVob( LV_VIS_POLE, p ); poleGround_ = p; hasPole_ = true;
       return true;
     }
+    bool PlacePrism() override {                       // ten sam slot co tyczka GNSS (jedna tyczka naraz), inny model
+      zVEC3 p;
+      if ( !FeetGround( p ) ) return false;
+      RemoveVobSafe( pole_ );
+      pole_ = SpawnVob( LV_VIS_PRISM, p ); poleGround_ = p; hasPole_ = true;
+      return true;
+    }
+    GridPos StationGrid() const override { return GnssToGrid( instrGround_[VX], instrGround_[VY], instrGround_[VZ] ); }
+    GridPos PointGrid( int pointId ) const override {
+      auto it = pts_.find( pointId );
+      return it == pts_.end() ? GridPos{ 0, 0, 0 } : GnssToGrid( it->second.pos[VX], it->second.pos[VY], it->second.pos[VZ] );
+    }
+    // Linia celowa od oka tachimetru do lustra / znaku nawiazania: bez trafienia w teren lub voby (ostatnie 30 cm pomijamy).
+    bool LineClear( bool toPrism ) const override {
+      zCWorld* w = ogame->GetWorld();
+      if ( !w || !hasInstr_ ) return true;
+      zVEC3 target;
+      if ( toPrism ) { if ( !hasPole_ ) return true; target = poleGround_ + zVEC3( 0, 150.0f, 0 ); }
+      else { auto it = pts_.find( 1 ); if ( it == pts_.end() ) return true; target = it->second.pos + zVEC3( 0, 10.0f, 0 ); }
+      const zVEC3 from = instrGround_ + zVEC3( 0, LV_INSTR_H, 0 );
+      zVEC3 to = target - from; const float len = to.Length();
+      if ( len < 40.0f ) return true;
+      to = to * ( ( len - 30.0f ) / len );
+      return !w->TraceRayNearestHit( from, to, (zCVob*)nullptr, zTRACERAY_VOB_IGNORE_NO_CD_DYN | zTRACERAY_VOB_IGNORE_CHARACTER | zTRACERAY_POLY_IGNORE_TRANSP );
+    }
     void RemovePole() override { RemoveVobSafe( pole_ ); hasPole_ = false; }
     GridPos PoleGroundGrid() const override { return GnssToGrid( poleGround_[VX], poleGround_[VY], poleGround_[VZ] ); }
     double NowSec() const override { return clock_; }
