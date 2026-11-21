@@ -220,9 +220,35 @@ namespace GOTHIC_NAMESPACE {
     } );
   }
 
+  // Lista wyboru punktu osnowy (stanowisko / nawiazanie): wybor wywoluje OnMenu("<pozycja>:<punkt>") w robocie.
+  inline void CtrlOpenChoice( const std::string& menuId ) {
+    std::vector<MenuItem> items = gJob->TachyChoices( menuId );
+    if ( items.empty() ) {
+      HudMessage( menuId == "station" ? "Brak punktu osnowy w promieniu 2 m od ciebie" : "Brak wolnych punktow osnowy 3-300 m od stanowiska" );
+      return;
+    }
+    MenuOpen( MenuView{ menuId == "station" ? "Wybierz punkt osnowy na stanowisko" : "Wybierz punkt osnowy na nawiazanie", items },
+              []( const std::string& id ) { if ( gJob ) gJob->OnMenu( id ); } );
+  }
+
+  // Podglad osnowy biezacego swiata (z pliku GothicSurveying/osnowa.csv).
+  inline void CtrlShowControl() {
+    ControlEnsureLoaded();
+    const std::string wn = ControlWorldName();
+    std::vector<std::string> lines;
+    for ( const ControlPoint& c : gControl ) {
+      if ( c.world != wn ) continue;
+      char b[200]; sprintf( b, "%s  N %.3f  E %.3f  H %.3f  %s  PDOP %.1f  %d ep.", c.id.c_str(), c.n, c.e, c.h, c.solution.c_str(), c.pdop, c.epochs );
+      lines.push_back( b );
+    }
+    if ( lines.empty() ) lines.push_back( "Brak punktow osnowy w tym swiecie. Zaloz je w robocie GNSS (Zaloz punkt osnowy)." );
+    TextPanelShow( "Osnowa GNSS - punkty swiata " + wn, lines, "Plik: GothicSurveying/osnowa.csv" );
+  }
+
   inline void CtrlOpenMenu() {
     if ( !gJob ) {
-      MenuOpen( MenuView{ "Menu geodezyjne", { { "start", "Rozpocznij robote", "", true } } }, []( const std::string& ) { CtrlOpenStartMenu(); } );
+      MenuOpen( MenuView{ "Menu geodezyjne", { { "start", "Rozpocznij robote", "", true }, { "control", "Pokaz osnowe", "", true } } },
+                []( const std::string& id ) { if ( id == "control" ) CtrlShowControl(); else CtrlOpenStartMenu(); } );
       return;
     }
     MenuView v{ gJob->Name(), gJob->Menu() };
@@ -233,13 +259,15 @@ namespace GOTHIC_NAMESPACE {
       if ( id == "finish" ) CtrlFinish();
       else if ( id == "scope" ) CtrlEnterScope();
       else if ( id == "fine" ) PoleFineEnter();
-      else if ( id == "orient" || id == "view" ) { gJob->OnMenu( id ); CtrlEnterTachyView(); }
+      else if ( id == "view" ) { gJob->OnMenu( id ); CtrlEnterTachyView(); }
+      else if ( gJob->NeedsChoice( id ) ) CtrlOpenChoice( id );
       else if ( id == "abort" ) CtrlConfirmAbort();
       else {
+        const size_t before = gJob->Kind() == JobKind::Gnss ? gJob->FinishGnss( false ).points.size() : 0;
         gJob->OnMenu( id );
-        if ( id == "store" && gJob->Kind() == JobKind::Gnss ) {   // każdy zapisany punkt od razu do logu (przetrwa awarię gry)
+        if ( gJob->Kind() == JobKind::Gnss && ( id == "store" || id == "control" ) ) {   // każdy zapisany punkt od razu do logu (przetrwa awarię gry)
           const GnssReport r = gJob->FinishGnss( false );
-          if ( !r.points.empty() ) AppendGnssLog( gReadingLog, r.points.back(), (int)r.points.size(), r.showTrueError );
+          if ( r.points.size() > before ) AppendGnssLog( gReadingLog, r.points.back(), (int)r.points.size(), r.showTrueError );
         }
       }
     } );
@@ -279,6 +307,7 @@ namespace GOTHIC_NAMESPACE {
       FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); CtrlForgetJob(); gCtrlWorld = w;
     }
     if ( !w ) return;
+    ControlTick();                                     // znaki osnowy: nowy swiat / wczytany zapis
     static DWORD lastClock = GetTickCount();
     const DWORD nowClock = GetTickCount();
     double dtClock = ( nowClock - lastClock ) / 1000.0; lastClock = nowClock;

@@ -5,6 +5,7 @@
 // Kolejność ma znaczenie: moduły silnika nie includują siebie nawzajem (bez strażników include).
 #include "engine/Panels.hpp"
 #include "engine/Placement.hpp"
+#include "engine/ControlNet.hpp"
 #include "engine/Scope.hpp"
 #include "engine/Menu.hpp"
 #include "engine/World.hpp"
