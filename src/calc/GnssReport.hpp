@@ -35,19 +35,26 @@ inline std::vector<std::string> Cells(const GnssPoint& p, int nr, bool withTrue)
 }
 }  // namespace gnssdetail
 
+// Nagłówek i wiersz CSV (bez końca linii); używane też do logu punktów na bieżąco.
+inline std::string GnssCsvHeader(bool showTrueError) {
+  std::string o = "nr;punkt;czas;N_m;E_m;H_m;rozwiazanie;satelity;PDOP;RMS_H_mm;RMS_V_mm;epoki;antena_m;uwagi";
+  if (showTrueError) o += ";blad_N_mm;blad_E_mm;blad_H_mm;blad_2D_mm";
+  return o;
+}
+inline std::string GnssCsvRow(const GnssPoint& p, int nr, bool showTrueError) {
+  std::vector<std::string> c = gnssdetail::Cells(p, nr, showTrueError);
+  c[13] = fbdetail::Csv(c[13]);                    // uwagi mogą zawierać ; i "
+  std::string o;
+  for (size_t i = 0; i < c.size(); i++) { if (i) o += ";"; o += c[i]; }
+  return o;
+}
+
 inline std::string GnssToCsv(const GnssReport& r) {
   std::string o;
   if (!r.complete) o += "# UWAGA: pomiar niekompletny (robota przerwana)\n";
-  o += "nr;punkt;czas;N_m;E_m;H_m;rozwiazanie;satelity;PDOP;RMS_H_mm;RMS_V_mm;epoki;antena_m;uwagi";
-  if (r.showTrueError) o += ";blad_N_mm;blad_E_mm;blad_H_mm;blad_2D_mm";
-  o += "\n";
+  o += GnssCsvHeader(r.showTrueError) + "\n";
   int nr = 0;
-  for (const GnssPoint& p : r.points) {
-    std::vector<std::string> c = gnssdetail::Cells(p, ++nr, r.showTrueError);
-    c[13] = fbdetail::Csv(c[13]);                  // uwagi mogą zawierać ; i "
-    for (size_t i = 0; i < c.size(); i++) { if (i) o += ";"; o += c[i]; }
-    o += "\n";
-  }
+  for (const GnssPoint& p : r.points) o += GnssCsvRow(p, ++nr, r.showTrueError) + "\n";
   return o;
 }
 
@@ -78,10 +85,11 @@ inline std::string GnssBuildDocx(const GnssReport& r) {
   for (const char* b : {"top", "left", "bottom", "right", "insideH", "insideV"})
     tbl += std::string("<w:") + b + " w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"000000\"/>";
   tbl += "</w:tblBorders></w:tblPr><w:tblGrid>";
-  for (size_t i = 0; i < head.size(); i++) tbl += "<w:gridCol w:w=\"900\"/>";
-  tbl += "</w:tblGrid>" + Row(head, true);
+  const int width = 14000 / (int)head.size();      // użyteczna szerokość A4 poziomej to ok. 14500 dxa
+  for (size_t i = 0; i < head.size(); i++) tbl += "<w:gridCol w:w=\"" + std::to_string(width) + "\"/>";
+  tbl += "</w:tblGrid>" + Row(head, true, width);
   int nr = 0;
-  for (const GnssPoint& p : r.points) tbl += Row(gnssdetail::Cells(p, ++nr, r.showTrueError), false);
+  for (const GnssPoint& p : r.points) tbl += Row(gnssdetail::Cells(p, ++nr, r.showTrueError), false, width);
   body += tbl + "</w:tbl>";
   for (const std::string& l : GnssSummaryLines(r)) body += Para(l, true);
   return WrapDocx(body);

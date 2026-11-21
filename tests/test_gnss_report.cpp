@@ -58,8 +58,26 @@ static void summary_lines() {
   assert(has(all, "Najgorszy punkt: P2 (7.5 mm)"));
 }
 
+static void docx_table_fits_page_width() {
+  GnssReport r; r.points.push_back(P1());
+  std::string d = GnssBuildDocx(r);                                      // 14 kolumn: 14000 / 14 = 1000 dxa, razem <= szerokosc strony
+  assert(has(d, "w:w=\"1000\"") && !has(d, "w:w=\"1500\""));
+  r.showTrueError = true;
+  assert(has(GnssBuildDocx(r), "w:w=\"777\""));                          // 18 kolumn: 14000 / 18
+}
+
+static void csv_header_and_row_helpers_match_report() {
+  GnssReport r; r.points.push_back(P1());
+  auto l = lines(GnssToCsv(r));
+  assert(GnssCsvHeader(false) == l[0] && GnssCsvRow(P1(), 1, false) == l[1]);
+  r.showTrueError = true; GnssPoint p = P1(); p.hasTrue = true; p.dNmm = 1; p.d2Dmm = 2; r.points = {p};
+  l = lines(GnssToCsv(r));
+  assert(GnssCsvHeader(true) == l[0] && GnssCsvRow(p, 1, true) == l[1]);
+}
+
 int main() {
   csv_header_and_row(); csv_quotes_note_and_appends_true_error(); incomplete_report_is_flagged(); docx_contains_points(); summary_lines();
+  docx_table_fits_page_width(); csv_header_and_row_helpers_match_report();
   std::puts("test_gnss_report OK");
   return 0;
 }

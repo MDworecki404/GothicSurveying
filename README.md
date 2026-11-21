@@ -105,6 +105,7 @@ użytych satelitów i prawdziwy PDOP, a bliska ściana lub drzewo zwiększa wiel
 tylko float, pod dachem często wcale. Uśrednianie epok zmniejsza szum, ale nie błąd systematyczny sesji (jak w prawdziwym GNSS).
 
 Współrzędne w lokalnym układzie: N = z_gry/100 + 5 500 000 m, E = x_gry/100 + 6 500 000 m, H = y_gry/100 m (stałe w `src/calc/Gnss.hpp`).
+Każdy zapisany punkt trafia od razu do `GothicSurveying/odczyty_biezace.csv` (przetrwa awarię gry; po zakończeniu roboty plik ląduje w jej folderze jako `odczyty.csv`).
 Wyniki w folderze roboty: `pomiar_gnss.csv`, `pomiar_gnss.docx` (przerwana robota: `pomiar_gnss_przerwany.csv`); przy opcji prawdziwego błędu
 dodatkowe kolumny `blad_N_mm`, `blad_E_mm`, `blad_H_mm`, `blad_2D_mm` względem punktu w grze.
 
@@ -162,7 +163,7 @@ Jeśli cyfry na łacie są w grze do góry nogami, ustaw `FLIP_V = True` w `asse
 
 - Plugin nie zapisuje stanu: po wyjściu z gry sprzęt trzeba postawić od nowa (wyniki zostają w CSV).
 - Dwie roboty: ciąg niwelacyjny i pomiar GNSS (RTK); tachimetria i niwelacja trygonometryczna dojdą jako kolejne moduły `Job`.
-- Pomiar GNSS: bez stacji bazowej, bez pomiaru statycznego i bez logu na żywo (raport zapisuje się przy końcu lub przerwaniu roboty).
+- Pomiar GNSS: bez stacji bazowej i bez pomiaru statycznego.
 - Kreski dalmiercze liczone są dla pola widzenia gry; przy bardzo wąskim FOV mogą wypaść poza lunetę (wtedy są pomijane, wpis w `GothicSurveying.log`).
 - Hook na `zCWorld::Render` sprawdzono tylko na Gothic II NotR 2.6 (fix) ze Steam Gold Classic.
 

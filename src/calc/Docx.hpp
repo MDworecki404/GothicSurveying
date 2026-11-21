@@ -36,10 +36,10 @@ inline std::string Para(const std::string& text, bool bold = false, int halfPts 
   if (bold || halfPts) { o += "<w:rPr>"; if (bold) o += "<w:b/>"; if (halfPts) o += "<w:sz w:val=\"" + std::to_string(halfPts) + "\"/>"; o += "</w:rPr>"; }
   return o + "<w:t xml:space=\"preserve\">" + Esc(text) + "</w:t></w:r></w:p>";
 }
-inline std::string Row(const std::vector<std::string>& cells, bool header) {
+inline std::string Row(const std::vector<std::string>& cells, bool header, int widthDxa = 1500) {
   std::string o = "<w:tr>";
   for (const std::string& c : cells)
-    o += "<w:tc><w:tcPr><w:tcW w:w=\"1500\" w:type=\"dxa\"/></w:tcPr>" + Para(c, header) + "</w:tc>";
+    o += "<w:tc><w:tcPr><w:tcW w:w=\"" + std::to_string(widthDxa) + "\" w:type=\"dxa\"/></w:tcPr>" + Para(c, header) + "</w:tc>";
   return o + "</w:tr>";
 }
 }  // namespace docxdetail

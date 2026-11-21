@@ -58,6 +58,14 @@ namespace GOTHIC_NAMESPACE {
     std::error_code ec; if ( std::filesystem::exists( file, ec ) ) std::filesystem::rename( file, dir + "/odczyty.csv", ec );
   }
 
+  // Log punktów GNSS na bieżąco (ten sam plik co log odczytów niwelacji): nagłówek przy pierwszym punkcie.
+  inline void AppendGnssLog( const std::string& file, const GnssPoint& p, int nr, bool showTrueError ) {
+    const bool fresh = !FileExistsRel( file );
+    std::ofstream f( file, std::ios::app );
+    if ( fresh ) f << GnssCsvHeader( showTrueError ) << "\n";
+    f << GnssCsvRow( p, nr, showTrueError ) << "\n";
+  }
+
   // Raport GNSS: pomiar_gnss.csv + pomiar_gnss.docx; aborted: tylko pomiar_gnss_przerwany.csv.
   inline bool ExportGnss( GnssReport r, const std::string& dir, bool aborted ) {
     r.dateText = DateTodayText();

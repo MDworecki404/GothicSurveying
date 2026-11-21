@@ -61,15 +61,17 @@ namespace GOTHIC_NAMESPACE {
 
   // Przerwana robota GNSS (Przerwij / wczytanie zapisu): zapisuje zmierzone punkty do nowego folderu; "" gdy nie bylo punktow.
   inline std::string CtrlSavePartialGnss( const GnssReport& part ) {
-    if ( part.points.empty() ) return "";
+    if ( part.points.empty() && !FileExistsRel( gReadingLog ) ) return "";
     const std::string dir = MakeJobDir();
-    ExportGnss( part, dir, true );
+    if ( !part.points.empty() ) ExportGnss( part, dir, true );
+    MoveReadingLog( gReadingLog, dir );
     return dir;
   }
 
   inline void CtrlFinishGnss() {
     const GnssReport r = gJob->FinishGnss( true );
     gJobDir = MakeJobDir();
+    MoveReadingLog( gReadingLog, gJobDir );             // log punktów zapisywany na bieżąco -> odczyty.csv w folderze roboty
     const bool ok = ExportGnss( r, gJobDir, false );
     std::vector<std::string> lines = GnssSummaryLines( r );
     lines.push_back( "" );
@@ -184,7 +186,13 @@ namespace GOTHIC_NAMESPACE {
       if ( id == "finish" ) CtrlFinish();
       else if ( id == "scope" ) CtrlEnterScope();
       else if ( id == "abort" ) CtrlConfirmAbort();
-      else gJob->OnMenu( id );
+      else {
+        gJob->OnMenu( id );
+        if ( id == "store" && gJob->Kind() == JobKind::Gnss ) {   // każdy zapisany punkt od razu do logu (przetrwa awarię gry)
+          const GnssReport r = gJob->FinishGnss( false );
+          if ( !r.points.empty() ) AppendGnssLog( gReadingLog, r.points.back(), (int)r.points.size(), r.showTrueError );
+        }
+      }
     } );
   }
 
