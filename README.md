@@ -96,9 +96,14 @@ Przebieg: **Postaw tyczkę z odbiornikiem** (pod stopami bohatera, tyczka 2,000 
 pojawi się „fix RTK” → **Zapisz punkt** (fix i co najmniej 10 epok; bez fixu po 5 epokach z adnotacją „zapis bez fixu”) → kolejne punkty →
 **Zakończ robotę**. „Odrzuć pomiar” kasuje bieżącą sesję.
 
-Panel odbiornika pokazuje rozwiązanie, satelity (użyte/widoczne), PDOP, epoki (co 1 s czasu gry; gdy gra zatrzymana, epoki nie płyną), RMS i bieżące
+Pomiar GNSS jest w metrach (niwelacja zostaje w milimetrach). Panel odbiornika pokazuje rozwiązanie, satelity (użyte/widoczne), PDOP, epoki (co 1 s czasu gry; gdy gra zatrzymana, epoki nie płyną), RMS [m] i bieżące
 N, E, H. Typy rozwiązania i orientacyjna dokładność: fix RTK ok. 1–2 cm, float RTK kilkadziesiąt cm, DGPS ok. metra, autonomiczne kilka metrów.
-Fix pojawia się po 15–40 s, float po 5–12 s – o ile pozwalają warunki.
+Fix pojawia się po 8–20 s, float po 3–6 s – o ile pozwalają warunki. Gdy fixu brak, panel pokazuje zasłonięcie nieba, odległość do najbliższej przeszkody i powód („za mało satelitów”, „słaba geometria PDOP”, „przeszkoda blisko”, „inicjalizacja – czekaj”).
+
+**Precyzyjne ustawienie tyczki** (menu: „Precyzyjne ustawienie tyczki”, gdy tyczka stoi i nie trwa pomiar): gra się zatrzymuje, kamera schodzi nad podstawę
+tyczki, a strzałki przesuwają ją względem widoku (góra = od kamery) o **1 mm**, z **Shift** o 10 mm, z **Ctrl** o 100 mm; przytrzymanie powtarza krok.
+Panel pokazuje przesunięcie od startu i pozycję tyczki w układzie lokalnym; **Backspace** wraca na start, **Enter** (albo Home) zatwierdza.
+Tyczka osadza się na gruncie pod nowym miejscem, a dziennik porównuje pomiar z tą pozycją (opcja prawdziwego błędu).
 
 Jakość zależy od otoczenia: z miejsca tyczki liczone są promienie ku niebu (36 kierunków × 6 elewacji), z nich maska horyzontu, z maski liczba
 użytych satelitów i prawdziwy PDOP, a bliska ściana lub drzewo zwiększa wielodrogowość. Pod gołym niebem fix łapie się szybko, przy ścianie
@@ -107,7 +112,7 @@ tylko float, pod dachem często wcale. Uśrednianie epok zmniejsza szum, ale nie
 Współrzędne w lokalnym układzie: N = z_gry/100 + 5 500 000 m, E = x_gry/100 + 6 500 000 m, H = y_gry/100 m (stałe w `src/calc/Gnss.hpp`).
 Każdy zapisany punkt trafia od razu do `GothicSurveying/odczyty_biezace.csv` (przetrwa awarię gry; po zakończeniu roboty plik ląduje w jej folderze jako `odczyty.csv`).
 Wyniki w folderze roboty: `pomiar_gnss.csv`, `pomiar_gnss.docx` (przerwana robota: `pomiar_gnss_przerwany.csv`); przy opcji prawdziwego błędu
-dodatkowe kolumny `blad_N_mm`, `blad_E_mm`, `blad_H_mm`, `blad_2D_mm` względem punktu w grze.
+dodatkowe kolumny `blad_N_m`, `blad_E_m`, `blad_H_m`, `blad_2D_m` względem punktu w grze.
 
 ## Obsadzka (zmiana wysokości niwelatora)
 

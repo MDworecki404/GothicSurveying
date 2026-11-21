@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <string>
 #include <vector>
 
 struct SatDir { double azDeg, elDeg; };
@@ -67,6 +69,14 @@ inline double GnssPdop(const std::vector<SatDir>& used) {
 // 0 przy przeszkodzie dalszej niż 5 m, liniowo do 1 przy 0 m.
 inline double GnssMultipath(const SkyMask& m) { return (std::min)(1.0, (std::max)(0.0, 1.0 - m.nearestObstacleM / 5.0)); }
 
+// Jaka część nieba nad odcięciem 10 stopni jest zasłonięta (powierzchniowo, średnia z 36 sektorów), 0-100.
+inline double GnssSkyBlockedPct(const SkyMask& m) {
+  const double rad = 3.14159265358979323846 / 180.0, s10 = std::sin(10.0 * rad);
+  double visible = 0;
+  for (int i = 0; i < 36; i++) visible += (1.0 - std::sin((std::max)(10.0, m.horizonDeg[i]) * rad)) / (1.0 - s10);
+  return 100.0 * (1.0 - visible / 36.0);
+}
+
 inline SolType GnssClassify(int nUsed, double pdop, double multipath, double sessionSec, double tFloatSec, double tFixSec) {
   if (nUsed < 4) return SolType::None;
   if (nUsed >= 6 && pdop < 2.5 && multipath < 0.3 && sessionSec >= tFixSec) return SolType::Fix;
@@ -119,6 +129,7 @@ struct GnssFix {
   double pdop = 99, multipath = 0;
   double n = 0, e = 0, h = 0;                      // średnia z epok, H po odjęciu ustawionej wysokości anteny
   double hRmsMm = 0, vRmsMm = 0;
+  double blockedPct = 0, nearestObstacleM = 100.0;   // zasłonięcie nieba nad odcięciem 10 stopni [%] i najbliższa przeszkoda [m]
 };
 
 // Jedna sesja punktu: kolejne epoki co 1 s. Błąd = systematyczny (losowany przy zmianie typu rozwiązania, 0,5 sigma)
@@ -127,13 +138,14 @@ class GnssSession {
  public:
   GnssSession(uint32_t seed, double tStartSec, const GridPos& truth, double antennaSetM, double antennaTrueM = 2.0)
       : rng_(seed), t0_(tStartSec), truth_(truth), setM_(antennaSetM), trueM_(antennaTrueM) {
-    tFloat_ = 5.0 + 7.0 * rng_.Uniform(); tFix_ = 15.0 + 25.0 * rng_.Uniform();
+    tFloat_ = 3.0 + 3.0 * rng_.Uniform(); tFix_ = 8.0 + 12.0 * rng_.Uniform();
     fix_.n = truth.n; fix_.e = truth.e; fix_.h = truth.h;
   }
   void Step(double tSec, const SkyMask& mask) {
     const std::vector<SatDir> sats = GnssSatellites(tSec), used = GnssUsable(sats, mask);
     fix_.visible = 0; for (const SatDir& d : sats) if (d.elDeg > 10.0) fix_.visible++;
     fix_.used = (int)used.size(); fix_.pdop = GnssPdop(used); fix_.multipath = GnssMultipath(mask);
+    fix_.blockedPct = GnssSkyBlockedPct(mask); fix_.nearestObstacleM = mask.nearestObstacleM;
     const SolType type = GnssClassify(fix_.used, fix_.pdop, fix_.multipath, tSec - t0_, tFloat_, tFix_);
     if (type != fix_.type) {                       // nowy typ: nowe uśrednianie i nowy błąd systematyczny
       fix_.type = type; fix_.epochs = 0; cnt_ = 0;
@@ -165,3 +177,13 @@ class GnssSession {
   GnssFix fix_;
   int cnt_ = 0; double sum_[3] = {}, sq_[3] = {}, bias_[3] = {};
 };
+
+// Dlaczego odbiornik nie ma (jeszcze) fixu - krótka podpowiedź (ASCII) dla gracza; pusta przy fixie.
+inline std::string GnssFixHint(const GnssFix& f) {
+  char b[96];
+  if (f.type == SolType::Fix) return "";
+  if (f.used < 6) { std::snprintf(b, sizeof b, "za malo satelitow: %d (potrzeba 6)", f.used); return b; }
+  if (f.pdop >= 2.5) { std::snprintf(b, sizeof b, "slaba geometria: PDOP %.1f (potrzeba < 2.5)", f.pdop); return b; }
+  if (f.multipath >= 0.3) { std::snprintf(b, sizeof b, "przeszkoda blisko: %.1f m (odsun sie, min. 3.5 m)", f.nearestObstacleM); return b; }
+  return "inicjalizacja RTK - czekaj";
+}

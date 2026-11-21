@@ -26,9 +26,9 @@ namespace gnssdetail {
 inline std::vector<std::string> Cells(const GnssPoint& p, int nr, bool withTrue) {
   using fbdetail::Num;
   std::vector<std::string> c = {std::to_string(nr), p.name, p.timeText, Num(p.n, 3), Num(p.e, 3), Num(p.h, 3), p.solution, std::to_string(p.used),
-                                Num(p.pdop, 1), Num(p.hRmsMm, 0), Num(p.vRmsMm, 0), std::to_string(p.epochs), Num(p.antennaM, 3), p.note};
+                                Num(p.pdop, 1), Num(p.hRmsMm / 1000.0, 3), Num(p.vRmsMm / 1000.0, 3), std::to_string(p.epochs), Num(p.antennaM, 3), p.note};
   if (withTrue) {
-    if (p.hasTrue) for (double v : {p.dNmm, p.dEmm, p.dHmm, p.d2Dmm}) c.push_back(Num(v, 1));
+    if (p.hasTrue) for (double v : {p.dNmm, p.dEmm, p.dHmm, p.d2Dmm}) c.push_back(Num(v / 1000.0, 3));   // pomiar GNSS w metrach
     else for (int i = 0; i < 4; i++) c.push_back("");
   }
   return c;
@@ -37,8 +37,8 @@ inline std::vector<std::string> Cells(const GnssPoint& p, int nr, bool withTrue)
 
 // Nagłówek i wiersz CSV (bez końca linii); używane też do logu punktów na bieżąco.
 inline std::string GnssCsvHeader(bool showTrueError) {
-  std::string o = "nr;punkt;czas;N_m;E_m;H_m;rozwiazanie;satelity;PDOP;RMS_H_mm;RMS_V_mm;epoki;antena_m;uwagi";
-  if (showTrueError) o += ";blad_N_mm;blad_E_mm;blad_H_mm;blad_2D_mm";
+  std::string o = "nr;punkt;czas;N_m;E_m;H_m;rozwiazanie;satelity;PDOP;RMS_H_m;RMS_V_m;epoki;antena_m;uwagi";
+  if (showTrueError) o += ";blad_N_m;blad_E_m;blad_H_m;blad_2D_m";
   return o;
 }
 inline std::string GnssCsvRow(const GnssPoint& p, int nr, bool showTrueError) {
@@ -69,7 +69,7 @@ inline std::vector<std::string> GnssSummaryLines(const GnssReport& r) {
   const GnssPoint* worst = &r.points[0];
   for (const GnssPoint& p : r.points)
     if (r.showTrueError ? p.d2Dmm > worst->d2Dmm : p.pdop > worst->pdop) worst = &p;
-  out.push_back(r.showTrueError ? "Najgorszy punkt: " + worst->name + " (" + Num(worst->d2Dmm, 1) + " mm)"
+  out.push_back(r.showTrueError ? "Najgorszy punkt: " + worst->name + " (" + Num(worst->d2Dmm / 1000.0, 3) + " m)"
                                 : "Najgorszy punkt: " + worst->name + " (PDOP " + Num(worst->pdop, 1) + ")");
   return out;
 }
@@ -78,9 +78,9 @@ inline std::string GnssBuildDocx(const GnssReport& r) {
   using namespace docxdetail;
   std::string body = Para("Pomiar GNSS (RTK)", true, 36, true);
   body += Para("data: " + r.dateText + (r.complete ? "" : " (pomiar niekompletny - robota przerwana)"));
-  std::vector<std::string> head = {"Nr", "Punkt", "Czas", "N [m]", "E [m]", "H [m]", "Rozwiązanie", "Satelity", "PDOP", "RMS H [mm]", "RMS V [mm]",
+  std::vector<std::string> head = {"Nr", "Punkt", "Czas", "N [m]", "E [m]", "H [m]", "Rozwiązanie", "Satelity", "PDOP", "RMS H [m]", "RMS V [m]",
                                    "Epoki", "Antena [m]", "Uwagi"};
-  if (r.showTrueError) for (const char* h : {"Błąd N [mm]", "Błąd E [mm]", "Błąd H [mm]", "Błąd 2D [mm]"}) head.push_back(h);
+  if (r.showTrueError) for (const char* h : {"Błąd N [m]", "Błąd E [m]", "Błąd H [m]", "Błąd 2D [m]"}) head.push_back(h);
   std::string tbl = "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblBorders>";
   for (const char* b : {"top", "left", "bottom", "right", "insideH", "insideV"})
     tbl += std::string("<w:") + b + " w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"000000\"/>";

@@ -66,6 +66,19 @@ namespace GOTHIC_NAMESPACE {
       return b;
     }
     void AdvanceClock( double dtSec ) { clock_ += dtSec; }
+    bool HasPole() const { return hasPole_; }
+    zVEC3 PoleGround() const { return poleGround_; }
+    // Precyzyjne ustawienie: przesuwa tyczkę o (dxCm, dzCm) od podanego punktu i osadza ją na gruncie pod nowym miejscem.
+    bool MovePoleFrom( const zVEC3& from, double dxCm, double dzCm ) {
+      zCWorld* w = ogame->GetWorld();
+      if ( !hasPole_ || !pole_ || !w ) return false;
+      const zVEC3 top( from[VX] + (float)dxCm, from[VY] + 100.0f, from[VZ] + (float)dzCm );
+      if ( !w->TraceRayNearestHit( top, zVEC3( 0, -3000, 0 ), (zCVob*)player, zTRACERAY_VOB_IGNORE | zTRACERAY_POLY_IGNORE_TRANSP ) ) return false;
+      poleGround_ = w->traceRayReport.foundIntersection;
+      pole_->SetPositionWorld( poleGround_ );
+      return true;
+    }
+    void SetDressVisible( bool v ) { if ( helmet_ ) helmet_->showVisual = v ? 1 : 0; if ( vest_ ) vest_->showVisual = v ? 1 : 0; }
     // Maska horyzontu: 36 sektorów po 10 stopni, promienie co 15 stopni elewacji (5-80) od szczytu tyczki; horyzont sektora =
     // najwyższy zasłonięty kierunek + pół kroku. Najbliższa przeszkoda = najmniejsza pozioma odległość trafienia.
     SkyMask SkyHorizon() const override {
@@ -189,4 +202,6 @@ namespace GOTHIC_NAMESPACE {
     zCVob *helmet_ = nullptr, *vest_ = nullptr; zCModelNodeInst *helmetNode_ = nullptr, *vestNode_ = nullptr;
     zVEC3 dressPos_[2] = { zVEC3( 1e9f, 0, 0 ), zVEC3( 1e9f, 0, 0 ) }, dressAt_[2] = { zVEC3( 0, 0, 0 ), zVEC3( 0, 0, 0 ) };
   };
+
+  inline EngineWorld gWorld;                           // jedyny świat robót (używany przez kontroler i tryby widoku)
 }

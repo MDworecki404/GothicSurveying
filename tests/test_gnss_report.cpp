@@ -21,10 +21,10 @@ static GnssPoint P1() {
 static void csv_header_and_row() {
   GnssReport r; r.points.push_back(P1());
   auto l = lines(GnssToCsv(r));
-  assert(l[0] == "nr;punkt;czas;N_m;E_m;H_m;rozwiazanie;satelity;PDOP;RMS_H_mm;RMS_V_mm;epoki;antena_m;uwagi");
-  assert(l[1] == "1;P1;09:15:03;5500123.457;6500234.500;12.346;fix RTK;9;1.8;9;15;12;2.000;");
+  assert(l[0] == "nr;punkt;czas;N_m;E_m;H_m;rozwiazanie;satelity;PDOP;RMS_H_m;RMS_V_m;epoki;antena_m;uwagi");
+  assert(l[1] == "1;P1;09:15:03;5500123.457;6500234.500;12.346;fix RTK;9;1.8;0.009;0.015;12;2.000;");
   r.showTrueError = true;
-  assert(lines(GnssToCsv(r))[0] == "nr;punkt;czas;N_m;E_m;H_m;rozwiazanie;satelity;PDOP;RMS_H_mm;RMS_V_mm;epoki;antena_m;uwagi;blad_N_mm;blad_E_mm;blad_H_mm;blad_2D_mm");
+  assert(lines(GnssToCsv(r))[0] == "nr;punkt;czas;N_m;E_m;H_m;rozwiazanie;satelity;PDOP;RMS_H_m;RMS_V_m;epoki;antena_m;uwagi;blad_N_m;blad_E_m;blad_H_m;blad_2D_m");
 }
 
 static void csv_quotes_note_and_appends_true_error() {
@@ -32,7 +32,7 @@ static void csv_quotes_note_and_appends_true_error() {
   p.note = "a;b \"c\""; p.hasTrue = true; p.dNmm = -3.2; p.dEmm = 4.1; p.dHmm = 7.8; p.d2Dmm = 5.2;
   r.points.push_back(p);
   std::string row = lines(GnssToCsv(r))[1];
-  assert(has(row, ";\"a;b \"\"c\"\"\";-3.2;4.1;7.8;5.2"));
+  assert(has(row, ";\"a;b \"\"c\"\"\";-0.003;0.004;0.008;0.005"));
 }
 
 static void incomplete_report_is_flagged() {
@@ -53,9 +53,9 @@ static void summary_lines() {
   std::string all; for (auto& l : GnssSummaryLines(r)) all += l + "\n";
   assert(has(all, "Punkty: 3") && has(all, "w fixie: 2") && has(all, "sredni PDOP: 2.2"));
   assert(has(all, "Najgorszy punkt: P3 (PDOP 3.0)"));
-  r.showTrueError = true; a.hasTrue = b.hasTrue = c.hasTrue = true; a.d2Dmm = 4; b.d2Dmm = 7.5; c.d2Dmm = 6; r.points = {a, b, c};
+  r.showTrueError = true; a.hasTrue = b.hasTrue = c.hasTrue = true; a.d2Dmm = 4; b.d2Dmm = 8; c.d2Dmm = 6; r.points = {a, b, c};
   all.clear(); for (auto& l : GnssSummaryLines(r)) all += l + "\n";
-  assert(has(all, "Najgorszy punkt: P2 (7.5 mm)"));
+  assert(has(all, "Najgorszy punkt: P2 (0.008 m)"));
 }
 
 static void docx_table_fits_page_width() {
