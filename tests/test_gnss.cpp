@@ -66,9 +66,86 @@ static void classify_table() {
   assert(std::string(GnssSolName(SolType::Fix)) == "fix RTK" && std::string(GnssSolName(SolType::None)) == "brak");
 }
 
+static const GridPos TRUTH{5500100.0, 6500200.0, 12.5};
+static double meanErrAfter(uint32_t seed, double antennaSet, const SkyMask& m, double* eN, double* eE, double* eH, SolType* type) {
+  GnssSession s(seed, 0.0, TRUTH, antennaSet);
+  for (int t = 1; t <= 245; t++) s.Step(t, m);
+  *eN = s.Fix().n - TRUTH.n; *eE = s.Fix().e - TRUTH.e; *eH = s.Fix().h - TRUTH.h; *type = s.Fix().type;
+  return s.Fix().pdop;
+}
+
+static void grid_roundtrip() {
+  GridPos g = GnssToGrid(1234.5, -678.9, 4321.0);
+  double x, y, z; GnssFromGrid(g, x, y, z);
+  assert(std::fabs(x - 1234.5) < 1e-6 && std::fabs(y + 678.9) < 1e-6 && std::fabs(z - 4321.0) < 1e-6);
+  GridPos o = GnssToGrid(0, 0, 0);
+  assert(o.n == 5500000.0 && o.e == 6500000.0 && o.h == 0.0);
+  GridPos p = GnssToGrid(100, 200, 300);
+  assert(p.n == 5500003.0 && p.e == 6500001.0 && p.h == 2.0);
+}
+
+static void sigma_ordering() {
+  SolSigma f = GnssSigma(SolType::Fix, 2, 0);
+  assert(f.hMm == 8.0 && f.vMm == 15.0);
+  assert(GnssSigma(SolType::Float, 2, 0).hMm > f.hMm);
+  assert(GnssSigma(SolType::Dgps, 2, 0).hMm > GnssSigma(SolType::Float, 2, 0).hMm);
+  assert(GnssSigma(SolType::Autonomous, 2, 0).hMm > GnssSigma(SolType::Dgps, 2, 0).hMm);
+  assert(GnssSigma(SolType::Fix, 3, 0).hMm > f.hMm && GnssSigma(SolType::Fix, 2, 0.5).hMm > f.hMm);
+  assert(GnssSigma(SolType::None, 2, 0).hMm == 0.0 && GnssSigma(SolType::None, 2, 0).vMm == 0.0);
+}
+
+static void rng_is_deterministic() {
+  GnssRng a(7), b(7);
+  for (int i = 0; i < 100; i++) assert(a.Normal() == b.Normal());
+  GnssRng r(11); double sum = 0, sq = 0; const int n = 20000;
+  for (int i = 0; i < n; i++) { double v = r.Normal(); sum += v; sq += v * v; }
+  double mean = sum / n, sd = std::sqrt(sq / n - mean * mean);
+  assert(std::fabs(mean) < 0.03 && sd > 0.97 && sd < 1.03);
+}
+
+static void session_reaches_fix_in_open_sky() {
+  GnssSession s(1, 0.0, TRUTH, 2.0);
+  for (int t = 1; t <= 60; t++) {
+    s.Step(t, SkyMask{});
+    if (t == 3) assert(s.Fix().type == SolType::Dgps || s.Fix().type == SolType::Autonomous);
+    if (t == 45) assert(s.Fix().type == SolType::Fix);
+  }
+  assert(s.Fix().epochs >= 5);
+}
+
+static void fix_error_is_centimeters_but_bias_survives_averaging() {
+  double sum = 0, sq = 0; const int n = 40;
+  for (int seed = 1; seed <= n; seed++) {
+    double eN, eE, eH; SolType t;
+    meanErrAfter(seed, 2.0, SkyMask{}, &eN, &eE, &eH, &t);
+    assert(t == SolType::Fix);
+    assert(std::fabs(eN) < 0.05 && std::fabs(eE) < 0.05);
+    sum += eN; sq += eN * eN;
+  }
+  double mean = sum / n, sd = std::sqrt(sq / n - mean * mean);
+  assert(sd > 0.001 && sd < 0.02);                       // blad systematyczny widoczny, nie znika przy usrednianiu
+}
+
+static void antenna_mismatch_biases_height() {
+  double eN, eE, eH; SolType t;
+  meanErrAfter(3, 1.8, SkyMask{}, &eN, &eE, &eH, &t);
+  assert(t == SolType::Fix && std::fabs(eH - 0.2) < 0.03);
+}
+
+static void blocked_sky_gives_no_solution() {
+  SkyMask m; for (double& h : m.horizonDeg) h = 90;
+  GnssSession s(5, 0.0, TRUTH, 2.0);
+  for (int t = 1; t <= 30; t++) s.Step(t, m);
+  const GnssFix& f = s.Fix();
+  assert(f.type == SolType::None && f.used < 4 && f.pdop == 99.0);
+  assert(std::isfinite(f.n) && std::isfinite(f.e) && std::isfinite(f.h));
+}
+
 int main() {
   pdop_matches_analytic_geometry(); constellation_is_deterministic_and_open_sky_is_good();
   mask_removes_exactly_blocked_satellites(); multipath_scales_with_obstacle_distance(); classify_table();
+  grid_roundtrip(); sigma_ordering(); rng_is_deterministic(); session_reaches_fix_in_open_sky();
+  fix_error_is_centimeters_but_bias_survives_averaging(); antenna_mismatch_biases_height(); blocked_sky_gives_no_solution();
   std::puts("test_gnss OK");
   return 0;
 }
