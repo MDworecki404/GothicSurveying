@@ -131,7 +131,9 @@ i Jarkendar (11, `ADDONWORLD`); Irdorath (statek) nie ma zestawu. W menu główn
 (id `G01`, `G02`…, opis miejsca w polu rozwiązania, np. „osnowa wzorcowa: Cmentarz”), stawia ich znaki i pokazuje listę od najbliższych z odległością i kierunkiem od ciebie. Ponowne
 załadowanie nic nie duplikuje, a punkty z robót GNSS (O1, O2…) zostają. Współrzędne punktów wzorcowych są dokładne (do 1 mm), więc nadają się jako osnowa wyższego rzędu niż punkty z GNSS.
 Rozmieszczenie wyliczył skrypt `assets/make_world_control.py` z modeli światów (płaski i otwarty teren w pobliżu dróg, odstępy co najmniej 40–70 m, wzajemna widoczność, nazwy
-od najbliższej lokacji); w ciasnych miejscach (miasto, wąwozy) jakość nieba bywa gorsza, więc fix GNSS tam nie jest pewny.
+od najbliższej lokacji). **Mapa osnowy** (pozycja „Mapa osnowy” w menu głównym i w menu każdej roboty) otwiera panel z mapą świata (cieniowany teren i sieć dróg, północ u góry),
+punktami osnowy z numerami (czerwone: wzorcowa G.., zielone: założona GNSS-em O..), żółtym znacznikiem ciebie i informacją o najbliższym punkcie; Enter albo Home zamyka. Mapy i dane
+generuje ten sam skrypt, a tekstury `LVL_MAP_<świat>.TGA` są w `assets/worldmaps` i trafiają do gry razem z modelami. W ciasnych miejscach (miasto, wąwozy) jakość nieba bywa gorsza, więc fix GNSS tam nie jest pewny.
 
 Współrzędne osnowy mają błąd GNSS (centymetry), więc przechodzą na pomiary tachimetryczne oparte na osnowie. Obiekty pluginu (znaki, tyczki, sprzęt) nie są
 zapisywane w zapisach gry, a znaki osnowy są stawiane na nowo z pliku, więc nie powinny się dublować po wczytaniu zapisu. Zapisy zrobione starszą wersją pluginu mogą mieć

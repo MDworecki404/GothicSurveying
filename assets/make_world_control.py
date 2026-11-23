@@ -16,6 +16,7 @@ Metoda (wszystko w metrach, ukladzie E, N, U; E = x_gry/100, N = z_gry/100, U = 
 import argparse
 import json
 import math
+import struct
 import unicodedata
 from pathlib import Path
 
@@ -29,6 +30,7 @@ WORLD_KEYS = {"khorinis": "NEWWORLD", "gornicza-dolina": "OLDWORLD", "jarkendar"
 # Progi jakosci kandydata: (nachylenie [deg], zaslonienie nieba [%], najblizsza przeszkoda [m], uskok w oknie 3x3 [m]).
 TIERS = [(4.0, 6.0, 8.0, 0.8), (7.0, 12.0, 6.0, 1.2), (10.0, 25.0, 4.0, 2.0)]
 COVER, MIN_SEP, MAX_N = 130.0, 70.0, 28
+MAP_PX, MAP_MARGIN = 512, 80.0         # tekstura mapy [px] i margines wokol obszaru chodzenia [m]
 
 
 def ascii_name(s):
@@ -243,7 +245,50 @@ def process(pkg, key):
     for k, r in enumerate(rows, 1):
         r["id"] = "G%02d" % k
     print("%s: kandydatow %d, wybrano %d, bez 2 widocznych sasiadow: %d" % (key, len(cand), len(rows), sum(1 for r in rows if r["vis"] < 2)))
-    return key, rows, d, cand, area
+    return key, rows, d, cand, area, nodes, wp["edges"]
+
+
+def save_tga24(path, rgb):
+    """Nieskompresowany TGA 24-bit, poczatek lewy dolny (jak assets/make_models.py): rgb to tablica (h, w, 3) z gorna linia = polnoc."""
+    h, w, _ = rgb.shape
+    bgr = rgb[::-1, :, ::-1]                                    # TGA zaczyna od dolnego wiersza, kanaly BGR
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    Path(path).write_bytes(struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, w, h, 24, 0) + np.ascontiguousarray(bgr).tobytes())
+
+
+def map_bounds(area):
+    """Kwadratowy zakres mapy (E0, N0, bok) wokol obszaru chodzenia z marginesem, zaokraglony do 50 m."""
+    e0, e1 = area[:, 0].min() - MAP_MARGIN, area[:, 0].max() + MAP_MARGIN
+    n0, n1 = area[:, 1].min() - MAP_MARGIN, area[:, 1].max() + MAP_MARGIN
+    side = math.ceil(max(e1 - e0, n1 - n0) / 50.0) * 50.0
+    return ((e0 + e1) / 2 - side / 2, (n0 + n1) / 2 - side / 2, side)
+
+
+def render_map(d, area, nodes, edges, bounds, out):
+    """Tekstura mapy MAP_PX x MAP_PX: cieniowany teren (wysokosc z DSM) i siec drog; polnoc u gory. Punkty osnowy rysuje gra."""
+    from PIL import Image, ImageDraw
+    from matplotlib import cm
+    from matplotlib.colors import LightSource
+    e0, n0, side = bounds
+    px = side / MAP_PX
+    ee = e0 + (np.arange(MAP_PX) + 0.5) * px
+    nn = n0 + (np.arange(MAP_PX)[::-1] + 0.5) * px              # wiersz 0 = polnoc
+    ix = ((ee - d["e0"]) / RES).astype(int)
+    iy = ((nn - d["n0"]) / RES).astype(int)
+    z = np.full((MAP_PX, MAP_PX), np.nan)
+    okx = (ix >= 0) & (ix < d["w"]); oky = (iy >= 0) & (iy < d["h"])
+    z[np.ix_(oky, okx)] = d["zmax"][np.ix_(iy[oky], ix[okx])]       # poza modelem swiata i dziury w siatce = morze
+    z[~np.isfinite(z)] = np.nan
+    lo, hi = np.nanpercentile(z, 2), np.nanpercentile(z, 98)
+    z = np.where(np.isfinite(z), z, lo)
+    shaded = LightSource(azdeg=315, altdeg=45).shade(np.clip(z, lo, hi), cmap=cm.terrain, blend_mode="soft", vert_exag=2.0, dx=px, dy=px)
+    img = Image.fromarray((shaded[:, :, :3] * 255).astype(np.uint8))
+    dr = ImageDraw.Draw(img)
+    def pos(e, n):
+        return ((e - e0) / px, MAP_PX - (n - n0) / px)
+    for i, j in edges:                                          # siec drog: cienkie biale linie
+        dr.line([pos(nodes[i][1], nodes[i][2]), pos(nodes[j][1], nodes[j][2])], fill=(255, 255, 255), width=1)
+    save_tga24(out, np.asarray(img))
 
 
 def preview(out, key, rows, d, cand, area):
@@ -272,7 +317,7 @@ def preview(out, key, rows, d, cand, area):
     plt.close(fig)
 
 
-def header(all_rows):
+def header(all_rows, maps):
     o = ["// Wygenerowane przez assets/make_world_control.py - nie edytuj recznie.",
          "// Osnowa geodezyjna swiatow Gothic II (uklad lokalny wtyczki: E = x/100, N = z/100, H = y/100 w metrach; do dodania N0/E0).",
          "#pragma once", "", "struct WorldControlRow { const char* world; const char* id; const char* place; double e, n, h; };", "",
@@ -280,7 +325,12 @@ def header(all_rows):
     for key, rows in all_rows:
         for r in rows:
             o.append('  {"%s", "%s", "%s", %.3f, %.3f, %.3f},' % (key, r["id"], r["place"], r["e"], r["n"], r["u"]))
-    o += ["};", "inline const int WORLD_CONTROL_COUNT = (int)(sizeof(WORLD_CONTROL) / sizeof(WORLD_CONTROL[0]));", ""]
+    o += ["};", "inline const int WORLD_CONTROL_COUNT = (int)(sizeof(WORLD_CONTROL) / sizeof(WORLD_CONTROL[0]));", "",
+          "// Mapa swiata (tekstura LVL_MAP_<swiat>.TGA, polnoc u gory): lewy dolny rog (E0, N0) i bok kwadratu [m] w ukladzie lokalnym.",
+          "struct WorldMapInfo { const char* world; double e0, n0, side; };", "inline const WorldMapInfo WORLD_MAPS[] = {"]
+    for key, (e0, n0, side) in maps:
+        o.append('  {"%s", %.1f, %.1f, %.1f},' % (key, e0, n0, side))
+    o += ["};", "inline const int WORLD_MAPS_COUNT = (int)(sizeof(WORLD_MAPS) / sizeof(WORLD_MAPS[0]));", ""]
     return "\n".join(o)
 
 
@@ -289,22 +339,27 @@ def main():
     ap.add_argument("dist")
     ap.add_argument("--preview")
     ap.add_argument("--only")
+    ap.add_argument("--maps-dir", default=str(Path(__file__).resolve().parent / "worldmaps"))
     ap.add_argument("--out", default=str(Path(__file__).resolve().parent.parent / "src" / "calc" / "WorldControlData.hpp"))
     a = ap.parse_args()
-    all_rows = []
+    all_rows, maps = [], []
     for folder, key in WORLD_KEYS.items():
         if a.only and a.only != folder:
             continue
-        key, rows, d, cand, area = process(Path(a.dist) / folder, key)
+        key, rows, d, cand, area, nodes, edges = process(Path(a.dist) / folder, key)
         if rows:
             all_rows.append((key, rows))
+            bounds = map_bounds(area)
+            maps.append((key, bounds))
+            if not a.only:
+                render_map(d, area, nodes, edges, bounds, Path(a.maps_dir) / ("LVL_MAP_%s.TGA" % key))
         if a.preview and rows:
             preview(a.preview, key, rows, d, cand, area)
         for r in rows:
             print("  %s %-30s E %9.2f N %9.2f U %7.2f  zasl. %.1f%% przeszk. %.0f m nachyl. %.1f deg  poziom %d  widzi %d" %
                   (r["id"], r["place"], r["e"], r["n"], r["u"], r["blocked"], r["nearest"], r["slope"], r["tier"], r["vis"]))
     if not a.only:
-        Path(a.out).write_text(header(all_rows), encoding="utf-8")
+        Path(a.out).write_text(header(all_rows, maps), encoding="utf-8")
         print("zapisano", a.out)
 
 

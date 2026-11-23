@@ -292,6 +292,16 @@ def hivis_pixel(x, y):                   # atlas 4 bloki po 16 px
     return [(255, 205, 0), (215, 220, 225), (40, 40, 45), (255, 230, 90)][min(x // 16, 3)]
 
 
+def dot_pixel(color):
+    """Znacznik na mapie 16x16: kolorowe kolo z ciemna obwodka, poza kolem przezroczysty."""
+    def px(x, y):
+        r = math.hypot(x - 7.5, y - 7.5)
+        if r <= 5.2:
+            return color + (255,)
+        return (20, 20, 20, 255) if r <= 7.0 else (0, 0, 0, 0)
+    return px
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit("Uzycie: python make_models.py <katalog gry Gothic II>")
@@ -306,6 +316,8 @@ def main():
     tga32(tex / "LVL_RETICLE.TGA", 2048, 1024, reticle_pixel(2048, 1024))   # 2x gęstsza => krzyż ok. 2x cieńszy na ekranie
     tga32(tex / "LVL_PANEL.TGA", 64, 64, panel_pixel(64, 64))
     tga32(tex / "LVL_HAIR.TGA", 16, 8, hair_pixel(16, 8))
+    for nm, col in (("LVL_DOTR.TGA", (230, 30, 30)), ("LVL_DOTG.TGA", (40, 200, 60)), ("LVL_DOTY.TGA", (255, 220, 0))):
+        tga32(tex / nm, 16, 16, dot_pixel(col))                   # znaczniki mapy osnowy
     tga32(tex / "LVL_GOLDH.TGA", 8, 8, gold_pixel(True))      # górny/dolny pasek ramki paneli
     tga32(tex / "LVL_GOLDV.TGA", 8, 8, gold_pixel(False))     # lewy/prawy pasek
     one = [("LVL_INSTR", "LVL_INSTR.TGA")]
@@ -321,6 +333,8 @@ def main():
                               ("LVL_REPER", build_reper(), one)):
         (meshes / f"{fname}.3DS").write_bytes(to_3ds(fname, mesh, mats))
         print(f"{fname}.3DS: {len(mesh.v)} wierzcholkow, {len(mesh.f)} trojkatow, {len(mats)} mat.")
+    for f in sorted((Path(__file__).parent / "worldmaps").glob("LVL_MAP_*.TGA")):         # mapy swiatow z make_world_control.py
+        shutil.copy(f, tex / f.name)
     for f in sorted((Path(__file__).parent / "imported").glob("LVL_*")):     # kask i kamizelka z import_glb.py (CC-BY, ATTRIBUTION.txt)
         shutil.copy(f, (meshes if f.suffix.upper() == ".3DS" else tex) / f.name)
 

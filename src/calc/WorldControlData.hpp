@@ -70,3 +70,12 @@ inline const WorldControlRow WORLD_CONTROL[] = {
   {"ADDONWORLD", "G11", "Wejscie do Jarkendaru", 6.026, -76.667, -10.520},
 };
 inline const int WORLD_CONTROL_COUNT = (int)(sizeof(WORLD_CONTROL) / sizeof(WORLD_CONTROL[0]));
+
+// Mapa swiata (tekstura LVL_MAP_<swiat>.TGA, polnoc u gory): lewy dolny rog (E0, N0) i bok kwadratu [m] w ukladzie lokalnym.
+struct WorldMapInfo { const char* world; double e0, n0, side; };
+inline const WorldMapInfo WORLD_MAPS[] = {
+  {"NEWWORLD", -190.2, -559.2, 1150.0},
+  {"OLDWORLD", -694.3, -671.1, 1350.0},
+  {"ADDONWORLD", -516.3, -468.2, 1000.0},
+};
+inline const int WORLD_MAPS_COUNT = (int)(sizeof(WORLD_MAPS) / sizeof(WORLD_MAPS[0]));

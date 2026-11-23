@@ -265,12 +265,13 @@ namespace GOTHIC_NAMESPACE {
 
   inline void CtrlOpenMenu() {
     if ( !gJob ) {
-      MenuOpen( MenuView{ "Menu geodezyjne", { { "start", "Rozpocznij robote", "", true }, { "world", "Zaladuj osnowe geodezyjna swiata", "", true }, { "control", "Pokaz osnowe", "", true } } },
-                []( const std::string& id ) { if ( id == "control" ) CtrlShowControl(); else if ( id == "world" ) CtrlLoadWorldControl(); else CtrlOpenStartMenu(); } );
+      MenuOpen( MenuView{ "Menu geodezyjne", { { "start", "Rozpocznij robote", "", true }, { "world", "Zaladuj osnowe geodezyjna swiata", "", true }, { "control", "Pokaz osnowe", "", true }, { "map", "Mapa osnowy", "", true } } },
+                []( const std::string& id ) { if ( id == "control" ) CtrlShowControl(); else if ( id == "world" ) CtrlLoadWorldControl(); else if ( id == "map" ) MapOpen(); else CtrlOpenStartMenu(); } );
       return;
     }
     MenuView v{ gJob->Name(), gJob->Menu() };
     if ( gJob->Kind() == JobKind::Leveling ) v.items.push_back( { "scope", "Patrz przez lunete (" LV_KEYNAME_SCOPE ")", "najpierw niwelator i lata", gWorld.HasInstrument() && !gJob->ActiveRodPoints().empty() } );
+    v.items.push_back( { "map", "Mapa osnowy", "", true } );
     v.items.push_back( { "abort", "Przerwij robote (bez dziennika)", "", true } );
     MenuOpen( v, []( const std::string& id ) {
       if ( !gJob ) return;
@@ -279,6 +280,7 @@ namespace GOTHIC_NAMESPACE {
       else if ( id == "fine" ) PoleFineEnter();
       else if ( id == "view" ) { gJob->OnMenu( id ); CtrlEnterTachyView(); }
       else if ( gJob->NeedsChoice( id ) ) CtrlOpenChoice( id );
+      else if ( id == "map" ) MapOpen();
       else if ( id == "abort" ) CtrlConfirmAbort();
       else {
         const size_t before = gJob->Kind() == JobKind::Gnss ? gJob->FinishGnss( false ).points.size() : 0;
@@ -322,7 +324,7 @@ namespace GOTHIC_NAMESPACE {
         else CtrlSavePartial( gJob->Finish( false ) );
       }
       if ( FieldBookEditActive() ) { gPendingFb.complete = false; ExportFieldBook( gPendingFb, gJobDir, true ); }
-      FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); CtrlForgetJob(); gCtrlWorld = w;
+      FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); MapClose(); CtrlForgetJob(); gCtrlWorld = w;
     }
     if ( !w ) return;
     ControlTick();                                     // znaki osnowy: nowy swiat / wczytany zapis
@@ -330,7 +332,7 @@ namespace GOTHIC_NAMESPACE {
     const DWORD nowClock = GetTickCount();
     double dtClock = ( nowClock - lastClock ) / 1000.0; lastClock = nowClock;
     if ( dtClock > 0.2 ) dtClock = 0.2;
-    const bool gamePaused = MenuIsOpen() || ScopeActive() || FieldBookVisible() || TextPanelVisible() || FieldBookEditActive() || PoleFineActive() || TachyViewActive();
+    const bool gamePaused = MenuIsOpen() || ScopeActive() || FieldBookVisible() || TextPanelVisible() || FieldBookEditActive() || PoleFineActive() || TachyViewActive() || MapActive();
     if ( !gamePaused ) { gWorld.AdvanceClock( dtClock ); if ( gJob ) gJob->Tick(); }   // zegar symulacji stoi, gdy gra zatrzymana
     if ( !MenuIsOpen() && !ScopeActive() && !PoleFineActive() && !TachyViewActive() ) gWorld.DressTick();   // przy zatrzymanej grze nic się nie rusza
     ScopeTick();
@@ -339,6 +341,7 @@ namespace GOTHIC_NAMESPACE {
     HudTick();
     if ( ScopeActive() || PoleFineActive() || TachyViewActive() ) { CtrlCloseJobHud(); return; }
     if ( FieldBookEditActive() ) { if ( FieldBookEditTick() ) CtrlFinishManual(); return; }
+    if ( MapActive() ) { MapTick(); return; }
     if ( TextPanelVisible() ) { TextPanelTick(); return; }
     if ( FieldBookVisible() ) { FieldBookTick(); return; }
     if ( MenuIsOpen() ) { MenuTick(); return; }

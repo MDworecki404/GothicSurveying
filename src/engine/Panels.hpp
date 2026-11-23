@@ -27,9 +27,9 @@ namespace GOTHIC_NAMESPACE {
     return b;
   }
 
-  inline zCView* PanelOpen( int x0, int y0, int x1, int y1 ) {
+  inline zCView* PanelOpenTex( int x0, int y0, int x1, int y1, const char* backTex ) {     // panel w zlotej ramce z podanym tlem (np. mapa)
     zCView* v = new zCView( x0, y0, x1, y1 );
-    v->InsertBack( "LVL_PANEL.TGA" );
+    v->InsertBack( backTex );
     v->SetAlphaBlendFunc( zRND_ALPHA_FUNC_BLEND );
     v->SetFont( LV_FONT );
     screen->InsertItem( v );
@@ -39,6 +39,7 @@ namespace GOTHIC_NAMESPACE {
                         PanelBar( x0, y0, x0 + tx, y1, "LVL_GOLDV.TGA" ), PanelBar( x1 - tx, y0, x1, y1, "LVL_GOLDV.TGA" ) };
     return v;
   }
+  inline zCView* PanelOpen( int x0, int y0, int x1, int y1 ) { return PanelOpenTex( x0, y0, x1, y1, "LVL_PANEL.TGA" ); }
   inline void PanelClose( zCView*& v ) {
     if ( !v ) return;
     auto it = gPanelFrames.find( v );

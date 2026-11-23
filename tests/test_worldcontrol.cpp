@@ -43,8 +43,23 @@ static void merge_is_idempotent_and_keeps_user_points() {
   assert(ControlNear(pts, "NEWWORLD", 0, 0, 0, 1e9).size() == count + 1);                            // punkty innych swiatow nie mieszaja sie
 }
 
+static void map_covers_all_points() {
+  for (const char* w : {"NEWWORLD", "ADDONWORLD", "OLDWORLD"}) {
+    WorldMapView m;
+    assert(WorldMapFor(w, m) && m.side >= 200.0);
+    for (const ControlPoint& p : WorldControlFor(w)) {
+      double u, v; MapUnit(m, p.e - GNSS_E0, p.n - GNSS_N0, u, v);
+      assert(u > 0.02 && u < 0.98 && v > 0.02 && v < 0.98);                    // wszystkie punkty leza na mapie, z marginesem
+    }
+  }
+  WorldMapView m; assert(WorldMapFor("newworld.zen", m) && !WorldMapFor("DRAGONISLAND", m) && !WorldMapFor("", m));
+  WorldMapView t{100.0, 200.0, 400.0}; double u, v;
+  MapUnit(t, 100.0, 200.0, u, v); assert(u == 0.0 && v == 1.0);                // lewy dolny rog mapy: u = 0, v = 1 (polnoc u gory)
+  MapUnit(t, 500.0, 600.0, u, v); assert(u == 1.0 && v == 0.0);
+}
+
 int main() {
-  known_worlds_have_sets_and_unknown_do_not(); points_are_consistent(); merge_is_idempotent_and_keeps_user_points();
+  known_worlds_have_sets_and_unknown_do_not(); points_are_consistent(); merge_is_idempotent_and_keeps_user_points(); map_covers_all_points();
   std::puts("test_worldcontrol OK");
   return 0;
 }
