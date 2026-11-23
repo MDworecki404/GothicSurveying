@@ -48,6 +48,12 @@ struct FakeTachy : IWorld {
   GridPos StationGrid() const override { return station; }
   GridPos PointGrid(int slot) const override { return back[slot - 1]; }
   bool PlacePrism() override { placed.push_back("prism"); return ground; }
+  // GNSS wewnatrz roboty tachimetrycznej: tyczka z odbiornikiem, niebo, zegar, zapis osnowy
+  SkyMask mask; double now = 0; std::vector<ControlPoint> stored; std::string nextId = "O1";
+  bool PlacePole() override { placed.push_back("pole"); return ground; }
+  SkyMask SkyHorizon() const override { return mask; }
+  double NowSec() const override { return now; }
+  std::string StoreControlPoint(const ControlPoint& cp) override { if (nextId.empty()) return ""; stored.push_back(cp); return nextId; }
   GridPos PoleGroundGrid() const override { return prism; }
   bool LineClear(bool, int) const override { return clear; }
   std::string TimeText() const override { return "09:15:03"; }
@@ -150,6 +156,35 @@ static void orientation_locked_after_first_point() {
   assert(has(m, "zablokowana"));
   TachyReport r = f.job->FinishTachy(true);
   assert(r.backsights.size() == 1 && near(r.backsights[0].dirResidMgon, before, 1e-9) && r.points.size() == 1);
+}
+
+static void tick(Fx& f, int sec) { for (int i = 0; i < sec; i++) { f.w.now += 1; f.job->Tick(); } }
+
+static void gnss_items_and_control_point_in_tachy_job() {
+  Fx f;
+  assert(f.enabled("g_pole") && f.enabled("g_antenna") && !f.enabled("g_start") && !f.enabled("g_control") && !f.enabled("g_discard"));
+  assert(has(f.label("g_pole"), "GNSS") && f.job->StatusLines().empty());
+  f.menu("g_pole"); assert(f.w.placed.back() == "pole" && f.enabled("g_start"));
+  assert(!f.job->StatusLines().empty());                                          // podpowiedz odbiornika przy stojacej tyczce
+  f.menu("g_start"); tick(f, 60);
+  assert(has(f.job->StatusLines()[0], "fix RTK") && f.enabled("g_control") && !f.enabled("g_pole"));
+  f.menu("g_control");
+  assert(f.w.stored.size() == 1 && f.w.stored[0].solution == "fix RTK" && f.w.stored[0].epochs >= 20);
+  assert(f.job->FinishTachy(true).points.empty());                                // punkt GNSS to osnowa, nie punkt tachimetryczny
+  f.w.allControls = f.w.stored;                                                   // swiat widzi nowa osnowe: mozna ja uzyc jako zrodlo
+  assert(f.enabled("src")); f.menu("src"); assert(has(f.label("src"), "osnowa"));
+}
+
+static void gnss_pole_and_prism_exclude_each_other() {
+  Fx f; f.setup(1); f.orient(1);
+  f.w.prism = GridPos{5500040.0, 6500030.0, 100.0};
+  f.menu("g_pole");                                                               // tyczka GNSS zajela miejsce tyczki z lustrem
+  assert(has(f.fireAt(f.w.prism, 1.5), "Najpierw postaw tyczke z lustrem"));
+  f.menu("g_start");
+  assert(!f.enabled("prism") && f.enabled("g_discard"));                          // w trakcie pomiaru GNSS nie wolno przestawic tyczki z lustrem
+  f.menu("g_discard"); assert(f.enabled("prism"));
+  f.menu("prism"); assert(!f.enabled("g_start"));                                 // po tyczce z lustrem odbiornik wymaga ponownego postawienia tyczki GNSS
+  assert(has(f.fireAt(f.w.prism, 1.5), "T1"));
 }
 
 static void limit_five_backsights() {
@@ -258,7 +293,7 @@ static void extreme_aim_does_not_crash() {
 
 int main() {
   registry_lists_tachy(); menu_state_true_mode(); multiple_backsights_orientation_mean(); single_backsight_works(); measure_before_orient_refused();
-  backsight_aiming_is_angular(); remeasure_overwrites(); orientation_locked_after_first_point(); changes_clear_readings(); limit_five_backsights();
+  backsight_aiming_is_angular(); remeasure_overwrites(); orientation_locked_after_first_point(); gnss_items_and_control_point_in_tachy_job(); gnss_pole_and_prism_exclude_each_other(); changes_clear_readings(); limit_five_backsights();
   uncertain_flag_direction(); uncertain_flag_distance(); control_source_uses_gnss_coordinates(); no_control_nearby_refused();
   prism_height_is_the_physical_height(); aim_must_be_on_prism_not_ground(); reflectorless_measures_surface_point();
   true_error_and_abort(); extreme_aim_does_not_crash();

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include "GnssRover.hpp"
 #include "Job.hpp"
 #include "Keys.hpp"
 
@@ -12,6 +13,7 @@ class TachyStationJob : public Job {
  public:
   TachyStationJob(IWorld& w, const JobOptions& o) : w_(w), opt_(o), rng_((uint32_t)(w.Random01() * 4e9) + 1) {
     control_ = !w_.ControlNearHero(1e9).empty();      // domyslnie osnowa GNSS, gdy w swiecie sa jej punkty
+    gnss_ = CreateGnssRover(w_, opt_);                // GNSS w robocie: zakladanie osnowy bez wychodzenia z tachimetrii
     w_.SetPrismHeightM(kPrism[0]);
   }
 
@@ -22,17 +24,21 @@ class TachyStationJob : public Job {
     char ph[64]; std::snprintf(ph, sizeof ph, "Wysokosc lustra: %.3f m (zmien)", kPrism[prismIdx_]);
     const bool fresh = points_.empty(), canSwitchSrc = !stationUp_ && (control_ || !w_.ControlNearHero(1e9).empty());
     const int n = BackCount();
-    return {
+    std::vector<MenuItem> items = {
       {"src", control_ ? "Zrodlo wspolrzednych: osnowa GNSS (zmien)" : "Zrodlo wspolrzednych: prawdziwe (zmien)", "przed postawieniem tachimetru; osnowa wymaga punktow", canSwitchSrc},
       {"station", stationUp_ ? "Przestaw tachimetr (stanowisko)" : "Postaw tachimetr (stanowisko)", "nie po zmierzeniu punktu", fresh},
       {"backsight", "Dodaj nawiazanie (lustro)", "najpierw tachimetr; max 5; nie po zmierzeniu punktu", stationUp_ && fresh && n < kMaxBack},
       {"unback", "Usun ostatnie nawiazanie", "brak nawiazan; nie po zmierzeniu punktu", n > 0 && fresh},
       {"meas", reflectorless_ ? "Rodzaj pomiaru: bezlustrowy (zmien)" : "Rodzaj pomiaru: na lustro (zmien)", "najpierw tachimetr", stationUp_},
-      {"prism", prismUp_ ? "Przestaw tyczke z lustrem" : "Postaw tyczke z lustrem", "najpierw tachimetr", stationUp_},
+      {"prism", prismUp_ ? "Przestaw tyczke z lustrem" : "Postaw tyczke z lustrem", "najpierw tachimetr; nie w trakcie pomiaru GNSS", stationUp_ && !GnssBusy()},
       {"prismh", ph, "najpierw tachimetr", stationUp_},
       {"view", "Patrz przez lunete (" LV_KEYNAME_SCOPE ")", "najpierw tachimetr i co najmniej jedno nawiazanie", stationUp_ && n >= 1},
       {"finish", "Zakoncz robote", "najpierw zmierz co najmniej jeden punkt", CanFinish()},
     };
+    for (const MenuItem& m : gnss_->Menu())            // zakladanie osnowy GNSS: te same kroki co w robocie GNSS (tyczka GNSS zajmuje miejsce tyczki z lustrem)
+      if (m.id == "pole" || m.id == "antenna" || m.id == "start" || m.id == "control" || m.id == "discard")
+        items.push_back({"g_" + m.id, "GNSS: " + m.label, m.hint, m.enabled});
+    return items;
   }
 
   bool NeedsChoice(const std::string& menuId) const override { return control_ && (menuId == "station" || menuId == "backsight"); }
@@ -61,6 +67,11 @@ class TachyStationJob : public Job {
     const size_t colon = id.find(':');
     const std::string base = colon == std::string::npos ? id : id.substr(0, colon), arg = colon == std::string::npos ? "" : id.substr(colon + 1);
     for (const MenuItem& m : Menu()) if (m.id == base && !m.enabled) return;
+    if (base.compare(0, 2, "g_") == 0) {               // odbiornik GNSS: delegacja do robota GNSS
+      gnss_->OnMenu(base.substr(2));
+      if (base == "g_pole") prismUp_ = false;          // tyczka GNSS zajela miejsce tyczki z lustrem
+      return;
+    }
     if (base == "src") {
       control_ = !control_;
     } else if (base == "station") {
@@ -95,6 +106,7 @@ class TachyStationJob : public Job {
     } else if (base == "prism") {
       if (!w_.PlacePrism()) { w_.Say("Brak gruntu pod stopami"); return; }
       prismUp_ = true;
+      gnss_ = CreateGnssRover(w_, opt_);               // tyczka GNSS zniknela: odbiornik zaczyna od nowa
     } else if (base == "prismh") {
       prismIdx_ = (prismIdx_ + 1) % kPrismCount;
       w_.SetPrismHeightM(kPrism[prismIdx_]);          // modele lustra (tyczka i nawiazania) maja od teraz te wysokosc
@@ -137,6 +149,8 @@ class TachyStationJob : public Job {
   }
 
   bool CanFinish() const override { return !points_.empty(); }
+  void Tick() override { gnss_->Tick(); }                                 // epoki odbiornika GNSS plyna w czasie gry
+  std::vector<std::string> StatusLines() const override { return gnss_->StatusLines(); }   // panel odbiornika, gdy tyczka GNSS stoi
 
   TachyReport FinishTachy(bool complete) override {
     TachyReport r; r.complete = complete; r.showTrueError = opt_.showTrueError; r.points = points_;
@@ -163,6 +177,8 @@ class TachyStationJob : public Job {
   static constexpr double kPrism[kPrismCount] = {1.5, 1.8, 2.0, 1.3};   // wysokosc srodka lustra nad gruntem [m]; tyczki maja model o tej wysokosci
   static constexpr double kMinSightM = 1.5;                             // minimalna odleglosc pomiaru bezlustrowego
   static constexpr double kStationRadiusM = 2.0;                        // znak osnowy dla stanowiska max 2 m od bohatera
+
+  bool GnssBusy() const { for (const MenuItem& m : gnss_->Menu()) if (m.id == "discard" && m.enabled) return true; return false; }   // trwa pomiar GNSS
 
   static double Mm(double v) { return std::round(v * 1000.0) / 1000.0; }   // wspolrzedne "znane z mapy" do 1 mm
 
@@ -259,6 +275,7 @@ class TachyStationJob : public Job {
   int prismIdx_ = 0; double az0_ = 0;
   std::string lastMsg_;
   std::vector<TachyPoint> points_;
+  std::unique_ptr<Job> gnss_;
 };
 
 inline std::unique_ptr<Job> CreateTachyStation(IWorld& w, const JobOptions& o) { return std::make_unique<TachyStationJob>(w, o); }
