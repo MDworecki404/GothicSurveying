@@ -170,6 +170,10 @@ Zmiana trybu kasuje orientację. Domyślnie jedno położenie, bez tych błędó
 
 **Stanowisko dowolne (wcięcie wstecz)** (menu „Stanowisko: dowolne”, przy źródle osnowa GNSS): tachimetr stawiasz gdziekolwiek, dodajesz co najmniej 2 nawiązania na punktach osnowy
 i mierzysz je (kierunek i odległość). Współrzędne stanowiska, orientację koła i wysokość liczy obrót + przesunięcie z dopasowania do wszystkich nawiązań; panel pokazuje N, E i rms dopasowania.
+**Wiele stanowisk**: po zmierzeniu punktu menu ma „Nowe stanowisko (zamknij bieżące)”. Zamyka ono stanowisko (S1, S2…) razem z jego nawiązaniami i odchyłkami, a następne stawiasz od nowa
+(na znanym punkcie albo dowolnie, z własną orientacją). Punkty numerują się dalej (T1, T2…) i mają w uwagach „stanowisko S<n>”; raport (CSV i DOCX) opisuje każde stanowisko osobno
+i podsumowuje liczbę stanowisk. Punkt mierzony z dwóch stanowisk daje porównanie współrzędnych bez wyrównania.
+
 **Wytyczanie** („Wytycz punkt osnowy”, po orientacji): wybierasz punkt osnowy 3–300 m od stanowiska, ustawiasz tyczkę z lustrem i mierzysz **Enter**; komunikat mówi, o ile przesunąć tyczkę
 („dalej/bliżej” wzdłuż celowej i „w prawo/w lewo” prostopadle, razem m), a przy odchyłce ≤ 2 cm: „wytyczony” z odchyłką i dH. Pomiar trafia do punktów z uwagą „wytyczanie <id>”. „Zakończ wytyczanie” wyłącza podpowiedź.
 
@@ -239,7 +243,7 @@ Jeśli cyfry na łacie są w grze do góry nogami, ustaw `FLIP_V = True` w `asse
 
 - Plugin nie zapisuje stanu: po wyjściu z gry sprzęt trzeba postawić od nowa (wyniki zostają w CSV).
 - Trzy roboty: ciąg niwelacyjny, pomiar GNSS (RTK) i tachimetria; niwelacja trygonometryczna dojdzie jako kolejny moduł `Job`.
-- Tachimetria: bez wcięcia w przód, bez wyrównania osnowy i jedno stanowisko na robotę.
+- Tachimetria: bez wcięcia w przód i bez wyrównania osnowy ani wspólnego wyrównania stanowisk.
 - Pomiar GNSS: poprawki z własnej bazy to model uproszczony (1 ppm + przesunięcie bazy), bez wielu baz i bez przetwarzania linii bazowych; statyka to pojedyncza sesja 120 epok.
 - Kreski dalmiercze liczone są dla pola widzenia gry; przy bardzo wąskim FOV mogą wypaść poza lunetę (wtedy są pomijane, wpis w `GothicSurveying.log`).
 - Hook na `zCWorld::Render` sprawdzono tylko na Gothic II NotR 2.6 (fix) ze Steam Gold Classic.

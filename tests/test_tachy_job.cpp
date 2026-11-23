@@ -355,6 +355,30 @@ static void stakeout_guides_and_confirms() {
   f.menu("unstake"); assert(!has(f.fireAt(f.w.prism, 1.5), "wytyczony") && !f.enabled("unstake"));
 }
 
+static void multiple_stations_in_one_job() {
+  Fx f([](FakeTachy& w) { w.allControls = {CP("G0", ST), CP("G1", G1p), CP("G2", G2p)}; w.nearHero = {CP("G0", ST)}; w.nearStation = {CP("G1", G1p), CP("G2", G2p)}; });
+  assert(!f.enabled("newst"));
+  f.menu("station:G0"); f.menu("backsight:G1"); f.menu("prism"); f.orient(1);
+  f.w.prism = GridPos{5500040.0, 6500030.0, 100.0};
+  assert(has(f.fireAt(f.w.prism, 1.5), "T1") && f.job->FinishTachy(true).stations.empty());      // jedno stanowisko: raport jak dotad
+  assert(f.enabled("newst") && !f.enabled("backsight") && !f.enabled("station"));
+  f.menu("newst");
+  assert(!f.enabled("newst") && f.enabled("station") && !f.enabled("view") && has(f.w.said.back(), "S1"));
+  // drugie stanowisko: na G1 (prawdziwe polozenie G1), nawiazanie na G2
+  f.w.nearHero = {CP("G1", G1p)}; f.menu("station:G1");
+  f.w.nearStation = {CP("G2", G2p)}; f.menu("backsight:G2");
+  assert(has(f.readBack(1), "Nawiazanie"));
+  f.w.prism = GridPos{5500060.0, 6500040.0, 100.0};
+  assert(has(f.fireAt(f.w.prism, 1.5), "T2"));
+  TachyReport r = f.job->FinishTachy(true);
+  assert(r.stations.size() == 2 && r.stations[0].label == "S1" && r.stations[1].label == "S2" && r.points.size() == 2);
+  assert(near(r.stations[0].n, 5500000.0, 0.02) && near(r.stations[1].n, 5500100.0, 0.02) && near(r.stationN, 5500100.0, 0.02));
+  assert(r.stations[0].backsights.size() == 1 && r.stations[1].backsights.size() == 1 && has(r.points[0].note, "stanowisko S1") && has(r.points[1].note, "stanowisko S2"));
+  const std::string csv = TachyToCsv(r);
+  assert(has(csv, "# stanowisko S1;") && has(csv, "# stanowisko S2;") && has(csv, "# zrodlo S2;"));
+  assert(has(TachySummaryLines(r)[0], "Stanowiska: 2"));
+}
+
 int main() {
   registry_lists_tachy(); menu_state_true_mode(); multiple_backsights_orientation_mean(); single_backsight_works(); measure_before_orient_refused();
   backsight_aiming_is_angular(); remeasure_overwrites(); orientation_locked_after_first_point(); gnss_items_and_control_point_in_tachy_job(); gnss_pole_and_prism_exclude_each_other(); changes_clear_readings(); limit_five_backsights();
@@ -363,6 +387,7 @@ int main() {
   true_error_and_abort(); extreme_aim_does_not_crash();
   two_faces_measure_in_kl_and_kp(); single_face_in_two_face_mode_has_errors_and_kp_needs_kl();
   free_station_resection(); stakeout_guides_and_confirms();
+  multiple_stations_in_one_job();
   std::puts("test_tachy_job OK");
   return 0;
 }

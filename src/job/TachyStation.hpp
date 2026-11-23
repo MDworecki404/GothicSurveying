@@ -22,11 +22,12 @@ class TachyStationJob : public Job {
 
   std::vector<MenuItem> Menu() const override {
     char ph[64]; std::snprintf(ph, sizeof ph, "Wysokosc lustra: %.3f m (zmien)", kPrism[prismIdx_]);
-    const bool fresh = points_.empty(), canSwitchSrc = !stationUp_ && (control_ || !w_.ControlNearHero(1e9).empty());
+    const bool fresh = !PointsHere(), canSwitchSrc = !stationUp_ && (control_ || !w_.ControlNearHero(1e9).empty());
     const int n = BackCount();
     std::vector<MenuItem> items = {
       {"src", control_ ? "Zrodlo wspolrzednych: osnowa GNSS (zmien)" : "Zrodlo wspolrzednych: prawdziwe (zmien)", "przed postawieniem tachimetru; osnowa wymaga punktow", canSwitchSrc},
       {"free", free_ ? "Stanowisko: dowolne, wciecie wstecz (zmien)" : "Stanowisko: na znanym punkcie (zmien)", "przed postawieniem tachimetru; wciecie wymaga osnowy i min. 2 nawiazan", !stationUp_ && control_},
+      {"newst", "Nowe stanowisko (zamknij biezace)", "najpierw zmierz punkt na biezacym stanowisku", stationUp_ && !fresh},
       {"station", stationUp_ ? "Przestaw tachimetr (stanowisko)" : "Postaw tachimetr (stanowisko)", "nie po zmierzeniu punktu", fresh},
       {"backsight", "Dodaj nawiazanie (lustro)", "najpierw tachimetr; max 5; nie po zmierzeniu punktu", stationUp_ && fresh && n < kMaxBack},
       {"unback", "Usun ostatnie nawiazanie", "brak nawiazan; nie po zmierzeniu punktu", n > 0 && fresh},
@@ -85,6 +86,11 @@ class TachyStationJob : public Job {
     }
     if (base == "src") {
       control_ = !control_;
+    } else if (base == "newst") {
+      done_.push_back(CurrentRec());
+      w_.Say("Stanowisko " + done_.back().label + " zamkniete. Postaw tachimetr na nastepnym");
+      stationNo_++; stationStart_ = points_.size(); stationUp_ = false;
+      ClearBacksights(); ClearReadings(); solved_ = false;
     } else if (base == "free") {
       free_ = !free_;
     } else if (base == "stake") {
@@ -197,6 +203,18 @@ class TachyStationJob : public Job {
   TachyReport FinishTachy(bool complete) override {
     TachyReport r; r.complete = complete; r.showTrueError = opt_.showTrueError; r.points = points_;
     r.stationN = st_.n; r.stationE = st_.e; r.stationH = st_.h; r.instrH = st_.instrH;
+    if (!done_.empty()) {                                  // wiele stanowisk: zamkniete + biezace (jesli cos na nim zrobiono)
+      r.stations = done_;
+      if (stationUp_ && (ReadCount() > 0 || PointsHere())) r.stations.push_back(CurrentRec());
+      if (r.stations.size() > 1) {
+        const TachyStationRec& last = r.stations.back();
+        r.stationN = last.n; r.stationE = last.e; r.stationH = last.h; r.instrH = last.instrH; r.azBackGon = last.azBackGon;
+        for (TachyPoint& pt : r.points) if (pt.note.find("stanowisko S") == std::string::npos) pt.note += (pt.note.empty() ? "" : "; ") + std::string("stanowisko S") + std::to_string(pt.stationNo);
+        r.coordSource = last.coordSource; r.stationName = last.stationName; r.backsights = last.backsights;
+        return r;
+      }
+      r.stations.clear();
+    }
     r.coordSource = control_ ? (free_ ? "osnowa GNSS, stanowisko dowolne (wciecie wstecz)" : "osnowa GNSS") : "prawdziwe"; r.stationName = control_ ? (free_ ? "dowolne" : stationCp_.id) : "";
     for (const Back& b : backs_) {
       if (!b.read || (free_ && !solved_)) continue;
@@ -219,6 +237,18 @@ class TachyStationJob : public Job {
   static constexpr double kPrism[kPrismCount] = {1.5, 1.8, 2.0, 1.3};   // wysokosc srodka lustra nad gruntem [m]; tyczki maja model o tej wysokosci
   static constexpr double kMinSightM = 1.5;                             // minimalna odleglosc pomiaru bezlustrowego
   static constexpr double kStationRadiusM = 2.0;                        // znak osnowy dla stanowiska max 2 m od bohatera
+
+  bool PointsHere() const { return points_.size() > stationStart_; }       // czy na biezacym stanowisku zmierzono juz punkt
+
+  TachyStationRec CurrentRec() const {
+    TachyStationRec s; s.label = "S" + std::to_string(stationNo_);
+    s.n = st_.n; s.e = st_.e; s.h = st_.h; s.instrH = st_.instrH;
+    s.coordSource = control_ ? (free_ ? "osnowa GNSS, stanowisko dowolne (wciecie wstecz)" : "osnowa GNSS") : "prawdziwe";
+    s.stationName = control_ ? (free_ ? "dowolne" : stationCp_.id) : "";
+    for (const Back& b : backs_) if (b.read && !(free_ && !solved_)) s.backsights.push_back(Residuals(b));
+    if (!backs_.empty()) s.azBackGon = DegToGon(TachyAzimuthDeg(st_.n, st_.e, backs_[0].cp.n, backs_[0].cp.e));
+    return s;
+  }
 
   bool GnssBusy() const { for (const MenuItem& m : gnss_->Menu()) if (m.id == "discard" && m.enabled) return true; return false; }   // trwa pomiar GNSS
 
@@ -291,7 +321,7 @@ class TachyStationJob : public Job {
       const GridPos g = w_.PointGrid(i + 1);
       const TachyAim a = TachyAimError(g.n - s.n, g.e - s.e, (g.h + kPrism[prismIdx_]) - (s.h + st_.instrH), camAz, camPitch);
       if (!a.ok) continue;
-      if (!points_.empty()) return lastMsg_ = "Orientacja zablokowana po pierwszym punkcie (nawiazania bez zmian)";   // inaczej az0 zmieniloby sie w trakcie serii
+      if (PointsHere()) return lastMsg_ = "Orientacja zablokowana po pierwszym punkcie (nowe stanowisko: menu)";   // inaczej az0 zmieniloby sie w trakcie serii
       if (!w_.LineClear(false, i + 1)) return lastMsg_ = "Linia celowa zaslonieta";
       Back& b = backs_[i];
       if (twoFace_ || free_) {
@@ -356,6 +386,8 @@ class TachyStationJob : public Job {
     p.dHM = r.slopeM * std::cos(GonToDeg(r.vGon) * TACHY_PI / 180.0);
     p.n = res.n; p.e = res.e; p.h = res.h; p.prismM = prismM; p.note = note;
     if (!faceNote_.empty()) { p.note += (p.note.empty() ? "" : "; ") + faceNote_; faceNote_.clear(); }
+    p.stationNo = stationNo_;
+    if (stationNo_ > 1) p.note += (p.note.empty() ? "" : "; ") + std::string("stanowisko S") + std::to_string(stationNo_);
     if (opt_.showTrueError) {
       p.hasTrue = true; p.dNm = res.n - truth.n; p.dEm = res.e - truth.e; p.dHm = res.h - truth.h; p.d2Dm = std::hypot(p.dNm, p.dEm);
     }
@@ -370,6 +402,7 @@ class TachyStationJob : public Job {
   ControlPoint stationCp_;
   std::vector<Back> backs_;
   struct Half { bool valid = false; std::string tag; TachyReading r{0, 0, 0}; double slopeM = 0; } half_;   // zapisany odczyt KL czekajacy na KP
+  int stationNo_ = 1; size_t stationStart_ = 0; std::vector<TachyStationRec> done_;                 // wiele stanowisk: numer biezacego, indeks pierwszego punktu na nim, zamkniete
   bool free_ = false, solved_ = false, stakeOn_ = false; double freeRms_ = 0; ControlPoint stake_;   // stanowisko dowolne (wciecie) i wytyczanie
   bool twoFace_ = false, errDrawn_ = false; int face_ = 1; double collGon_ = 0, indexGon_ = 0; std::string faceNote_;
   bool control_ = false, stationUp_ = false, prismUp_ = false, oriented_ = false, reflectorless_ = false;

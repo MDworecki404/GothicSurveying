@@ -11,7 +11,7 @@ struct TachyPoint {
   std::string name, timeText;
   double hzGon = 0, vGon = 0, slopeM = 0, hDistM = 0, dHM = 0;   // odczyty i różnica wysokości (wzgl. oka)
   double n = 0, e = 0, h = 0, prismM = 1.5;                      // wynik i ustawiona wysokość lustra
-  std::string note;
+  std::string note; int stationNo = 1;                           // numer stanowiska (wiele stanowisk w robocie)
   bool hasTrue = false; double dNm = 0, dEm = 0, dHm = 0, d2Dm = 0;   // błąd względem prawdziwego punktu w grze [m]
 };
 
@@ -22,7 +22,15 @@ struct TachyBacksight {
   bool uncertain = false;
 };
 
+// Stanowisko w raporcie z wieloma stanowiskami: dane stanowiska i jego nawiazania (odchylki kontrolne).
+struct TachyStationRec {
+  std::string label, coordSource, stationName;
+  double n = 0, e = 0, h = 0, instrH = 1.5, azBackGon = 0;
+  std::vector<TachyBacksight> backsights;
+};
+
 struct TachyReport {
+  std::vector<TachyStationRec> stations;                   // > 1 gdy robota ma wiele stanowisk (pola ponizej = ostatnie stanowisko); puste = jedno
   std::string coordSource = "prawdziwe", stationName;      // źródło współrzędnych ("osnowa GNSS"/"prawdziwe") i nazwa stanowiska
   std::vector<TachyBacksight> backsights;
   bool complete = true, showTrueError = false;
@@ -67,9 +75,17 @@ inline std::string TachyToCsv(const TachyReport& r) {
   using fbdetail::Num;
   std::string o;
   if (!r.complete) o += "# UWAGA: pomiar niekompletny (robota przerwana)\n";
-  o += "# stanowisko;" + Num(r.stationN, 3) + ";" + Num(r.stationE, 3) + ";" + Num(r.stationH, 3) + ";" + Num(r.instrH, 3) + ";" + Num(r.azBackGon, 4) + "\n";
-  o += "# zrodlo;" + fbdetail::Csv(r.coordSource) + ";" + fbdetail::Csv(r.stationName) + "\n";
-  for (const TachyBacksight& b : r.backsights) o += TachyBacksightCsvLine(b) + "\n";
+  if (r.stations.size() > 1) {
+    for (const TachyStationRec& s : r.stations) {
+      o += "# stanowisko " + s.label + ";" + Num(s.n, 3) + ";" + Num(s.e, 3) + ";" + Num(s.h, 3) + ";" + Num(s.instrH, 3) + ";" + Num(s.azBackGon, 4) + "\n";
+      o += "# zrodlo " + s.label + ";" + fbdetail::Csv(s.coordSource) + ";" + fbdetail::Csv(s.stationName) + "\n";
+      for (const TachyBacksight& b : s.backsights) o += TachyBacksightCsvLine(b) + ";" + s.label + "\n";
+    }
+  } else {
+    o += "# stanowisko;" + Num(r.stationN, 3) + ";" + Num(r.stationE, 3) + ";" + Num(r.stationH, 3) + ";" + Num(r.instrH, 3) + ";" + Num(r.azBackGon, 4) + "\n";
+    o += "# zrodlo;" + fbdetail::Csv(r.coordSource) + ";" + fbdetail::Csv(r.stationName) + "\n";
+    for (const TachyBacksight& b : r.backsights) o += TachyBacksightCsvLine(b) + "\n";
+  }
   o += TachyCsvHeader(r.showTrueError) + "\n";
   int nr = 0;
   for (const TachyPoint& p : r.points) o += TachyCsvRow(p, ++nr, r.showTrueError) + "\n";
@@ -83,10 +99,12 @@ inline std::vector<std::string> TachySummaryLines(const TachyReport& r) {
   for (const TachyPoint& p : r.points) { sum += p.slopeM; if (p.slopeM > longest) longest = p.slopeM; }
   const double avg = r.points.empty() ? 0.0 : sum / (double)r.points.size();
   out.push_back("Punkty: " + std::to_string(r.points.size()) + ", srednia odleglosc: " + Num(avg, 1) + " m, najdluzsza celowa: " + Num(longest, 1) + " m");
-  if (!r.backsights.empty()) {
+  std::vector<TachyBacksight> allB = r.backsights;
+  if (r.stations.size() > 1) { allB.clear(); for (const TachyStationRec& s : r.stations) allB.insert(allB.end(), s.backsights.begin(), s.backsights.end()); out.insert(out.begin(), "Stanowiska: " + std::to_string(r.stations.size())); }
+  if (!allB.empty()) {
     double worst = 0;
-    for (const TachyBacksight& b : r.backsights) if (std::fabs(b.dirResidMgon) > worst) worst = std::fabs(b.dirResidMgon);
-    out.push_back("Nawiazania: " + std::to_string(r.backsights.size()) + ", najwieksza odchylka kierunku: " + Num(worst, 1) + " mgon");
+    for (const TachyBacksight& b : allB) if (std::fabs(b.dirResidMgon) > worst) worst = std::fabs(b.dirResidMgon);
+    out.push_back("Nawiazania: " + std::to_string(allB.size()) + ", najwieksza odchylka kierunku: " + Num(worst, 1) + " mgon");
   }
   if (r.showTrueError && !r.points.empty()) {
     const TachyPoint* worst = &r.points[0];
@@ -100,10 +118,17 @@ inline std::string TachyBuildDocx(const TachyReport& r) {
   using namespace docxdetail; using fbdetail::Num;
   std::string body = Para("Tachimetria (pomiar biegunowy)", true, 36, true);
   body += Para("data: " + r.dateText + (r.complete ? "" : " (pomiar niekompletny - robota przerwana)"));
-  body += Para("Stanowisko: N " + Num(r.stationN, 3) + " m, E " + Num(r.stationE, 3) + " m, H " + Num(r.stationH, 3) + " m, wysokość instrumentu " +
-               Num(r.instrH, 3) + " m, azymut nawiązania " + Num(r.azBackGon, 4) + " g, źródło współrzędnych: " + r.coordSource +
-               (r.stationName.empty() ? "" : " (" + r.stationName + ")"));
-  if (!r.backsights.empty()) {                         // tabela nawiązań: odchyłki kierunku i odległości
+  std::vector<TachyStationRec> recs = r.stations;
+  if (recs.size() <= 1) {                              // jedno stanowisko: pola raportu
+    recs.clear(); TachyStationRec s; s.n = r.stationN; s.e = r.stationE; s.h = r.stationH; s.instrH = r.instrH; s.azBackGon = r.azBackGon;
+    s.coordSource = r.coordSource; s.stationName = r.stationName; s.backsights = r.backsights; recs.push_back(s);
+  }
+  const bool multi = r.stations.size() > 1;
+  for (const TachyStationRec& st : recs) {
+  body += Para((multi ? "Stanowisko " + st.label + ": N " : "Stanowisko: N ") + Num(st.n, 3) + " m, E " + Num(st.e, 3) + " m, H " + Num(st.h, 3) + " m, wysokość instrumentu " +
+               Num(st.instrH, 3) + " m, azymut nawiązania " + Num(st.azBackGon, 4) + " g, źródło współrzędnych: " + st.coordSource +
+               (st.stationName.empty() ? "" : " (" + st.stationName + ")"));
+  if (!st.backsights.empty()) {                        // tabela nawiązań: odchyłki kierunku i odległości
     const std::vector<std::string> bh = {"Nawiązanie", "Azymut [g]", "Hz [g]", "Odchyłka kierunku [mgon]", "D zmierzona [m]", "D ze współrzędnych [m]",
                                          "Odchyłka odległości [mm]", "Ocena"};
     const int bw = 14000 / (int)bh.size();
@@ -113,10 +138,11 @@ inline std::string TachyBuildDocx(const TachyReport& r) {
     bt += "</w:tblBorders></w:tblPr><w:tblGrid>";
     for (size_t i = 0; i < bh.size(); i++) bt += "<w:gridCol w:w=\"" + std::to_string(bw) + "\"/>";
     bt += "</w:tblGrid>" + Row(bh, true, bw);
-    for (const TachyBacksight& b : r.backsights)
+    for (const TachyBacksight& b : st.backsights)
       bt += Row({b.name, Num(b.azGon, 4), Num(b.hzGon, 4), Num(b.dirResidMgon, 1), Num(b.distMeasuredM, 3), Num(b.distCoordM, 3), Num(b.distResidMm, 1),
                  b.uncertain ? "niepewne" : "ok"}, false, bw);
     body += Para("Nawiązania", true) + bt + "</w:tbl>" + Para("");
+  }
   }
   std::vector<std::string> head = {"Nr", "Punkt", "Czas", "Hz [g]", "V [g]", "D skośna [m]", "d pozioma [m]", "Δh [m]", "N [m]", "E [m]", "H [m]",
                                    "Wys. lustra [m]", "Uwagi"};
