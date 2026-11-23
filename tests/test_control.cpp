@@ -50,8 +50,20 @@ static void near_filters_and_sorts() {
   assert(ControlNear(v, "W3", 0.0, 0.0, 0.0, 1e9).empty());
 }
 
+static void world_key_normalizes_names() {
+  assert(ControlWorldKey("NEWWORLD") == "NEWWORLD" && ControlWorldKey("newworld.zen") == "NEWWORLD");
+  assert(ControlWorldKey("NewWorld\\NewWorld.zen") == "NEWWORLD" && ControlWorldKey("_work/data/worlds/NewWorld.ZEN") == "NEWWORLD");
+  assert(ControlWorldKey("").empty() && ControlWorldKey("AddonWorld.zen") == "ADDONWORLD");
+}
+
+static void near_matches_world_by_key() {
+  const std::vector<ControlPoint> v = {P("G01", "NEWWORLD", 1000.0, 0.0)};
+  assert(ControlNear(v, "newworld.zen", 0.0, 0.0, 0.0, 100.0).size() == 1);
+  assert(ControlNear(v, "ADDONWORLD.ZEN", 0.0, 0.0, 0.0, 100.0).empty());
+}
+
 int main() {
-  csv_roundtrip(); csv_tolerates_garbage(); next_id(); near_filters_and_sorts();
+  csv_roundtrip(); csv_tolerates_garbage(); next_id(); near_filters_and_sorts(); world_key_normalizes_names(); near_matches_world_by_key();
   std::puts("test_control OK");
   return 0;
 }

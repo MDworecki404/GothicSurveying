@@ -3,6 +3,7 @@
 #pragma once
 #include <algorithm>
 #include <cmath>
+#include <cctype>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -83,12 +84,23 @@ inline std::string ControlNextId(const std::vector<ControlPoint>& pts) {
   return "O" + std::to_string(best + 1);
 }
 
+// Klucz swiata: nazwa pliku bez sciezki i rozszerzenia, wielkimi literami (NewWorld\NewWorld.zen -> NEWWORLD); "" gdy pusta.
+inline std::string ControlWorldKey(const std::string& name) {
+  size_t start = name.find_last_of("/\\");
+  std::string s = name.substr(start == std::string::npos ? 0 : start + 1);
+  const size_t dot = s.find_last_of('.');
+  if (dot != std::string::npos) s.erase(dot);
+  for (char& c : s) c = (char)std::toupper((unsigned char)c);
+  return s;
+}
+
 // Punkty z danego swiata w poziomej odleglosci [minM, maxM] od (xCm, zCm), rosnaco wg odleglosci.
 inline std::vector<ControlPoint> ControlNear(const std::vector<ControlPoint>& pts, const std::string& world, double xCm, double zCm,
                                              double minM, double maxM) {
   std::vector<std::pair<double, ControlPoint>> hit;
+  const std::string key = ControlWorldKey(world);
   for (const ControlPoint& p : pts) {
-    if (p.world != world) continue;
+    if (ControlWorldKey(p.world) != key) continue;
     const double d = std::hypot(p.x - xCm, p.z - zCm) / 100.0;
     if (d >= minM && d <= maxM) hit.push_back({d, p});
   }

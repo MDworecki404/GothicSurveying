@@ -126,6 +126,13 @@ Osnowę można zakładać także **w trakcie roboty Tachimetria**: menu ma pozyc
 z lustrem: po założeniu punktu postaw tyczkę z lustrem ponownie; w trakcie pomiaru GNSS nie można jej przestawić. Nowy punkt trafia do osnowy i jest od razu dostępny jako źródło
 współrzędnych (przełącznik „Źródło współrzędnych”, możliwy przed postawieniem tachimetru). Punkty GNSS założone w tachimetrii nie trafiają do dziennika tachimetrycznego, tylko do `osnowa.csv`.
 
+**Osnowa geodezyjna świata (wzorcowa).** Wtyczka ma wbudowany gotowy zestaw punktów osnowy dla czterech światów Gothica II: Khorinis (21 punktów, `NEWWORLD`), Dolina Górnicza (31, `OLDWORLD`)
+i Jarkendar (11, `ADDONWORLD`); Irdorath (statek) nie ma zestawu. W menu głównym (bez roboty) pozycja **Załaduj osnowę geodezyjną świata** dopisuje punkty bieżącego świata do osnowy
+(id `G01`, `G02`…, opis miejsca w polu rozwiązania, np. „osnowa wzorcowa: Cmentarz”), stawia ich znaki i pokazuje listę od najbliższych z odległością i kierunkiem od ciebie. Ponowne
+załadowanie nic nie duplikuje, a punkty z robót GNSS (O1, O2…) zostają. Współrzędne punktów wzorcowych są dokładne (do 1 mm), więc nadają się jako osnowa wyższego rzędu niż punkty z GNSS.
+Rozmieszczenie wyliczył skrypt `assets/make_world_control.py` z modeli światów (płaski i otwarty teren w pobliżu dróg, odstępy co najmniej 40–70 m, wzajemna widoczność, nazwy
+od najbliższej lokacji); w ciasnych miejscach (miasto, wąwozy) jakość nieba bywa gorsza, więc fix GNSS tam nie jest pewny.
+
 Współrzędne osnowy mają błąd GNSS (centymetry), więc przechodzą na pomiary tachimetryczne oparte na osnowie. Obiekty pluginu (znaki, tyczki, sprzęt) nie są
 zapisywane w zapisach gry, a znaki osnowy są stawiane na nowo z pliku, więc nie powinny się dublować po wczytaniu zapisu. Zapisy zrobione starszą wersją pluginu mogą mieć
 „duchy” (zapisany kask, tyczkę lub znak) - wczytaj zapis sprzed pomiarów.

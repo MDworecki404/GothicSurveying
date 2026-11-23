@@ -231,24 +231,42 @@ namespace GOTHIC_NAMESPACE {
               []( const std::string& id ) { if ( gJob ) gJob->OnMenu( id ); } );
   }
 
-  // Podglad osnowy biezacego swiata (z pliku GothicSurveying/osnowa.csv).
+  // Podglad osnowy biezacego swiata (z pliku GothicSurveying/osnowa.csv): od najblizszych, z odlegloscia i kierunkiem od bohatera.
   inline void CtrlShowControl() {
     ControlEnsureLoaded();
     const std::string wn = ControlWorldName();
+    const zVEC3 hero = player ? player->GetPositionWorld() : zVEC3( 0, 0, 0 );
+    std::vector<ControlPoint> pts = ControlNear( gControl, wn, hero[VX], hero[VZ], 0.0, 1e9 );    // posortowane rosnaco wg odleglosci
     std::vector<std::string> lines;
-    for ( const ControlPoint& c : gControl ) {
-      if ( c.world != wn ) continue;
-      char b[200]; sprintf( b, "%s  N %.3f  E %.3f  H %.3f  %s  PDOP %.1f  %d ep.", c.id.c_str(), c.n, c.e, c.h, c.solution.c_str(), c.pdop, c.epochs );
+    static const char* dirs[8] = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
+    for ( const ControlPoint& c : pts ) {
+      const double dx = c.x - hero[VX], dz = c.z - hero[VZ];
+      const int dir = ( (int)floor( atan2( dx, dz ) * 180.0 / 3.14159265 / 45.0 + 0.5 ) + 8 ) % 8;
+      char b[220]; sprintf( b, "%s  %.0f m %s  N %.3f  E %.3f  H %.3f  %s", c.id.c_str(), sqrt( dx * dx + dz * dz ) / 100.0, dirs[dir], c.n, c.e, c.h, c.solution.c_str() );
       lines.push_back( b );
     }
-    if ( lines.empty() ) lines.push_back( "Brak punktow osnowy w tym swiecie. Zaloz je w robocie GNSS (Zaloz punkt osnowy)." );
-    TextPanelShow( "Osnowa GNSS - punkty swiata " + wn, lines, "Plik: GothicSurveying/osnowa.csv" );
+    if ( lines.empty() ) lines.push_back( "Brak punktow osnowy w tym swiecie. Zaladuj osnowe swiata albo zaloz punkty w robocie GNSS." );
+    TextPanelShow( "Osnowa - swiat " + wn + " (od najblizszych)", lines, "Plik: GothicSurveying/osnowa.csv" );
+  }
+
+  // "Zaladuj osnowe geodezyjna swiata": wzorcowe punkty swiata trafiaja do osnowy (znaki w swiecie), potem lista od najblizszych.
+  inline void CtrlLoadWorldControl() {
+    const std::string wn = ControlWorldName();
+    const size_t total = WorldControlFor( wn ).size();
+    SvTrace( ( "osnowa wzorcowa: swiat \"" + wn + "\" (klucz " + ControlWorldKey( wn ) + "), punktow w zestawie: " + std::to_string( total ) ).c_str() );
+    if ( total == 0 ) { HudMessage( ( "Brak osnowy wzorcowej dla swiata " + wn ).c_str() ); return; }
+    const int added = ControlLoadWorldSet();
+    char b[160];
+    if ( added > 0 ) sprintf( b, "Zaladowano osnowe swiata: %d punktow (G01...)", added );
+    else sprintf( b, "Osnowa swiata jest juz zaladowana (%d punktow)", (int)total );
+    HudMessage( b );
+    CtrlShowControl();
   }
 
   inline void CtrlOpenMenu() {
     if ( !gJob ) {
-      MenuOpen( MenuView{ "Menu geodezyjne", { { "start", "Rozpocznij robote", "", true }, { "control", "Pokaz osnowe", "", true } } },
-                []( const std::string& id ) { if ( id == "control" ) CtrlShowControl(); else CtrlOpenStartMenu(); } );
+      MenuOpen( MenuView{ "Menu geodezyjne", { { "start", "Rozpocznij robote", "", true }, { "world", "Zaladuj osnowe geodezyjna swiata", "", true }, { "control", "Pokaz osnowe", "", true } } },
+                []( const std::string& id ) { if ( id == "control" ) CtrlShowControl(); else if ( id == "world" ) CtrlLoadWorldControl(); else CtrlOpenStartMenu(); } );
       return;
     }
     MenuView v{ gJob->Name(), gJob->Menu() };
