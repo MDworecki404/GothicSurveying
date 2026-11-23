@@ -41,6 +41,13 @@ namespace GOTHIC_NAMESPACE {
 
   inline bool ScopeActive() { return gScopeOn; }
 
+  // Zblizenie lunety zmienia tylko FOV, a silnik dobiera poziom mipmap wg odleglosci: odwracamy to ujemnym biasem LOD (log2 powiekszenia), zeby latka byla ostra.
+  inline void ScopeMipBias( bool on, float zoom ) {
+    if ( !zrenderer ) return;
+    float b = on ? -log2f( zoom ) : 0.0f; DWORD v; memcpy( &v, &b, sizeof( v ) );
+    for ( unsigned long stage = 0; stage < 2; stage++ ) zrenderer->SetTextureStageState( stage, zRND_TSS_MIPMAPLODBIAS, v );
+  }
+
   // PgUp / PgDn: zmiana powiekszenia (x1,25 na nacisniecie); true gdy sie zmienilo.
   inline bool ZoomKeys() {
     const float old = gZoom;
@@ -58,8 +65,10 @@ namespace GOTHIC_NAMESPACE {
     if ( gScopeOn ) {
       if ( !gFovSaved ) { c->GetFOV( gFovX, gFovY ); gFovSaved = true; }
       const float rad = 3.14159265f / 180.0f;
+      ScopeMipBias( true, gZoom );
       c->SetFOV( (float)( 2 * atan( tan( gFovX * rad / 2 ) / gZoom ) / rad ), (float)( 2 * atan( tan( gFovY * rad / 2 ) / gZoom ) / rad ) );
     } else if ( gFovSaved ) {
+      ScopeMipBias( false, 1.0f );
       c->SetFOV( gFovX, gFovY ); gFovSaved = false;
     }
   }

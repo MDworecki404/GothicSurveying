@@ -35,6 +35,7 @@ class IWorld {
   virtual bool     PlaceBase(GridPos& g) { (void)g; return false; }                // stacja bazowa RTK pod stopami; g = prawdziwe wspolrzedne gruntu
   virtual bool     PlaceTachymeterOnPoint(int pointId) { (void)pointId; return false; }   // tachimetr dokladnie nad znakiem punktu (bohater nie musi tam stac)
   virtual bool     PlacePrismOnPoint(int pointId) { (void)pointId; return false; }        // tyczka z lustrem dokladnie na znaku punktu
+  virtual bool     TwoFaceByDefault() const { return false; }                       // tachimetr domyslnie w dwoch polozeniach lunety (KL+KP)
   virtual bool     InstrumentLevelingEnabled() const { return false; }               // czy instrument trzeba poziomowac (libella)
   virtual bool     PlacePole() { return false; }                  // tyczka z antena pod stopami; false = brak gruntu
   virtual void     RemovePole() {}

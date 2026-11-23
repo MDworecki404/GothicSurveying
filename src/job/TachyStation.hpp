@@ -16,6 +16,7 @@ class TachyStationJob : public Job {
     gnss_ = CreateGnssRover(w_, opt_);                // GNSS w robocie: zakladanie osnowy bez wychodzenia z tachimetrii
     w_.SetPrismHeightM(kPrism[0]);
     lib_.enabled = w_.InstrumentLevelingEnabled();
+    if (w_.TwoFaceByDefault()) SetTwoFace(true);
   }
   Libella* GetLibella() override { return &lib_; }
 
@@ -147,12 +148,7 @@ class TachyStationJob : public Job {
     } else if (base == "meas") {
       reflectorless_ = !reflectorless_;
     } else if (base == "faces") {
-      twoFace_ = !twoFace_;
-      if (twoFace_ && !errDrawn_) {                    // ukryte bledy instrumentu: kolimacja i indeks, 3-8 mgon ze znakiem; losowane przy pierwszym wlaczeniu
-        errDrawn_ = true;
-        collGon_ = (rng_.Uniform() < 0.5 ? -1 : 1) * (0.003 + 0.005 * rng_.Uniform());
-        indexGon_ = (rng_.Uniform() < 0.5 ? -1 : 1) * (0.003 + 0.005 * rng_.Uniform());
-      }
+      SetTwoFace(!twoFace_);
       ClearReadings();
     }
     // "view": kontroler otwiera luneta; "finish": kontroler wywoluje FinishTachy(true)
@@ -241,6 +237,14 @@ class TachyStationJob : public Job {
   static constexpr double kMinSightM = 1.5;                             // minimalna odleglosc pomiaru bezlustrowego
   static constexpr double kStationRadiusM = 2.0;                        // znak osnowy dla stanowiska max 2 m od bohatera
 
+  void SetTwoFace(bool on) {
+    twoFace_ = on;
+    if (on && !errDrawn_) {                            // ukryte bledy instrumentu: kolimacja i indeks, 3-8 mgon ze znakiem; losowane przy pierwszym wlaczeniu
+      errDrawn_ = true;
+      collGon_ = (rng_.Uniform() < 0.5 ? -1 : 1) * (0.003 + 0.005 * rng_.Uniform());
+      indexGon_ = (rng_.Uniform() < 0.5 ? -1 : 1) * (0.003 + 0.005 * rng_.Uniform());
+    }
+  }
   void NewSetup() { if (!lib_.enabled) return; const double u1 = w_.Random01(), u2 = w_.Random01(); lib_.Reset(u1, u2); }   // nowe stanowisko: instrument krzywo na statywie
   bool PointsHere() const { return points_.size() > stationStart_; }       // czy na biezacym stanowisku zmierzono juz punkt
 

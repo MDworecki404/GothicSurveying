@@ -202,6 +202,8 @@ Następny odcinek zaczyna się na B: postaw tachimetr na B (staje nad znakiem) i
 
 ## Poziomowanie instrumentu
 
+**Domyślnie włączone** (dla niwelatora i tachimetru). Tachimetr domyślnie mierzy też w **dwóch położeniach lunety** (KL+KP) — wyłączysz to w menu roboty „Położenia lunety”.
+
 Każdy niwelator i tachimetr (także w niwelacji trygonometrycznej) staje po postawieniu **krzywo na statywie** (pochylenie 9–16′, babelek poza kółkiem libelli).
 W menu roboty jest **„Poziomuj instrument (libella)”**: panel z libellą okrągłą, babelkiem i trzema śrubami ustawczymi (1 u góry, 2 w lewym dolnym, 3 w prawym dolnym rogu).
 **1 / 2 / 3** podnoszą śrubę (obrót w prawo) i przesuwają babelek w jej stronę, **4 / 5 / 6** opuszczają, **Shift** = dokładnie (0,1′ zamiast 1′); Enter zamyka.

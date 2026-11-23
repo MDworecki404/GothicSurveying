@@ -30,8 +30,10 @@ namespace GOTHIC_NAMESPACE {
     const float rad = 3.14159265f / 180.0f;
     if ( gTachyOn ) {
       if ( !gTachyFovSaved ) { c->GetFOV( gTachyFovX, gTachyFovY ); gTachyFovSaved = true; }
+      ScopeMipBias( true, gZoom );
       c->SetFOV( (float)( 2 * atan( tan( gTachyFovX * rad / 2 ) / gZoom ) / rad ), (float)( 2 * atan( tan( gTachyFovY * rad / 2 ) / gZoom ) / rad ) );
     } else if ( gTachyFovSaved ) {
+      ScopeMipBias( false, 1.0f );
       c->SetFOV( gTachyFovX, gTachyFovY ); gTachyFovSaved = false;
     }
   }
