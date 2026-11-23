@@ -1,4 +1,4 @@
-# GothicSurveying
+﻿# GothicSurveying
 
 Niwelacja geometryczna w **Gothic II: Noc Kruka** jako plugin [Union](https://gothic-modding-community.github.io/gmc/zengin/union).
 Stawiasz niwelator, łaty i żabki, patrzysz przez lunetę z krzyżem kresek, **sam odczytujesz podziałkę z łaty**
@@ -133,7 +133,7 @@ załadowanie nic nie duplikuje, a punkty z robót GNSS (O1, O2…) zostają. Wsp
 Rozmieszczenie wyliczył skrypt `assets/make_world_control.py` z modeli światów (płaski i otwarty teren w pobliżu dróg, odstępy co najmniej 40–70 m, wzajemna widoczność, nazwy
 od najbliższej lokacji). **Mapa osnowy** (pozycja „Mapa osnowy” w menu głównym i w menu każdej roboty) otwiera panel z mapą świata (cieniowany teren i sieć dróg, północ u góry),
 punktami osnowy z numerami (czerwone: wzorcowa G.., zielone: założona GNSS-em O..), żółtym znacznikiem ciebie i informacją o najbliższym punkcie; Enter albo Home zamyka. Mapy i dane
-generuje ten sam skrypt, a tekstury `LVL_MAP_<świat>.TGA` są w `assets/worldmaps` i trafiają do gry razem z modelami. W ciasnych miejscach (miasto, wąwozy) jakość nieba bywa gorsza, więc fix GNSS tam nie jest pewny.
+generuje ten sam skrypt, a tekstury `LVL_MAP_<świat>.TGA` są w `assets/worldmaps` i trafiają do gry razem z modelami. **Teleport do punktu osnowy** (menu głównym i w menu roboty) pokazuje listę punktów świata (numery jak na mapie, nazwa miejsca, odległość i kierunek; po 10 na stronę) i przenosi bohatera nad wybrany znak. W ciasnych miejscach (miasto, wąwozy) jakość nieba bywa gorsza, więc fix GNSS tam nie jest pewny.
 
 Współrzędne osnowy mają błąd GNSS (centymetry), więc przechodzą na pomiary tachimetryczne oparte na osnowie. Obiekty pluginu (znaki, tyczki, sprzęt) nie są
 zapisywane w zapisach gry, a znaki osnowy są stawiane na nowo z pliku, więc nie powinny się dublować po wczytaniu zapisu. Zapisy zrobione starszą wersją pluginu mogą mieć

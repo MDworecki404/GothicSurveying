@@ -94,6 +94,27 @@ inline std::string ControlWorldKey(const std::string& name) {
   return s;
 }
 
+// Kierunek swiata (N, NE, ...) wektora (dx = wschod, dz = polnoc).
+inline const char* ControlCompass(double dx, double dz) {
+  static const char* d[8] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+  return d[((int)std::floor(std::atan2(dx, dz) * 180.0 / 3.14159265358979 / 45.0 + 0.5) % 8 + 8) % 8];
+}
+
+// Nazwa miejsca z opisu punktu wzorcowego ("osnowa wzorcowa: <miejsce>"); pusta dla pozostalych.
+inline std::string ControlPlaceName(const ControlPoint& c) {
+  static const std::string pre = "osnowa wzorcowa: ";
+  return c.solution.compare(0, pre.size(), pre) == 0 ? c.solution.substr(pre.size()) : std::string();
+}
+
+// Kolejnosc wg id: litera (G przed O), potem numer rosnaco.
+inline void ControlSortById(std::vector<ControlPoint>& v) {
+  auto num = [](const std::string& s) { return s.size() > 1 ? std::atoi(s.c_str() + 1) : 0; };
+  std::sort(v.begin(), v.end(), [&](const ControlPoint& a, const ControlPoint& b) {
+    const char la = a.id.empty() ? 0 : a.id[0], lb = b.id.empty() ? 0 : b.id[0];
+    return la != lb ? la < lb : num(a.id) < num(b.id);
+  });
+}
+
 // Punkty z danego swiata w poziomej odleglosci [minM, maxM] od (xCm, zCm), rosnaco wg odleglosci.
 inline std::vector<ControlPoint> ControlNear(const std::vector<ControlPoint>& pts, const std::string& world, double xCm, double zCm,
                                              double minM, double maxM) {

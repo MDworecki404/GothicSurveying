@@ -238,11 +238,9 @@ namespace GOTHIC_NAMESPACE {
     const zVEC3 hero = player ? player->GetPositionWorld() : zVEC3( 0, 0, 0 );
     std::vector<ControlPoint> pts = ControlNear( gControl, wn, hero[VX], hero[VZ], 0.0, 1e9 );    // posortowane rosnaco wg odleglosci
     std::vector<std::string> lines;
-    static const char* dirs[8] = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
     for ( const ControlPoint& c : pts ) {
       const double dx = c.x - hero[VX], dz = c.z - hero[VZ];
-      const int dir = ( (int)floor( atan2( dx, dz ) * 180.0 / 3.14159265 / 45.0 + 0.5 ) + 8 ) % 8;
-      char b[220]; sprintf( b, "%s  %.0f m %s  N %.3f  E %.3f  H %.3f  %s", c.id.c_str(), sqrt( dx * dx + dz * dz ) / 100.0, dirs[dir], c.n, c.e, c.h, c.solution.c_str() );
+      char b[220]; sprintf( b, "%s  %.0f m %s  N %.3f  E %.3f  H %.3f  %s", c.id.c_str(), sqrt( dx * dx + dz * dz ) / 100.0, ControlCompass( dx, dz ), c.n, c.e, c.h, c.solution.c_str() );
       lines.push_back( b );
     }
     if ( lines.empty() ) lines.push_back( "Brak punktow osnowy w tym swiecie. Zaladuj osnowe swiata albo zaloz punkty w robocie GNSS." );
@@ -263,15 +261,46 @@ namespace GOTHIC_NAMESPACE {
     CtrlShowControl();
   }
 
+  // Teleport do punktu osnowy: lista punktow biezacego swiata (wg numerow z mapy), 10 na strone.
+  inline void CtrlOpenTeleport( int page ) {
+    ControlEnsureLoaded();
+    const std::string wn = ControlWorldName();
+    std::vector<ControlPoint> pts = ControlNear( gControl, wn, 0.0, 0.0, 0.0, 1e12 );
+    ControlSortById( pts );
+    if ( pts.empty() ) { HudMessage( "Brak punktow osnowy w tym swiecie (Zaladuj osnowe geodezyjna swiata)" ); return; }
+    const int per = 10, pages = ( (int)pts.size() + per - 1 ) / per;
+    page = ( std::max )( 0, ( std::min )( page, pages - 1 ) );
+    const zVEC3 hero = player ? player->GetPositionWorld() : zVEC3( 0, 0, 0 );
+    MenuView v{ "Teleport do punktu osnowy (" + std::to_string( page + 1 ) + "/" + std::to_string( pages ) + ")", {} };
+    for ( int i = page * per; i < (int)pts.size() && i < ( page + 1 ) * per; i++ ) {
+      const ControlPoint& c = pts[i]; const double dx = c.x - hero[VX], dz = c.z - hero[VZ];
+      char b[200]; sprintf( b, "%s  %s  %.0f m %s", c.id.c_str(), ControlPlaceName( c ).c_str(), sqrt( dx * dx + dz * dz ) / 100.0, ControlCompass( dx, dz ) );
+      v.items.push_back( { "tp:" + c.id, b, "", true } );
+    }
+    if ( page + 1 < pages ) v.items.push_back( { "tp_next", "Nastepna strona", "", true } );
+    if ( page > 0 ) v.items.push_back( { "tp_prev", "Poprzednia strona", "", true } );
+    MenuOpen( v, [page]( const std::string& id ) {
+      if ( id == "tp_next" ) { CtrlOpenTeleport( page + 1 ); return; }
+      if ( id == "tp_prev" ) { CtrlOpenTeleport( page - 1 ); return; }
+      for ( const ControlPoint& c : gControl )
+        if ( "tp:" + c.id == id && ControlWorldKey( c.world ) == ControlWorldKey( ControlWorldName() ) ) {
+          if ( player ) player->SetPositionWorld( zVEC3( (float)c.x, (float)c.y + 100.0f, (float)c.z ) );   // 1 m nad znakiem, bohater opada na teren
+          HudMessage( ( "Teleport: punkt " + c.id ).c_str() );
+          return;
+        }
+    } );
+  }
+
   inline void CtrlOpenMenu() {
     if ( !gJob ) {
-      MenuOpen( MenuView{ "Menu geodezyjne", { { "start", "Rozpocznij robote", "", true }, { "world", "Zaladuj osnowe geodezyjna swiata", "", true }, { "control", "Pokaz osnowe", "", true }, { "map", "Mapa osnowy", "", true } } },
-                []( const std::string& id ) { if ( id == "control" ) CtrlShowControl(); else if ( id == "world" ) CtrlLoadWorldControl(); else if ( id == "map" ) MapOpen(); else CtrlOpenStartMenu(); } );
+      MenuOpen( MenuView{ "Menu geodezyjne", { { "start", "Rozpocznij robote", "", true }, { "world", "Zaladuj osnowe geodezyjna swiata", "", true }, { "control", "Pokaz osnowe", "", true }, { "map", "Mapa osnowy", "", true }, { "tp", "Teleport do punktu osnowy", "", true } } },
+                []( const std::string& id ) { if ( id == "control" ) CtrlShowControl(); else if ( id == "world" ) CtrlLoadWorldControl(); else if ( id == "map" ) MapOpen(); else if ( id == "tp" ) CtrlOpenTeleport( 0 ); else CtrlOpenStartMenu(); } );
       return;
     }
     MenuView v{ gJob->Name(), gJob->Menu() };
     if ( gJob->Kind() == JobKind::Leveling ) v.items.push_back( { "scope", "Patrz przez lunete (" LV_KEYNAME_SCOPE ")", "najpierw niwelator i lata", gWorld.HasInstrument() && !gJob->ActiveRodPoints().empty() } );
     v.items.push_back( { "map", "Mapa osnowy", "", true } );
+    v.items.push_back( { "tp", "Teleport do punktu osnowy", "", true } );
     v.items.push_back( { "abort", "Przerwij robote (bez dziennika)", "", true } );
     MenuOpen( v, []( const std::string& id ) {
       if ( !gJob ) return;
@@ -281,6 +310,7 @@ namespace GOTHIC_NAMESPACE {
       else if ( id == "view" ) { gJob->OnMenu( id ); CtrlEnterTachyView(); }
       else if ( gJob->NeedsChoice( id ) ) CtrlOpenChoice( id );
       else if ( id == "map" ) MapOpen();
+      else if ( id == "tp" ) CtrlOpenTeleport( 0 );
       else if ( id == "abort" ) CtrlConfirmAbort();
       else {
         const size_t before = gJob->Kind() == JobKind::Gnss ? gJob->FinishGnss( false ).points.size() : 0;
