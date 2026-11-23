@@ -32,10 +32,21 @@ namespace GOTHIC_NAMESPACE {
     for ( size_t i = 0; i < gMenu.items.size(); i++ ) {
       const MenuItem& m = gMenu.items[i];
       std::string line = (int)i == gMenuCursor ? "> " : "  ";
-      line += m.enabled ? m.label : "[" + m.label + "] - " + m.hint;
+      line += m.enabled ? m.label : "[" + m.label + "]";                     // nieaktywne w nawiasach; powod w podpisie pod lista
       gMenuPanel->PrintCX( L( 520 + (int)i * pitch ), zSTRING( line.c_str() ) );
     }
-    gMenuPanel->PrintCX( L( 520 + (int)gMenu.items.size() * pitch + 150 ), zSTRING( "Gora/Dol - wybor, Enter - zatwierdz, " LV_KEYNAME_MENU " - zamknij" ) );
+    const int hintY = 520 + (int)gMenu.items.size() * pitch + 100;
+    if ( gMenuCursor >= 0 && gMenuCursor < (int)gMenu.items.size() ) {      // podpis wybranej pozycji, zawijany do szerokosci panelu
+      const MenuItem& m = gMenu.items[gMenuCursor];
+      std::string text = m.hint.empty() ? "" : ( m.enabled ? "" : "Niedostepne: " ) + m.hint;
+      for ( int row = 0; row < 2 && !text.empty(); row++ ) {
+        size_t cut = text.size();
+        if ( cut > 88 ) { cut = text.rfind( ' ', 88 ); if ( cut == std::string::npos || cut < 20 ) cut = 88; }
+        gMenuPanel->PrintCX( L( hintY + row * pitch ), zSTRING( text.substr( 0, cut ).c_str() ) );
+        text = cut < text.size() ? text.substr( cut + ( text[cut] == ' ' ? 1 : 0 ) ) : "";
+      }
+    }
+    gMenuPanel->PrintCX( L( hintY + 2 * pitch + 100 ), zSTRING( "Gora/Dol - wybor, Enter - zatwierdz, " LV_KEYNAME_MENU " - zamknij" ) );
   }
 
   inline int MenuNextEnabled( int from, int dir ) {   // pomija pozycje nieaktywne; -1 gdy żadnej nie ma
@@ -52,8 +63,9 @@ namespace GOTHIC_NAMESPACE {
     gMenu = view; gMenuChoose = onChoose;
     gMenuCursor = 0;
     if ( !gMenu.items.empty() && !gMenu.items[0].enabled ) { int i = MenuNextEnabled( 0, 1 ); gMenuCursor = i < 0 ? 0 : i; }
-    gMenuH = 520 + (int)view.items.size() * 235 + 150 + 350;
-    gMenuPanel = PanelOpen( 1500, 900, 6700, 900 + gMenuH );
+    gMenuH = 520 + (int)view.items.size() * 235 + 100 + 2 * 235 + 100 + 350;
+    const int y0 = ( std::max )( 100, ( std::min )( 900, ( 8192 - gMenuH ) / 2 ) );    // wysokie menu wyzej, zeby miescilo sie na ekranie
+    gMenuPanel = PanelOpen( 1500, y0, 6700, y0 + gMenuH );
     gMenuOpen = true;
     ogame->Pause();
     MenuRedraw();
@@ -65,7 +77,7 @@ namespace GOTHIC_NAMESPACE {
     int moved = 0;
     if ( zinput->KeyToggled( KEY_UP ) )   moved = -1;
     if ( zinput->KeyToggled( KEY_DOWN ) ) moved = 1;
-    if ( moved ) { int i = MenuNextEnabled( gMenuCursor, moved ); if ( i >= 0 ) { gMenuCursor = i; MenuRedraw(); } }
+    if ( moved && !gMenu.items.empty() ) { const int n = (int)gMenu.items.size(); gMenuCursor = ( ( gMenuCursor + moved ) % n + n ) % n; MenuRedraw(); }   // kursor chodzi tez po nieaktywnych: podpis podaje powod
     if ( zinput->KeyToggled( KEY_RETURN ) && gMenuCursor >= 0 && gMenuCursor < (int)gMenu.items.size() && gMenu.items[gMenuCursor].enabled ) {
       std::string id = gMenu.items[gMenuCursor].id;
       auto choose = gMenuChoose;                      // kopia: wywołanie może otworzyć kolejne menu
