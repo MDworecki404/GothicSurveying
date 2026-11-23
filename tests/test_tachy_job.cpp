@@ -291,12 +291,42 @@ static void extreme_aim_does_not_crash() {
   assert(f.job->FinishTachy(true).points.empty());
 }
 
+static void two_faces_measure_in_kl_and_kp() {
+  Fx f; f.setup(1);
+  assert(has(f.job->TachyFlip(), "wlacz w menu") && f.enabled("faces") && has(f.label("faces"), "jedno"));
+  f.menu("faces"); assert(has(f.label("faces"), "dwa"));
+  std::string m = f.readBack(1);                                                   // KL nawiazania: zapisane, orientacji jeszcze nie ma
+  assert(has(m, "KL zapisane") && f.job->FinishTachy(true).backsights.empty());
+  f.job->TachyFlip();                                                              // KP
+  assert(has(f.job->TachyPanel(0.0, 0.0)[0], "KP"));
+  m = f.readBack(1);
+  assert(has(m, "Nawiazanie") && has(m, "KL+KP") && f.job->FinishTachy(true).backsights.size() == 1);
+  assert(has(f.job->TachyPanel(0.0, 0.0)[0], "KL"));                               // po pomiarze z powrotem KL
+  f.w.prism = GridPos{5500040.0, 6500030.0, 100.0};
+  assert(has(f.fireAt(f.w.prism, 1.5), "KL zapisane") && f.job->FinishTachy(true).points.empty());
+  f.job->TachyFlip();
+  assert(has(f.fireAt(f.w.prism, 1.5), "T1"));
+  const TachyPoint p = f.job->FinishTachy(true).points[0];
+  assert(near(p.n, 5500040.0, 0.02) && near(p.e, 6500030.0, 0.02) && near(p.h, 100.0, 0.03) && has(p.note, "KL+KP"));   // bledy instrumentu usuniete
+}
+
+static void single_face_in_two_face_mode_has_errors_and_kp_needs_kl() {
+  Fx f; f.setup(1); f.menu("faces"); f.job->TachyFlip();
+  assert(has(f.readBack(1), "najpierw zmierz ten sam cel w KL"));                  // KP bez KL
+  f.job->TachyFlip();
+  f.readBack(1); f.job->TachyFlip();                                               // KL i KP na nawiazaniu
+  assert(has(f.readBack(1), "Nawiazanie"));
+  f.menu("faces");                                                                 // przelaczenie trybu kasuje orientacje
+  assert(f.job->FinishTachy(true).backsights.empty() && has(f.label("faces"), "jedno"));
+}
+
 int main() {
   registry_lists_tachy(); menu_state_true_mode(); multiple_backsights_orientation_mean(); single_backsight_works(); measure_before_orient_refused();
   backsight_aiming_is_angular(); remeasure_overwrites(); orientation_locked_after_first_point(); gnss_items_and_control_point_in_tachy_job(); gnss_pole_and_prism_exclude_each_other(); changes_clear_readings(); limit_five_backsights();
   uncertain_flag_direction(); uncertain_flag_distance(); control_source_uses_gnss_coordinates(); no_control_nearby_refused();
   prism_height_is_the_physical_height(); aim_must_be_on_prism_not_ground(); reflectorless_measures_surface_point();
   true_error_and_abort(); extreme_aim_does_not_crash();
+  two_faces_measure_in_kl_and_kp(); single_face_in_two_face_mode_has_errors_and_kp_needs_kl();
   std::puts("test_tachy_job OK");
   return 0;
 }

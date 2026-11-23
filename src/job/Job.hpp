@@ -71,6 +71,7 @@ class Job {
   virtual bool NeedsChoice(const std::string& menuId) const { (void)menuId; return false; }    // pozycja menu wymaga wyboru punktu z listy (osnowa)
   virtual std::vector<MenuItem> TachyChoices(const std::string& menuId) const { (void)menuId; return {}; }   // lista wyboru: id pozycji "<menuId>:<punkt>"
   virtual std::string TachyFire(double camAzDeg, double camPitchDeg) { (void)camAzDeg; (void)camPitchDeg; return ""; }   // Enter w lunecie; komunikat ASCII
+  virtual std::string TachyFlip() { return ""; }                  // klawisz przerzutu lunety (KL <-> KP); komunikat ASCII
   virtual std::vector<std::string> TachyPanel(double camAzDeg, double camPitchDeg) const { (void)camAzDeg; (void)camPitchDeg; return {}; }
   virtual GnssReport FinishGnss(bool complete) { (void)complete; return GnssReport{}; }
   virtual void Tick() {}                                          // co klatke (symulacje czasu rzeczywistego)

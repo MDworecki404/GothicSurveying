@@ -27,8 +27,12 @@ namespace GOTHIC_NAMESPACE {
       if ( it == pts_.end() ) return;
       const int r = role == RodRole::Back ? 0 : 1;
       zVEC3 foot = Foot( pointId );
-      if ( !rod_[r] ) rod_[r] = SpawnVob( LV_VIS_ROD, foot ); else rod_[r]->SetPositionWorld( foot );
+      if ( !rod_[r] ) rod_[r] = SpawnVob( LV_VIS_ROD[RodModelIdx()], foot ); else rod_[r]->SetPositionWorld( foot );
       rodPoint_[r] = pointId;
+    }
+    int RodModelIdx() const { return (std::max)( 0, (std::min)( 2, (int)( gRodLenCm / 100.0f + 0.5f ) - 3 ) ); }
+    void RefreshRods() {                               // po zmianie wysuniecia: modele lat o nowej dlugosci na tych samych miejscach
+      for ( int r = 0; r < 2; r++ ) if ( rod_[r] && rodPoint_[r] >= 0 ) { RemoveVobSafe( rod_[r] ); PlaceRod( r == 0 ? RodRole::Back : RodRole::Fore, rodPoint_[r] ); }
     }
     void RemoveRod( RodRole role ) override {
       const int r = role == RodRole::Back ? 0 : 1;
@@ -202,6 +206,12 @@ namespace GOTHIC_NAMESPACE {
     // --- tylko silnik ---
     bool HasInstrument() const { return hasInstr_; }
     zVEC3 InstrumentGround() const { return instrGround_; }
+    std::vector<zVEC3> PrismTops() const {             // srodki lusterek (nawiazania i tyczka z lustrem) - cele szybkiego najechania w lunecie
+      std::vector<zVEC3> v; const zVEC3 up( 0, (float)( prismH_ * 100.0 ), 0 );
+      for ( const Back& b : back_ ) if ( b.up ) v.push_back( b.pos + up );
+      if ( hasPole_ && poleIsPrism_ ) v.push_back( poleGround_ + up );
+      return v;
+    }
     zVEC3 PointFoot( int pointId ) const { return Foot( pointId ); }
     void SetInstrumentVisible( bool v ) { if ( instr_ ) instr_->showVisual = v ? 1 : 0; }
     void TurnRodsToInstrument() {                      // łaty zwrócone przodem do instrumentu (do odczytu)

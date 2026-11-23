@@ -94,9 +94,28 @@ static void noise_statistics() {
   assert(sdd2 > 0.9 * expD && sdd2 < 1.1 * expD);
 }
 
+static void two_faces_cancel_instrument_errors() {
+  GnssRng rng(7);
+  const double c = 0.006, idx = -0.004;                              // 6 mgon kolimacji, -4 mgon indeksu
+  for (double pitch : {-20.0, 0.0, 15.0}) {
+    const TachyReading kl = TachyMeasureFace(40.0, pitch, 0.0, 80.0, NO_NOISE, rng, 1, c, idx);
+    const TachyReading kp = TachyMeasureFace(40.0, pitch, 0.0, 80.0, NO_NOISE, rng, 2, c, idx);
+    const TachyReading ideal = TachyMeasure(40.0, pitch, 0.0, 80.0, NO_NOISE, rng);
+    assert(std::fabs(kl.hzGon - ideal.hzGon) > 0.004 && std::fabs(kl.vGon - ideal.vGon - idx) < 1e-9);           // pojedyncze polozenie jest zle
+    const TachyFaceMean m = TachyCombineFaces(kl, kp);
+    assert(near(m.r.hzGon, ideal.hzGon, 1e-9) && near(m.r.vGon, ideal.vGon, 1e-9) && near(m.r.slopeM, 80.0, 1e-9));
+    assert(near(m.index, idx, 1e-9));
+    const double sinV = std::sin(GonToDeg(ideal.vGon) * TACHY_PI / 180.0);
+    assert(near(m.twoC, -2.0 * c / sinV, 1e-9));
+  }
+  const TachyReading a{399.99, 100.0, 10.0}, b{199.99, 300.0, 10.0};                 // zawiniecie wokol 0/400 gon
+  assert(near(TachyCombineFaces(a, b).r.hzGon, 399.99, 1e-9));
+}
+
 int main() {
   conversions(); azimuth_directions(); polar_east_level(); polar_sloped_north(); orientation_zeroes_hz();
   extreme_pitch_stays_finite(); aim_error_and_limits(); aim_tolerance_is_angular(); angle_diff_and_circular_mean(); noise_statistics();
+  two_faces_cancel_instrument_errors();
   std::puts("test_tachy OK");
   return 0;
 }

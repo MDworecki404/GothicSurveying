@@ -101,6 +101,7 @@ namespace GOTHIC_NAMESPACE {
       if ( r.points.size() > before ) AppendTachyLog( gReadingLog, r.points.back(), (int)r.points.size(), r.showTrueError );   // punkt od razu do logu
       return msg;
     };
+    cb.flip = []() { return gJob ? gJob->TachyFlip() : std::string(); };
     cb.panel = []( double az, double pitch ) { return gJob ? gJob->TachyPanel( az, pitch ) : std::vector<std::string>(); };
     TachyViewEnter( cb );
   }
@@ -284,7 +285,14 @@ namespace GOTHIC_NAMESPACE {
       if ( id == "tp_prev" ) { CtrlOpenTeleport( page - 1 ); return; }
       for ( const ControlPoint& c : gControl )
         if ( "tp:" + c.id == id && ControlWorldKey( c.world ) == ControlWorldKey( ControlWorldName() ) ) {
-          if ( player ) player->SetPositionWorld( zVEC3( (float)c.x, (float)c.y + 100.0f, (float)c.z ) );   // 1 m nad znakiem, bohater opada na teren
+          if ( player ) {
+            zVEC3 to( (float)c.x, (float)c.y + 100.0f, (float)c.z );     // 1 m nad znakiem, bohater opada na teren
+            const zVEC3 from = player->GetPositionWorld();
+            player->ResetPos( to );                                       // jak w silniku: przestawia tez AI/fizyke bohatera (samo SetPositionWorld wraca)
+            const zVEC3 now = player->GetPositionWorld();
+            char t[200]; sprintf( t, "teleport %s: z (%.0f,%.0f,%.0f) cel (%.0f,%.0f,%.0f) po (%.0f,%.0f,%.0f)", c.id.c_str(), from[VX], from[VY], from[VZ], to[VX], to[VY], to[VZ], now[VX], now[VY], now[VZ] );
+            SvTrace( t );
+          }
           HudMessage( ( "Teleport: punkt " + c.id ).c_str() );
           return;
         }
@@ -299,6 +307,7 @@ namespace GOTHIC_NAMESPACE {
     }
     MenuView v{ gJob->Name(), gJob->Menu() };
     if ( gJob->Kind() == JobKind::Leveling ) v.items.push_back( { "scope", "Patrz przez lunete (" LV_KEYNAME_SCOPE ")", "najpierw niwelator i lata", gWorld.HasInstrument() && !gJob->ActiveRodPoints().empty() } );
+    if ( gJob->Kind() == JobKind::Leveling ) { char b[64]; sprintf( b, "Wysun laty: teraz %.0f m (zmien na %.0f m)", gRodLenCm / 100.0f, gRodLenCm >= 500.0f ? 3.0f : gRodLenCm / 100.0f + 1.0f ); v.items.push_back( { "rodlen", b, "3, 4 albo 5 m", true } ); }
     v.items.push_back( { "map", "Mapa osnowy", "", true } );
     v.items.push_back( { "tp", "Teleport do punktu osnowy", "", true } );
     v.items.push_back( { "abort", "Przerwij robote (bez dziennika)", "", true } );
@@ -309,6 +318,7 @@ namespace GOTHIC_NAMESPACE {
       else if ( id == "fine" ) PoleFineEnter();
       else if ( id == "view" ) { gJob->OnMenu( id ); CtrlEnterTachyView(); }
       else if ( gJob->NeedsChoice( id ) ) CtrlOpenChoice( id );
+      else if ( id == "rodlen" ) { gRodLenCm = gRodLenCm >= 500.0f ? 300.0f : gRodLenCm + 100.0f; gWorld.RefreshRods(); HudMessage( ( "Lata wysunieta na " + std::to_string( (int)( gRodLenCm / 100.0f ) ) + " m" ).c_str() ); }
       else if ( id == "map" ) MapOpen();
       else if ( id == "tp" ) CtrlOpenTeleport( 0 );
       else if ( id == "abort" ) CtrlConfirmAbort();

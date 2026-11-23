@@ -157,9 +157,14 @@ nawiązania albo przestawienie stanowiska kasuje odczyty (orientację trzeba zro
 
 **Rodzaj pomiaru** (menu): *na lustro* albo *bezlustrowy*. Pomiar bezlustrowy nie wymaga tyczki: celujesz w dowolny punkt terenu lub budynku, a odległość
 mierzy promień (pierwszy trafiony punkt, od 1,5 m do 300 m, szum odległości 3 mm + 2 ppm); wysokość lustra nie jest odejmowana, a punkt ma uwagę „bezlustrowy”.
+**Położenia lunety** (menu: jedno / dwa KL+KP): w trybie dwóch instrument ma ukryte błędy kolimacji i indeksu pionowego (kilka mgon), więc pojedynczy odczyt jest obciążony.
+Każdy cel (nawiązanie, punkt na lustro, punkt bezlustrowy) mierzysz **Enter** w KL, naciskasz **K** (przerzut lunety: panel pokazuje Hz+200 g i V′ = 400 g − V), celujesz ponownie i **Enter** w KP;
+wynik to średnia (Hz = Hz_KL + ½(Hz_KP − 200 − Hz_KL), V = ½(V_KL − V_KP + 400)), a komunikat i uwaga punktu podają wyznaczone `c` (kolimacja) i `i` (indeks) w mgon.
+Zmiana trybu kasuje orientację. Domyślnie jedno położenie, bez tych błędów.
+
 **Wysokość lustra** (menu: 1,500 / 1,800 / 2,000 / 1,300 m) to fizyczna wysokość środka lustra: tyczki (nawiązań i pomiarowa) mają model o tej wysokości.
 
-W lunecie: **← →** obrót w poziomie, **↑ ↓** pochylanie w pionie, **Shift** = powoli, **Enter** mierzy nawiązanie albo punkt, **F10** wychodzi. Panel w lewym dolnym rogu pokazuje
+W lunecie: **← →** obrót w poziomie, **↑ ↓** pochylanie w pionie, **Shift** = powoli, w niwelacji menu ma pozycję **Wysun laty** (3 → 4 → 5 m; łata ma wtedy 10 odcinków z opisem decymetrów do 49, a odczyt może być do 5000 mm), **PgUp / PgDn** zmieniają powiększenie lunety (3×–40×, domyślnie 20×; działa też w niwelatorze), **Z** szybko najeżdża na kolejne lustro (nawiązania i tyczka) — lustro ląduje w polu widzenia lunety, ale celowo obok krzyża, więc dokładne naprowadzenie robisz strzałkami; **Enter** mierzy nawiązanie albo punkt, **F10** wychodzi. Panel w lewym dolnym rogu pokazuje
 Hz i V na żywo (grady), stan nawiązań, rodzaj pomiaru, liczbę punktów i ostatni wynik. Celowanie wymaga trafienia w środek lustra z dokładnością **±0,02°** (nie mniej niż 1,5 cm),
 odległości 3–300 m i niezasłoniętej linii celowej; lustro nawiązania ma pierwszeństwo, gdy oba lustra leżą na tej samej linii.
 
@@ -223,7 +228,7 @@ Jeśli cyfry na łacie są w grze do góry nogami, ustaw `FLIP_V = True` w `asse
 
 - Plugin nie zapisuje stanu: po wyjściu z gry sprzęt trzeba postawić od nowa (wyniki zostają w CSV).
 - Trzy roboty: ciąg niwelacyjny, pomiar GNSS (RTK) i tachimetria; niwelacja trygonometryczna dojdzie jako kolejny moduł `Job`.
-- Tachimetria: bez wcięcia wstecz i w przód, bez stanowiska dowolnego, bez wyrównania osnowy, bez wytyczania i bez pomiaru w dwóch położeniach lunety; jedno stanowisko na robotę.
+- Tachimetria: bez wcięcia wstecz i w przód, bez stanowiska dowolnego, bez wyrównania osnowy, bez wytyczania i jedno stanowisko na robotę.
 - Pomiar GNSS: bez stacji bazowej i bez pomiaru statycznego.
 - Kreski dalmiercze liczone są dla pola widzenia gry; przy bardzo wąskim FOV mogą wypaść poza lunetę (wtedy są pomijane, wpis w `GothicSurveying.log`).
 - Hook na `zCWorld::Render` sprawdzono tylko na Gothic II NotR 2.6 (fix) ze Steam Gold Classic.

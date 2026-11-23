@@ -68,12 +68,12 @@ def box(m, cx, cy, cz, sx, sy, sz, uv, mat=0):
 
 # ---------- modele (Z-w-górę, cm) ----------
 ROD_H, ROD_W, ROD_T = 300.0, 12.0, 3.0
-SEG_CM, NSEG = 50.0, 6                    # łata = 6 odcinków po 50 cm, każdy z własną teksturą
+SEG_CM, NSEG = 50.0, 10                   # łata wysuwana do 5 m = 10 odcinków po 50 cm, każdy z własną teksturą (modele 3, 4 i 5 m)
 
 
-def build_rod():
+def build_rod(nseg=6):
     m = Mesh()
-    for k in range(NSEG):
+    for k in range(nseg):
         z0 = k * SEG_CM
         box(m, 0, 0, z0 + SEG_CM / 2, ROD_W, ROD_T, SEG_CM,
             lambda p, z0=z0: (min(max(p[0] / ROD_W + 0.5, 0), 1), min(max((p[2] - z0) / SEG_CM, 0), 1)), mat=k)
@@ -207,10 +207,10 @@ def reticle_pixel(w, h):
         if e > 0.97:
             return (0, 0, 0, int(255 * (e - 0.97) / 0.03))      # miękka krawędź
         dx, dy = abs(x - cx), abs(y - cy)
-        if dx < 0.9 or dy < 0.9:
-            return (0, 0, 0, 255)                                 # kreska
-        if dx < 2.0 or dy < 2.0:
-            return (255, 255, 255, 190)                           # biała obwódka, widać na czarnej łacie
+        if dx < 0.5 or dy < 0.5:
+            return (0, 0, 0, 255)                                 # kreska włosowa (ok. 1 px na ekranie)
+        if dx < 1.3 or dy < 1.3:
+            return (255, 255, 255, 120)                           # bardzo cienka jasna obwódka, żeby kreska była widoczna na czarnej łacie
         return (0, 0, 0, 0)
     return px
 
@@ -218,7 +218,7 @@ def reticle_pixel(w, h):
 def hair_pixel(w, h):
     """Kreska dalmiercza: czarny środek z białą obwódką (jak główny krzyż); rozciągana na widok ~1200x28."""
     def px(x, y):
-        return (0, 0, 0, 255) if 2 <= y < h - 2 else (255, 255, 255, 190)
+        return (0, 0, 0, 255) if 4 <= y < h - 4 else (255, 255, 255, 120)
     return px
 
 
@@ -321,7 +321,10 @@ def main():
     tga32(tex / "LVL_GOLDH.TGA", 8, 8, gold_pixel(True))      # górny/dolny pasek ramki paneli
     tga32(tex / "LVL_GOLDV.TGA", 8, 8, gold_pixel(False))     # lewy/prawy pasek
     one = [("LVL_INSTR", "LVL_INSTR.TGA")]
-    for fname, mesh, mats in (("LVL_ROD", build_rod(), [(f"LVL_ROD{k}", f"LVL_ROD{k}.TGA") for k in range(NSEG)]),
+    rod_mats = lambda n: [(f"LVL_ROD{k}", f"LVL_ROD{k}.TGA") for k in range(n)]
+    for fname, mesh, mats in (("LVL_ROD", build_rod(6), rod_mats(6)),
+                              ("LVL_RODL4", build_rod(8), rod_mats(8)),
+                              ("LVL_RODL5", build_rod(10), rod_mats(10)),
                               ("LVL_INSTR", build_instrument(), one),
                               ("LVL_PLATE", build_plate(), one),
                               ("LVL_POLE", build_pole(), one),

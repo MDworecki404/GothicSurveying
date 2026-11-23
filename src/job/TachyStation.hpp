@@ -30,6 +30,7 @@ class TachyStationJob : public Job {
       {"backsight", "Dodaj nawiazanie (lustro)", "najpierw tachimetr; max 5; nie po zmierzeniu punktu", stationUp_ && fresh && n < kMaxBack},
       {"unback", "Usun ostatnie nawiazanie", "brak nawiazan; nie po zmierzeniu punktu", n > 0 && fresh},
       {"meas", reflectorless_ ? "Rodzaj pomiaru: bezlustrowy (zmien)" : "Rodzaj pomiaru: na lustro (zmien)", "najpierw tachimetr", stationUp_},
+      {"faces", twoFace_ ? "Polozenia lunety: dwa, KL+KP (zmien)" : "Polozenia lunety: jedno (zmien)", "nie po zmierzeniu punktu; dwa = kazdy cel mierzysz w KL i KP, przerzut klawiszem " LV_KEYNAME_FLIP, fresh},
       {"prism", prismUp_ ? "Przestaw tyczke z lustrem" : "Postaw tyczke z lustrem", "najpierw tachimetr; nie w trakcie pomiaru GNSS", stationUp_ && !GnssBusy()},
       {"prismh", ph, "najpierw tachimetr", stationUp_},
       {"view", "Patrz przez lunete (" LV_KEYNAME_SCOPE ")", "najpierw tachimetr i co najmniej jedno nawiazanie", stationUp_ && n >= 1},
@@ -112,6 +113,14 @@ class TachyStationJob : public Job {
       w_.SetPrismHeightM(kPrism[prismIdx_]);          // modele lustra (tyczka i nawiazania) maja od teraz te wysokosc
     } else if (base == "meas") {
       reflectorless_ = !reflectorless_;
+    } else if (base == "faces") {
+      twoFace_ = !twoFace_;
+      if (twoFace_ && !errDrawn_) {                    // ukryte bledy instrumentu: kolimacja i indeks, 3-8 mgon ze znakiem; losowane przy pierwszym wlaczeniu
+        errDrawn_ = true;
+        collGon_ = (rng_.Uniform() < 0.5 ? -1 : 1) * (0.003 + 0.005 * rng_.Uniform());
+        indexGon_ = (rng_.Uniform() < 0.5 ? -1 : 1) * (0.003 + 0.005 * rng_.Uniform());
+      }
+      ClearReadings();
     }
     // "view": kontroler otwiera luneta; "finish": kontroler wywoluje FinishTachy(true)
   }
@@ -126,17 +135,24 @@ class TachyStationJob : public Job {
     return MeasurePrism(camAzDeg, camPitchDeg);
   }
 
+  std::string TachyFlip() override {
+    if (!twoFace_) return "Dwa polozenia lunety wlacz w menu (Polozenia lunety)";
+    face_ = 3 - face_;
+    return face_ == 2 ? "Polozenie II (KP): wyceluj w ten sam cel i Enter" : "Polozenie I (KL)";
+  }
+
   std::vector<std::string> TachyPanel(double camAzDeg, double camPitchDeg) const override {
     const double az = std::isfinite(camAzDeg) ? camAzDeg : 0.0, pitch = std::isfinite(camPitchDeg) ? camPitchDeg : 0.0;
-    const double hz = NormGon(DegToGon(az - (oriented_ ? az0_ : 0.0)));
-    const double v = DegToGon((std::min)(180.0, (std::max)(0.0, 90.0 - pitch)));
+    double hz = NormGon(DegToGon(az - (oriented_ ? az0_ : 0.0)));
+    double v = DegToGon((std::min)(180.0, (std::max)(0.0, 90.0 - pitch)));
+    if (face_ == 2) { hz = NormGon(hz + 200.0); v = 400.0 - v; }          // KP: kolo poziome +200 g, pionowe 400 - V
     char b[110]; std::vector<std::string> out;
-    std::snprintf(b, sizeof b, "Hz: %.4f g   V: %.4f g%s", hz, v, oriented_ ? "" : "  (przed orientacja)"); out.push_back(b);
+    std::snprintf(b, sizeof b, "Hz: %.4f g   V: %.4f g  %s%s", hz, v, twoFace_ ? (face_ == 2 ? "KP" : "KL") : "", oriented_ ? "" : "  (przed orientacja)"); out.push_back(b);
     std::snprintf(b, sizeof b, "Nawiazania: %d z %d zmierzone   orientacja: %s", ReadCount(), BackCount(), oriented_ ? "tak" : "nie"); out.push_back(b);
     if (reflectorless_) std::snprintf(b, sizeof b, "Pomiar bezlustrowy   Punkty: %d", (int)points_.size());
     else std::snprintf(b, sizeof b, "Pomiar na lustro %.3f m   Punkty: %d", kPrism[prismIdx_], (int)points_.size());
     out.push_back(b);
-    out.push_back(lastMsg_.empty() ? "Enter - zmierz (lustro nawiazania albo punkt)" : lastMsg_);
+    out.push_back(lastMsg_.empty() ? (twoFace_ ? "Enter - zmierz w KL, " LV_KEYNAME_FLIP " - przerzut, Enter - w KP" : "Enter - zmierz (lustro nawiazania albo punkt)") : lastMsg_);
     return out;
   }
 
@@ -189,7 +205,24 @@ class TachyStationJob : public Job {
     static thread_local ControlPoint hold; for (const ControlPoint& c : v) if (c.id == id) { hold = c; return &hold; } return nullptr;
   }
   void ClearBacksights() { for (int i = BackCount(); i >= 1; i--) w_.RemoveBacksight(i); backs_.clear(); }
-  void ClearReadings() { for (Back& b : backs_) b.read = false; oriented_ = false; lastMsg_.clear(); }
+  void ClearReadings() { for (Back& b : backs_) b.read = false; oriented_ = false; lastMsg_.clear(); half_.valid = false; face_ = 1; }
+
+  // Odczyt: w trybie jednego polozenia od razu; w trybie dwoch KL zapisuje polowe (false), KP zwraca srednia (true) i wraca do KL.
+  bool Acquire(const std::string& tag, double camAz, double camPitch, double az0, double slopeM, const TachyNoise& nz, TachyReading& out) {
+    if (!twoFace_) { out = TachyMeasure(camAz, camPitch, az0, slopeM, nz, rng_); return true; }
+    const TachyReading r = TachyMeasureFace(camAz, camPitch, az0, slopeM, nz, rng_, face_, collGon_, indexGon_);
+    char b[150];
+    if (face_ == 1) {
+      half_.valid = true; half_.tag = tag; half_.r = r; half_.slopeM = slopeM;
+      std::snprintf(b, sizeof b, "KL zapisane (Hz %.4f V %.4f). Przerzuc luneta (%s), wyceluj i zmierz w KP", r.hzGon, r.vGon, LV_KEYNAME_FLIP);
+      lastMsg_ = b; return false;
+    }
+    if (!half_.valid || half_.tag != tag || std::fabs(half_.slopeM - slopeM) > 0.1) { lastMsg_ = "KP: najpierw zmierz ten sam cel w KL"; return false; }
+    const TachyFaceMean m = TachyCombineFaces(half_.r, r);
+    half_.valid = false; face_ = 1; out = m.r;
+    std::snprintf(b, sizeof b, "KL+KP: c=%.1f i=%.1f mgon", -m.twoC * 500.0, m.index * 1000.0);   // c = -(Hz_KP - 200 - Hz_KL)/2, w mgon
+    faceNote_ = b; return true;
+  }
 
   double AzTo(const Back& b) const { return TachyAzimuthDeg(st_.n, st_.e, b.cp.n, b.cp.e); }
 
@@ -221,12 +254,19 @@ class TachyStationJob : public Job {
       if (!points_.empty()) return lastMsg_ = "Orientacja zablokowana po pierwszym punkcie (nawiazania bez zmian)";   // inaczej az0 zmieniloby sie w trakcie serii
       if (!w_.LineClear(false, i + 1)) return lastMsg_ = "Linia celowa zaslonieta";
       Back& b = backs_[i];
-      b.azMeasDeg = TachyOrient(camAz, noise_, rng_);
-      b.distMeasM = TachyMeasure(camAz, camPitch, 0.0, a.distM, noise_, rng_).slopeM;
+      if (twoFace_) {
+        TachyReading rd;
+        if (!Acquire("B" + std::to_string(i), camAz, camPitch, 0.0, a.distM, noise_, rd)) return lastMsg_;
+        b.azMeasDeg = GonToDeg(rd.hzGon); b.distMeasM = rd.slopeM;
+      } else {
+        b.azMeasDeg = TachyOrient(camAz, noise_, rng_);
+        b.distMeasM = TachyMeasure(camAz, camPitch, 0.0, a.distM, noise_, rng_).slopeM;
+      }
       b.read = true; Reorient();
       const TachyBacksight r = Residuals(b);
-      char m[140]; std::snprintf(m, sizeof m, "Nawiazanie %s: kierunek %.1f mgon, odleglosc %.1f mm (%d z %d)%s", b.name.c_str(), r.dirResidMgon, r.distResidMm,
-                                 ReadCount(), BackCount(), r.uncertain ? " - niepewne" : "");
+      char m[200]; std::snprintf(m, sizeof m, "Nawiazanie %s: kierunek %.1f mgon, odleglosc %.1f mm (%d z %d)%s%s%s", b.name.c_str(), r.dirResidMgon, r.distResidMm,
+                                 ReadCount(), BackCount(), r.uncertain ? " - niepewne" : "", faceNote_.empty() ? "" : "; ", faceNote_.c_str());
+      faceNote_.clear();
       return lastMsg_ = m;
     }
     return "";
@@ -239,7 +279,8 @@ class TachyStationJob : public Job {
     if (a.distM < 3.0 || a.distM > 300.0) return lastMsg_ = "Lustro poza zasiegiem (3-300 m)";
     if (!a.ok) return lastMsg_ = "Nie celujesz w lustro";
     if (!w_.LineClear(true)) return lastMsg_ = "Linia celowa zaslonieta";
-    const TachyReading r = TachyMeasure(camAz, camPitch, az0_, a.distM, noise_, rng_);
+    TachyReading r;
+    if (!Acquire("P", camAz, camPitch, az0_, a.distM, noise_, r)) return lastMsg_;
     return Store(r, TachyPolar(st_, r, ph), ph, g, "");
   }
 
@@ -249,7 +290,8 @@ class TachyStationJob : public Job {
     if (!w_.TraceSight(camAz, camPitch, hit, slope)) return lastMsg_ = "Brak odbicia (nic nie trafiono w 300 m)";
     if (slope < kMinSightM) return lastMsg_ = "Za blisko (min. 1.5 m)";
     const TachyNoise nz{noise_.angleArcsec, 3.0, 2.0};
-    const TachyReading r = TachyMeasure(camAz, camPitch, az0_, slope, nz, rng_);
+    TachyReading r;
+    if (!Acquire("R", camAz, camPitch, az0_, slope, nz, r)) return lastMsg_;
     return Store(r, TachyPolar(st_, r, 0.0), 0.0, hit, "bezlustrowy");
   }
 
@@ -258,6 +300,7 @@ class TachyStationJob : public Job {
     p.hzGon = r.hzGon; p.vGon = r.vGon; p.slopeM = r.slopeM; p.hDistM = res.hDistM;
     p.dHM = r.slopeM * std::cos(GonToDeg(r.vGon) * TACHY_PI / 180.0);
     p.n = res.n; p.e = res.e; p.h = res.h; p.prismM = prismM; p.note = note;
+    if (!faceNote_.empty()) { p.note += (p.note.empty() ? "" : "; ") + faceNote_; faceNote_.clear(); }
     if (opt_.showTrueError) {
       p.hasTrue = true; p.dNm = res.n - truth.n; p.dEm = res.e - truth.e; p.dHm = res.h - truth.h; p.d2Dm = std::hypot(p.dNm, p.dEm);
     }
@@ -271,6 +314,8 @@ class TachyStationJob : public Job {
   TachyStation st_{0, 0, 0};
   ControlPoint stationCp_;
   std::vector<Back> backs_;
+  struct Half { bool valid = false; std::string tag; TachyReading r{0, 0, 0}; double slopeM = 0; } half_;   // zapisany odczyt KL czekajacy na KP
+  bool twoFace_ = false, errDrawn_ = false; int face_ = 1; double collGon_ = 0, indexGon_ = 0; std::string faceNote_;
   bool control_ = false, stationUp_ = false, prismUp_ = false, oriented_ = false, reflectorless_ = false;
   int prismIdx_ = 0; double az0_ = 0;
   std::string lastMsg_;
