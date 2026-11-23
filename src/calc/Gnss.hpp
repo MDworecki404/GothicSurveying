@@ -146,34 +146,46 @@ class GnssSession {
     fix_.visible = 0; for (const SatDir& d : sats) if (d.elDeg > 10.0) fix_.visible++;
     fix_.used = (int)used.size(); fix_.pdop = GnssPdop(used); fix_.multipath = GnssMultipath(mask);
     fix_.blockedPct = GnssSkyBlockedPct(mask); fix_.nearestObstacleM = mask.nearestObstacleM;
-    const SolType type = GnssClassify(fix_.used, fix_.pdop, fix_.multipath, tSec - t0_, tFloat_, tFix_);
+    SolType type = GnssClassify(fix_.used, fix_.pdop, fix_.multipath, tSec - t0_, tFloat_, tFix_);
+    if (!corrOk_ && (type == SolType::Fix || type == SolType::Float || type == SolType::Dgps)) type = SolType::Autonomous;   // bez bazy brak poprawek
     if (type != fix_.type) {                       // nowy typ: nowe uśrednianie i nowy błąd systematyczny
       fix_.type = type; fix_.epochs = 0; cnt_ = 0;
       for (int i = 0; i < 3; i++) sum_[i] = sq_[i] = 0;
-      const SolSigma g = GnssSigma(type, fix_.pdop, fix_.multipath);
+      const SolSigma g = Sigma(type);
       bias_[0] = 0.5 * g.hMm * rng_.Normal(); bias_[1] = 0.5 * g.hMm * rng_.Normal(); bias_[2] = 0.5 * g.vMm * rng_.Normal();
     }
     if (type == SolType::None) { fix_.hRmsMm = fix_.vRmsMm = 0; return; }
-    const SolSigma g = GnssSigma(type, fix_.pdop, fix_.multipath);
+    const SolSigma g = Sigma(type);
     const double tilt = trueM_ * std::tan(0.3 * 3.14159265358979323846 / 180.0 * std::fabs(rng_.Normal())) * 1000.0;   // mm
     const double ang = 2.0 * 3.14159265358979323846 * rng_.Uniform();
     const double err[3] = {bias_[0] + g.hMm * rng_.Normal() + tilt * std::cos(ang), bias_[1] + g.hMm * rng_.Normal() + tilt * std::sin(ang),
                            bias_[2] + g.vMm * rng_.Normal()};
     for (int i = 0; i < 3; i++) { sum_[i] += err[i]; sq_[i] += err[i] * err[i]; }
     cnt_++; fix_.epochs = cnt_;
-    fix_.n = truth_.n + sum_[0] / cnt_ / 1000.0; fix_.e = truth_.e + sum_[1] / cnt_ / 1000.0;
-    fix_.h = truth_.h + (trueM_ - setM_) + sum_[2] / cnt_ / 1000.0;
+    const bool rel = corrOk_ && type != SolType::Autonomous;             // przesuniecie bazy dotyczy tylko rozwiazan wzglednych
+    fix_.n = truth_.n + sum_[0] / cnt_ / 1000.0 + (rel ? off_[0] : 0.0); fix_.e = truth_.e + sum_[1] / cnt_ / 1000.0 + (rel ? off_[1] : 0.0);
+    fix_.h = truth_.h + (trueM_ - setM_) + sum_[2] / cnt_ / 1000.0 + (rel ? off_[2] : 0.0);
     if (cnt_ >= 2) {
       double var[3];
       for (int i = 0; i < 3; i++) var[i] = (std::max)(0.0, sq_[i] / cnt_ - (sum_[i] / cnt_) * (sum_[i] / cnt_));
       fix_.hRmsMm = std::sqrt(var[0] + var[1]); fix_.vRmsMm = std::sqrt(var[2]);
     } else fix_.hRmsMm = fix_.vRmsMm = 0;
   }
+  // Wlasna baza: corrOk = baza stoi; baselineM = dlugosc linii bazowej; off = blad wspolrzednych bazy (przesuwa wszystkie punkty); statyczny = dluzsza sesja, mniejszy szum.
+  void SetBase(bool corrOk, double baselineM, double dn, double de, double dh, bool isStatic) {
+    corrOk_ = corrOk; baselineM_ = baselineM; off_[0] = dn; off_[1] = de; off_[2] = dh; static_ = isStatic;
+  }
   const GnssFix& Fix() const { return fix_; }
   double StartSec() const { return t0_; }
  private:
   GnssRng rng_; double t0_; GridPos truth_; double setM_, trueM_;
   double tFloat_ = 8, tFix_ = 20;
+  bool corrOk_ = true, static_ = false; double baselineM_ = 0, off_[3] = {0, 0, 0};
+  SolSigma Sigma(SolType t) const {                // + 1 ppm (poziomo) i 2 ppm (pionowo) od linii bazowej; statyka: 0,4 szumu fixu
+    SolSigma g = GnssSigma(t, fix_.pdop, fix_.multipath);
+    if (t == SolType::Fix) { if (static_) { g.hMm *= 0.4; g.vMm *= 0.4; } g.hMm += baselineM_ * 0.001; g.vMm += baselineM_ * 0.002; }
+    return g;
+  }
   GnssFix fix_;
   int cnt_ = 0; double sum_[3] = {}, sq_[3] = {}, bias_[3] = {};
 };

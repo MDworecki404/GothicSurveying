@@ -54,8 +54,16 @@ static void empty_stands_returns_empty_result() {
   assert(near(r.fhMm, 0));
 }
 
+static void correction_is_proportional_to_sight_length() {
+  std::vector<Stand> s = { {1500, 1000, 1000, 1000}, {1500, 1000, 3000, 3000} };      // dh = 500 + 500, celowe 20 m i 60 m
+  TraverseResult r = ComputeTraverse(TraverseKind::Anchored, s, 100.000, 100.980);    // fh = +20 mm
+  assert(std::fabs(r.fhMm - 20.0) < 1e-9);
+  assert(std::fabs(r.vMm[0] - (-5.0)) < 1e-9 && std::fabs(r.vMm[1] - (-15.0)) < 1e-9);  // 1/4 i 3/4 odchylki, z minusem
+  assert(std::fabs(r.vMm[0] + r.vMm[1] + r.fhMm) < 1e-9 && std::fabs(r.heightAdjM.back() - 100.980) < 1e-9);
+}
+
 int main() {
-  anchored_example(); closed_example(); open_example();
+  correction_is_proportional_to_sight_length(); anchored_example(); closed_example(); open_example();
   zero_length_has_no_tolerance(); empty_stands_returns_empty_result();
   std::puts("test_traverse OK");
   return 0;

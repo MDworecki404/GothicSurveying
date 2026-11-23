@@ -112,9 +112,34 @@ static void two_faces_cancel_instrument_errors() {
   assert(near(TachyCombineFaces(a, b).r.hzGon, 399.99, 1e-9));
 }
 
+static void resection_recovers_station_and_rotation() {
+  const double sn = 5500012.0, se = 6500034.0, rot = 37.0;                   // prawdziwe stanowisko i obrot kola poziomego
+  const double pts[3][2] = {{5500100.0, 6500010.0}, {5500020.0, 6500150.0}, {5499950.0, 6500080.0}};
+  std::vector<TachyResObs> o;
+  for (auto& p : pts) {
+    const double az = TachyAzimuthDeg(sn, se, p[0], p[1]), hd = std::hypot(p[0] - sn, p[1] - se);
+    o.push_back({p[0], p[1], NormDeg(az - rot), hd});
+  }
+  TachyFreeStation f = TachyResection(o);
+  assert(f.ok && near(f.n, sn, 1e-6) && near(f.e, se, 1e-6) && near(f.rotDeg, rot, 1e-6) && f.rmsM < 1e-6 && f.residM.size() == 3);
+  o.pop_back(); f = TachyResection(o); assert(f.ok && near(f.n, sn, 1e-6) && near(f.e, se, 1e-6));    // dwa punkty wystarcza
+  o[0].hDistM += 0.05; f = TachyResection(o); assert(f.ok);
+  o.pop_back(); assert(!TachyResection(o).ok);                              // jeden punkt: nie
+}
+
+static void stakeout_decomposes_along_and_cross() {
+  TachyStakeout s = TachyStakeoutCalc(0, 0, 100, 0, 103, 0);                // P na polnocy od stanowiska, cel 3 m dalej
+  assert(near(s.along, 3.0, 1e-9) && near(s.cross, 0.0, 1e-9) && near(s.dist, 3.0, 1e-9));
+  s = TachyStakeoutCalc(0, 0, 100, 0, 100, 2);                              // cel 2 m na wschod: patrzac na polnoc to w prawo
+  assert(near(s.along, 0.0, 1e-9) && near(s.cross, 2.0, 1e-9));
+  s = TachyStakeoutCalc(0, 0, 0, 100, 0, 98);                               // P na wschodzie, cel 2 m blizej stanowiska
+  assert(near(s.along, -2.0, 1e-9) && near(s.cross, 0.0, 1e-9));
+}
+
 int main() {
   conversions(); azimuth_directions(); polar_east_level(); polar_sloped_north(); orientation_zeroes_hz();
   extreme_pitch_stays_finite(); aim_error_and_limits(); aim_tolerance_is_angular(); angle_diff_and_circular_mean(); noise_statistics();
+  resection_recovers_station_and_rotation(); stakeout_decomposes_along_and_cross();
   two_faces_cancel_instrument_errors();
   std::puts("test_tachy OK");
   return 0;

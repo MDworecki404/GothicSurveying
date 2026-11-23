@@ -21,6 +21,9 @@ struct FakeGnss : IWorld {
   void ShiftInstrumentMm(double) override {}
   void Say(const std::string& t) override { said.push_back(t); }
   bool PlacePole() override { return ground; }
+  GridPos baseAt{5500100.0, 6500150.0, 12.0}; bool controlNear = false;
+  bool PlaceBase(GridPos& g) override { g = baseAt; return ground; }
+  std::vector<ControlPoint> ControlNearHero(double) const override { return controlNear ? std::vector<ControlPoint>{ControlPoint{}} : std::vector<ControlPoint>{}; }
   SkyMask SkyHorizon() const override { return mask; }
   GridPos PoleGroundGrid() const override { return {5500100.0, 6500200.0, 12.5}; }
   double NowSec() const override { return now; }
@@ -166,11 +169,39 @@ static void control_failure_does_not_store() {
   assert(!f.w.said.empty() && has(f.w.said.back(), "osnowy") && f.enabled("control"));   // nadal mierzymy, mozna ponowic
 }
 
+static void own_base_needed_for_corrections() {
+  Fx f; f.menu("corr"); assert(has(f.label("corr"), "wlasna") && f.enabled("base"));
+  f.measure(60);
+  assert(has(f.status(), "brak bazy") && !has(f.status(), "fix RTK"));            // bez bazy tylko rozwiazanie autonomiczne
+  f.menu("discard"); f.menu("base"); f.menu("start"); f.advance(60);
+  assert(has(f.status(), "fix RTK") && has(f.status(), "wlasna baza"));
+  f.menu("store");
+  const GnssPoint p = f.job->FinishGnss(true).points[0];
+  assert(has(p.note, "baza na dowolnym punkcie") && has(p.note, "linia bazowa 50 m"));
+}
+
+static void base_on_control_point_is_accurate_arbitrary_base_shifts_all() {
+  auto err = [](bool control) {
+    Fx f(true); f.w.controlNear = control; f.menu("corr"); f.menu("pole"); f.menu("base"); f.menu("start"); f.advance(60); f.menu("store");
+    return f.job->FinishGnss(true).points[0].d2Dmm;
+  };
+  assert(err(true) < 100.0 && err(false) > 300.0);                                // baza na znaku osnowy: cm; baza na dowolnym punkcie: przesuniecie rzedu metra
+}
+
+static void static_needs_120_epochs_and_is_flagged() {
+  Fx f; f.menu("mode"); assert(has(f.label("mode"), "statyczny"));
+  f.measure(60); assert(has(f.status(), "statyka") && !f.enabled("store") && !f.enabled("control"));
+  f.advance(100); assert(f.enabled("store") && f.enabled("control"));
+  f.menu("store");
+  assert(has(f.job->FinishGnss(true).points[0].note, "statyka"));
+}
+
 int main() {
   registry_lists_gnss(); menu_enablement_follows_state(); pole_blocked_without_ground(); open_sky_fix_then_store();
   store_without_fix_is_flagged(); blocked_sky_never_enables_store(); clock_frozen_means_no_epochs();
   antenna_presets_cycle_and_bias_height(); true_error_columns_when_enabled(); abort_returns_partial_report(); discard_clears_measurement();
   control_requires_fix_and_20_epochs(); control_stores_point_and_report(); control_failure_does_not_store();
+  own_base_needed_for_corrections(); base_on_control_point_is_accurate_arbitrary_base_shifts_all(); static_needs_120_epochs_and_is_flagged();
   std::puts("test_gnss_job OK");
   return 0;
 }

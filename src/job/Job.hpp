@@ -31,6 +31,7 @@ class IWorld {
   virtual void   ShiftInstrumentMm(double dyMm) = 0;              // podnosi (+) / obniża (-) niwelator stojący na stanowisku
   virtual void   Say(const std::string& textAscii) = 0;
   // GNSS (domyslne ciala, zeby swiaty niwelacji ich nie musialy znac)
+  virtual bool     PlaceBase(GridPos& g) { (void)g; return false; }                // stacja bazowa RTK pod stopami; g = prawdziwe wspolrzedne gruntu
   virtual bool     PlacePole() { return false; }                  // tyczka z antena pod stopami; false = brak gruntu
   virtual void     RemovePole() {}
   virtual SkyMask  SkyHorizon() const { return SkyMask{}; }       // maska horyzontu z promieni ku niebu z miejsca tyczki

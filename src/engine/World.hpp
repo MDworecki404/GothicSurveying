@@ -54,6 +54,13 @@ namespace GOTHIC_NAMESPACE {
       return sqrt( dx * dx + dz * dz );
     }
     // --- GNSS: tyczka z odbiornikiem, promienie do nieba, zegar gry ---
+    bool PlaceBase( GridPos& g ) override {            // stacja bazowa RTK: model tripodu, jedna naraz
+      zVEC3 p;
+      if ( !FeetGround( p ) ) return false;
+      RemoveVobSafe( base_ ); base_ = SpawnVob( LV_VIS_INSTR, p );
+      g = GnssToGrid( p[VX], p[VY], p[VZ] );
+      return true;
+    }
     bool PlacePole() override {
       zVEC3 p;
       if ( !FeetGround( p ) ) return false;
@@ -269,18 +276,18 @@ namespace GOTHIC_NAMESPACE {
     // Po zmianie świata: oddaje własne referencje bez dotykania świata (voby zwolnił już świat).
     void ForgetAll() {
       for ( auto& kv : pts_ ) DropVobRef( kv.second.marker );
-      DropVobRef( rod_[0] ); DropVobRef( rod_[1] ); DropVobRef( instr_ ); DropVobRef( pole_ ); hasPole_ = false; poleIsPrism_ = false;
+      DropVobRef( rod_[0] ); DropVobRef( rod_[1] ); DropVobRef( instr_ ); DropVobRef( pole_ ); DropVobRef( base_ ); hasPole_ = false; poleIsPrism_ = false;
       for ( Back& b : back_ ) { DropVobRef( b.marker ); DropVobRef( b.prism ); b.up = false; }
       DropVobRef( helmet_ ); DropVobRef( vest_ ); helmetNode_ = vestNode_ = nullptr;
       pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false;
     }
     bool Stale() const {                                 // któryś z naszych vobów nie należy już do bieżącego świata
       for ( const auto& kv : pts_ ) if ( VobIsStale( kv.second.marker ) ) return true;
-      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ ) || VobIsStale( helmet_ ) || VobIsStale( vest_ ) || VobIsStale( pole_ ) || BacksightsStale();
+      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ ) || VobIsStale( helmet_ ) || VobIsStale( vest_ ) || VobIsStale( pole_ ) || VobIsStale( base_ ) || BacksightsStale();
     }
     void ClearAll() {
       for ( auto& kv : pts_ ) RemoveVobSafe( kv.second.marker );
-      RemoveVobSafe( rod_[0] ); RemoveVobSafe( rod_[1] ); RemoveVobSafe( instr_ ); RemoveVobSafe( pole_ ); hasPole_ = false; poleIsPrism_ = false;
+      RemoveVobSafe( rod_[0] ); RemoveVobSafe( rod_[1] ); RemoveVobSafe( instr_ ); RemoveVobSafe( pole_ ); RemoveVobSafe( base_ ); hasPole_ = false; poleIsPrism_ = false;
       for ( int i = 1; i <= 5; i++ ) RemoveBacksight( i );
       DressOff();
       pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false;
@@ -319,6 +326,7 @@ namespace GOTHIC_NAMESPACE {
       zVEC3 d( instrGround_[VX] - p[VX], 0, instrGround_[VZ] - p[VZ] );
       if ( d.Length() > 0.1f ) { d.Normalize(); v->SetHeadingAtWorld( d ); }
     }
+    zCVob* base_ = nullptr;                            // stacja bazowa RTK
     zCVob* pole_ = nullptr; zVEC3 poleGround_; bool hasPole_ = false; double clock_ = 0;   // GNSS: tyczka i zegar gry [s]
     zCVob *helmet_ = nullptr, *vest_ = nullptr; zCModelNodeInst *helmetNode_ = nullptr, *vestNode_ = nullptr;
     zVEC3 dressPos_[2] = { zVEC3( 1e9f, 0, 0 ), zVEC3( 1e9f, 0, 0 ) }, dressAt_[2] = { zVEC3( 0, 0, 0 ), zVEC3( 0, 0, 0 ) };

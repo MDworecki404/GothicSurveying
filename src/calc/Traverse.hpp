@@ -37,9 +37,13 @@ inline TraverseResult ComputeTraverse(TraverseKind kind, const std::vector<Stand
   if (r.hasClosure && n > 0) r.fhMm = r.sumDhMm - (hEndM - hStartM) * 1000.0;
   if (r.hasClosure) r.fhDopMm = fhDopCoeffMm * std::sqrt(r.lengthM / 1000.0);
   r.withinTolerance = !r.hasClosure || std::fabs(r.fhMm) <= r.fhDopMm + 1e-9;
-  const double v = (r.hasClosure && n > 0) ? -r.fhMm / (double)n : 0.0;
+  // poprawka proporcjonalna do dlugosci celowych stanowiska (rowna, gdy celowe nieznane/jednakowe)
+  std::vector<double> w; double wSum = 0;
+  for (const Stand& s : stands) { w.push_back(s.sightBackCm + s.sightForeCm); wSum += w.back(); }
+  auto vOf = [&](size_t i) { return (r.hasClosure && n > 0) ? -r.fhMm * (wSum > 1e-9 ? w[i] / wSum : 1.0 / (double)n) : 0.0; };
   r.heightRawM.push_back(hStartM); r.heightAdjM.push_back(hStartM);
   for (size_t i = 0; i < n; i++) {
+    const double v = vOf(i);
     r.vMm.push_back(v);
     r.dhAdjMm.push_back(r.dhMm[i] + v);
     r.heightRawM.push_back(r.heightRawM.back() + r.dhMm[i] / 1000.0);

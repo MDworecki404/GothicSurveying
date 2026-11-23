@@ -225,10 +225,10 @@ namespace GOTHIC_NAMESPACE {
   inline void CtrlOpenChoice( const std::string& menuId ) {
     std::vector<MenuItem> items = gJob->TachyChoices( menuId );
     if ( items.empty() ) {
-      HudMessage( menuId == "station" ? "Brak punktu osnowy w promieniu 2 m od ciebie" : "Brak wolnych punktow osnowy 3-300 m od stanowiska" );
+      HudMessage( menuId == "station" ? "Brak punktu osnowy w promieniu 2 m od ciebie" : menuId == "stake" ? "Brak punktow osnowy 3-300 m od stanowiska do wytyczenia" : "Brak wolnych punktow osnowy 3-300 m od stanowiska" );
       return;
     }
-    MenuOpen( MenuView{ menuId == "station" ? "Wybierz punkt osnowy na stanowisko" : "Wybierz punkt osnowy na nawiazanie", items },
+    MenuOpen( MenuView{ menuId == "station" ? "Wybierz punkt osnowy na stanowisko" : menuId == "stake" ? "Wybierz punkt osnowy do wytyczenia" : "Wybierz punkt osnowy na nawiazanie", items },
               []( const std::string& id ) { if ( gJob ) gJob->OnMenu( id ); } );
   }
 

@@ -75,6 +75,44 @@ inline TachyResult TachyPolar(const TachyStation& st, const TachyReading& r, dou
   return {st.n + d * std::cos(azRad), st.e + d * std::sin(azRad), st.h + st.instrH + r.slopeM * std::cos(vRad) - prismSetM, d, az};
 }
 
+// Wciecie wstecz (stanowisko dowolne): znane N,E punktow + zmierzone kierunki (kolo poziome, dowolne zero) i odleglosci poziome.
+// Rozwiazanie to obrot + przesuniecie (Procrustes, skala 1): az_prawdziwy = Hz + rotDeg. Wymaga co najmniej 2 punktow.
+struct TachyResObs { double n, e, hzDeg, hDistM; };
+struct TachyFreeStation { bool ok = false; double n = 0, e = 0, rotDeg = 0, rmsM = 0; std::vector<double> residM; };
+inline TachyFreeStation TachyResection(const std::vector<TachyResObs>& o) {
+  TachyFreeStation r; const size_t k = o.size();
+  if (k < 2) return r;
+  std::vector<double> an(k), ae(k); double cn = 0, ce = 0, bn = 0, be = 0;
+  for (size_t i = 0; i < k; i++) {
+    const double h = o[i].hzDeg * TACHY_PI / 180.0;
+    an[i] = o[i].hDistM * std::cos(h); ae[i] = o[i].hDistM * std::sin(h);
+    cn += an[i]; ce += ae[i]; bn += o[i].n; be += o[i].e;
+  }
+  cn /= k; ce /= k; bn /= k; be /= k;
+  double sc = 0, sd = 0;
+  for (size_t i = 0; i < k; i++) {
+    const double pn = an[i] - cn, pe = ae[i] - ce, qn = o[i].n - bn, qe = o[i].e - be;
+    sc += pn * qe - pe * qn; sd += pn * qn + pe * qe;
+  }
+  if (std::fabs(sc) + std::fabs(sd) < 1e-9) return r;
+  const double th = std::atan2(sc, sd), c = std::cos(th), s = std::sin(th);
+  r.n = bn - (cn * c - ce * s); r.e = be - (cn * s + ce * c); r.rotDeg = NormDeg(th * 180.0 / TACHY_PI);
+  double q = 0;
+  for (size_t i = 0; i < k; i++) {
+    const double fn = r.n + an[i] * c - ae[i] * s, fe = r.e + an[i] * s + ae[i] * c;
+    r.residM.push_back(std::hypot(o[i].n - fn, o[i].e - fe)); q += r.residM.back() * r.residM.back();
+  }
+  r.rmsM = std::sqrt(q / k); r.ok = true;
+  return r;
+}
+
+// Wytyczanie: gdzie przesunac tyczke z punktu P do celu T, rozlozone na kierunek od stanowiska (along > 0 = dalej od stanowiska) i prostopadly (cross > 0 = w prawo).
+struct TachyStakeout { double along = 0, cross = 0, dist = 0; };
+inline TachyStakeout TachyStakeoutCalc(double stN, double stE, double pN, double pE, double tN, double tE) {
+  const double az = std::atan2(pE - stE, pN - stN), dn = tN - pN, de = tE - pE;
+  return {dn * std::cos(az) + de * std::sin(az), -dn * std::sin(az) + de * std::cos(az), std::hypot(dn, de)};
+}
+
 struct TachyAim { double lateralM, verticalM, distM; bool ok; };
 
 // Różnica kątów a - b zawinięta do [-180, 180] stopni.

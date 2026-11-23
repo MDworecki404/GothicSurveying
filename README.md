@@ -74,7 +74,7 @@ Pierwszy odczyt na stanowisku może być wstecz lub wprzód (kolejność dowolna
 
 Po **Zakończ robotę** gra pokazuje tabelę dziennika (z celowymi z dalmierza) (↑/↓ przewijanie, Enter zamyka) i zapisuje w katalogu głównym gry:
 `dziennik.docx` (A4 pozioma, do wydruku: tabela, Σ, fh, fh dop., wynik, data) oraz `dziennik.csv` (dane, średniki). Wszystko ląduje w folderze `GothicSurveying/RRRR-MM-DD_GG-MM-SS/` w katalogu gry (nazwa = czas zakończenia roboty).
-Dziennik liczy fh = ΣΔh − (H_koniec − H_start), poprawki równomierne na stanowisko i wysokości wyrównane;
+Dziennik liczy fh = ΣΔh − (H_koniec − H_start), poprawki proporcjonalne do długości celowych stanowiska (równe, gdy celowe jednakowe) i wysokości wyrównane;
 dopuszczalny błąd fh_dop = 20 mm·√L (L w km, suma celowych). Ciąg otwarty nie ma kontroli ani poprawek.
 Jeśli w trakcie roboty wczytasz zapis, plugin zapisze to, co zmierzono, jako `dziennik_przerwany.csv` w folderze roboty (bez DOCX).
 „Przerwij robotę” kończy robotę bez zapisu dziennika.
@@ -113,6 +113,12 @@ Współrzędne w lokalnym układzie: N = z_gry/100 + 5 500 000 m, E = x_gry/100 
 Każdy zapisany punkt trafia od razu do `GothicSurveying/odczyty_biezace.csv` (przetrwa awarię gry; po zakończeniu roboty plik ląduje w jej folderze jako `odczyty.csv`).
 Wyniki w folderze roboty: `pomiar_gnss.csv`, `pomiar_gnss.docx` (przerwana robota: `pomiar_gnss_przerwany.csv`); przy opcji prawdziwego błędu
 dodatkowe kolumny `blad_N_m`, `blad_E_m`, `blad_H_m`, `blad_2D_m` względem punktu w grze.
+
+### Własna baza i statyka
+
+„Poprawki RTK: sieć / własna baza”: przy własnej bazie **Postaw bazę (stacja bazowa)** (menu robót GNSS). Bez bazy odbiornik daje tylko wynik autonomiczny (metry). Baza na znaku osnowy (≤ 2 m)
+zna swoje współrzędne (błąd mm), baza na dowolnym punkcie ma błąd pozycji rzędu metra, który przesuwa wszystkie punkty rovera tak samo; dochodzi błąd linii bazowej (1 ppm poziomo, 2 ppm pionowo).
+„Pomiar: statyczny” wymaga fixu i 120 epok, a szum fixu jest wtedy 0,4 zwykłego; uwaga przy punkcie podaje bazę, linię bazową i statykę.
 
 ## Osnowa GNSS
 
@@ -161,6 +167,11 @@ mierzy promień (pierwszy trafiony punkt, od 1,5 m do 300 m, szum odległości 3
 Każdy cel (nawiązanie, punkt na lustro, punkt bezlustrowy) mierzysz **Enter** w KL, naciskasz **K** (przerzut lunety: panel pokazuje Hz+200 g i V′ = 400 g − V), celujesz ponownie i **Enter** w KP;
 wynik to średnia (Hz = Hz_KL + ½(Hz_KP − 200 − Hz_KL), V = ½(V_KL − V_KP + 400)), a komunikat i uwaga punktu podają wyznaczone `c` (kolimacja) i `i` (indeks) w mgon.
 Zmiana trybu kasuje orientację. Domyślnie jedno położenie, bez tych błędów.
+
+**Stanowisko dowolne (wcięcie wstecz)** (menu „Stanowisko: dowolne”, przy źródle osnowa GNSS): tachimetr stawiasz gdziekolwiek, dodajesz co najmniej 2 nawiązania na punktach osnowy
+i mierzysz je (kierunek i odległość). Współrzędne stanowiska, orientację koła i wysokość liczy obrót + przesunięcie z dopasowania do wszystkich nawiązań; panel pokazuje N, E i rms dopasowania.
+**Wytyczanie** („Wytycz punkt osnowy”, po orientacji): wybierasz punkt osnowy 3–300 m od stanowiska, ustawiasz tyczkę z lustrem i mierzysz **Enter**; komunikat mówi, o ile przesunąć tyczkę
+(„dalej/bliżej” wzdłuż celowej i „w prawo/w lewo” prostopadle, razem m), a przy odchyłce ≤ 2 cm: „wytyczony” z odchyłką i dH. Pomiar trafia do punktów z uwagą „wytyczanie <id>”. „Zakończ wytyczanie” wyłącza podpowiedź.
 
 **Wysokość lustra** (menu: 1,500 / 1,800 / 2,000 / 1,300 m) to fizyczna wysokość środka lustra: tyczki (nawiązań i pomiarowa) mają model o tej wysokości.
 
@@ -228,8 +239,8 @@ Jeśli cyfry na łacie są w grze do góry nogami, ustaw `FLIP_V = True` w `asse
 
 - Plugin nie zapisuje stanu: po wyjściu z gry sprzęt trzeba postawić od nowa (wyniki zostają w CSV).
 - Trzy roboty: ciąg niwelacyjny, pomiar GNSS (RTK) i tachimetria; niwelacja trygonometryczna dojdzie jako kolejny moduł `Job`.
-- Tachimetria: bez wcięcia wstecz i w przód, bez stanowiska dowolnego, bez wyrównania osnowy, bez wytyczania i jedno stanowisko na robotę.
-- Pomiar GNSS: bez stacji bazowej i bez pomiaru statycznego.
+- Tachimetria: bez wcięcia w przód, bez wyrównania osnowy i jedno stanowisko na robotę.
+- Pomiar GNSS: poprawki z własnej bazy to model uproszczony (1 ppm + przesunięcie bazy), bez wielu baz i bez przetwarzania linii bazowych; statyka to pojedyncza sesja 120 epok.
 - Kreski dalmiercze liczone są dla pola widzenia gry; przy bardzo wąskim FOV mogą wypaść poza lunetę (wtedy są pomijane, wpis w `GothicSurveying.log`).
 - Hook na `zCWorld::Render` sprawdzono tylko na Gothic II NotR 2.6 (fix) ze Steam Gold Classic.
 

@@ -320,6 +320,41 @@ static void single_face_in_two_face_mode_has_errors_and_kp_needs_kl() {
   assert(f.job->FinishTachy(true).backsights.empty() && has(f.label("faces"), "jedno"));
 }
 
+static const GridPos ST{5500000.0, 6500000.0, 100.0}, G1p{5500100.0, 6500000.0, 100.0}, G2p{5500000.0, 6500080.0, 100.0}, G3p{5500040.0, 6500033.0, 100.0};
+
+static void free_station_resection() {
+  Fx f([](FakeTachy& w) { w.allControls = {CP("G1", G1p, 0.01, -0.01), CP("G2", G2p, -0.01, 0.01), CP("G3", G3p)}; w.nearStation = w.allControls; });
+  assert(f.enabled("free") && has(f.label("free"), "znanym"));
+  f.menu("free"); assert(has(f.label("free"), "dowolne") && !f.job->NeedsChoice("station"));
+  f.menu("station"); f.menu("backsight:G1"); f.menu("backsight:G2"); f.menu("prism");
+  assert(has(f.fireAt(G1p, 1.5), "wymaga min. 2") && f.job->FinishTachy(true).backsights.empty());
+  assert(has(f.fireAt(G2p, 1.5), "Nawiazanie") && f.job->FinishTachy(true).backsights.size() == 2);
+  TachyReport r = f.job->FinishTachy(true);
+  assert(near(r.stationN, 5500000.0, 0.05) && near(r.stationE, 6500000.0, 0.05) && near(r.stationH, 100.0, 0.05) && has(r.coordSource, "dowolne"));
+  f.w.prism = GridPos{5500040.0, 6500030.0, 100.0};
+  assert(has(f.fireAt(f.w.prism, 1.5), "T1"));
+  const TachyPoint p = f.job->FinishTachy(true).points[0];
+  assert(near(p.n, 5500040.0, 0.05) && near(p.e, 6500030.0, 0.05) && near(p.h, 100.0, 0.06));
+  assert(has(f.job->TachyPanel(0.0, 0.0)[3], "Stanowisko dowolne: N"));
+}
+
+static void stakeout_guides_and_confirms() {
+  Fx f([](FakeTachy& w) { w.allControls = {CP("G0", ST), CP("G1", G1p), CP("G3", G3p)}; w.nearHero = {CP("G0", ST)}; w.nearStation = {CP("G1", G1p), CP("G3", G3p)}; });
+  f.menu("station:G0"); f.menu("backsight:G1"); f.menu("prism");
+  assert(!f.enabled("stake") && !f.enabled("unstake"));                    // najpierw orientacja
+  f.orient(1);
+  assert(f.enabled("stake") && f.job->NeedsChoice("stake") && f.job->TachyChoices("stake").size() == 2);
+  f.menu("stake:G3"); assert(f.enabled("unstake") && has(f.label("stake"), "G3"));
+  f.w.prism = GridPos{5500040.0, 6500030.0, 100.0};                         // 3 m na zachod od celu G3
+  std::string m = f.fireAt(f.w.prism, 1.5);
+  assert(has(m, "T1") && has(m, "G3") && (has(m, "dalej") || has(m, "blizej")) && has(m, "w prawo"));
+  assert(has(f.job->FinishTachy(true).points[0].note, "wytyczanie G3"));
+  f.w.prism = G3p;                                                          // tyczka na celu
+  m = f.fireAt(f.w.prism, 1.5);
+  assert(has(m, "wytyczony"));
+  f.menu("unstake"); assert(!has(f.fireAt(f.w.prism, 1.5), "wytyczony") && !f.enabled("unstake"));
+}
+
 int main() {
   registry_lists_tachy(); menu_state_true_mode(); multiple_backsights_orientation_mean(); single_backsight_works(); measure_before_orient_refused();
   backsight_aiming_is_angular(); remeasure_overwrites(); orientation_locked_after_first_point(); gnss_items_and_control_point_in_tachy_job(); gnss_pole_and_prism_exclude_each_other(); changes_clear_readings(); limit_five_backsights();
@@ -327,6 +362,7 @@ int main() {
   prism_height_is_the_physical_height(); aim_must_be_on_prism_not_ground(); reflectorless_measures_surface_point();
   true_error_and_abort(); extreme_aim_does_not_crash();
   two_faces_measure_in_kl_and_kp(); single_face_in_two_face_mode_has_errors_and_kp_needs_kl();
+  free_station_resection(); stakeout_guides_and_confirms();
   std::puts("test_tachy_job OK");
   return 0;
 }
