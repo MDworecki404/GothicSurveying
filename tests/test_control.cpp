@@ -73,8 +73,15 @@ static void compass_solution_and_sort_helpers() {
   assert(v[0].id == "G01" && v[1].id == "G02" && v[2].id == "G10" && v[3].id == "O2" && v[4].id == "O10");        // G przed O, numerycznie
 }
 
+static void remove_points_by_id_and_world() {
+  std::vector<ControlPoint> v = {P("G01", "NEWWORLD", 0, 0), P("G02", "NEWWORLD", 1, 1), P("O1", "NEWWORLD", 2, 2), P("G01", "OLDWORLD", 3, 3)};
+  assert(ControlRemove(v, "newworld.zen", {"G01", "O1", "X9"}) == 2);                // tylko ten swiat; nieistniejace id pomijane
+  assert(v.size() == 2 && v[0].id == "G02" && v[1].world == "OLDWORLD" && v[1].id == "G01");
+  assert(ControlRemove(v, "NEWWORLD", {}) == 0 && ControlRemove(v, "ADDONWORLD", {"G01"}) == 0);
+}
+
 int main() {
-  csv_roundtrip(); csv_tolerates_garbage(); next_id(); near_filters_and_sorts(); world_key_normalizes_names(); near_matches_world_by_key(); compass_solution_and_sort_helpers();
+  csv_roundtrip(); csv_tolerates_garbage(); next_id(); near_filters_and_sorts(); world_key_normalizes_names(); near_matches_world_by_key(); compass_solution_and_sort_helpers(); remove_points_by_id_and_world();
   std::puts("test_control OK");
   return 0;
 }

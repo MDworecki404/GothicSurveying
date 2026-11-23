@@ -315,11 +315,60 @@ namespace GOTHIC_NAMESPACE {
     } );
   }
 
+  // Usuwanie osnowy: potwierdzenie (domyslnie "Nie"), potem skasowanie punktow z pliku i znakow ze swiata.
+  inline void CtrlConfirmRemoveControl( const std::vector<std::string>& ids, const std::string& what ) {
+    if ( ids.empty() ) { HudMessage( "Brak takich punktow osnowy w tym swiecie" ); return; }
+    MenuOpen( MenuView{ "Usunac " + what + "?", { { "no", "Nie, zostaw", "", true },
+                                                   { "yes", "Tak, usun (" + std::to_string( ids.size() ) + " pkt, nieodwracalne)", "", true } } },
+              [ids]( const std::string& id ) {
+      if ( id != "yes" ) return;
+      HudMessage( ( "Usunieto punktow osnowy: " + std::to_string( ControlRemoveIds( ids ) ) ).c_str() );
+    } );
+  }
+
+  inline void CtrlOpenRemoveList( int page ) {
+    ControlEnsureLoaded();
+    std::vector<ControlPoint> pts = ControlNear( gControl, ControlWorldName(), 0.0, 0.0, 0.0, 1e12 );
+    ControlSortById( pts );
+    if ( pts.empty() ) { HudMessage( "Brak punktow osnowy w tym swiecie" ); return; }
+    const int per = 10, pages = ( (int)pts.size() + per - 1 ) / per;
+    page = ( std::max )( 0, ( std::min )( page, pages - 1 ) );
+    const zVEC3 hero = player ? player->GetPositionWorld() : zVEC3( 0, 0, 0 );
+    MenuView v{ "Usun punkt osnowy (" + std::to_string( page + 1 ) + "/" + std::to_string( pages ) + ")", {} };
+    for ( int i = page * per; i < (int)pts.size() && i < ( page + 1 ) * per; i++ ) {
+      const ControlPoint& c = pts[i]; const double dx = c.x - hero[VX], dz = c.z - hero[VZ];
+      char b[200]; sprintf( b, "%s  %.0f m %s", c.id.c_str(), sqrt( dx * dx + dz * dz ) / 100.0, ControlCompass( dx, dz ) );
+      v.items.push_back( { "rm:" + c.id, b, "", true } );
+    }
+    if ( page + 1 < pages ) v.items.push_back( { "rm_next", "Nastepna strona", "", true } );
+    if ( page > 0 ) v.items.push_back( { "rm_prev", "Poprzednia strona", "", true } );
+    MenuOpen( v, [page]( const std::string& id ) {
+      if ( id == "rm_next" ) { CtrlOpenRemoveList( page + 1 ); return; }
+      if ( id == "rm_prev" ) { CtrlOpenRemoveList( page - 1 ); return; }
+      if ( id.compare( 0, 3, "rm:" ) == 0 ) CtrlConfirmRemoveControl( { id.substr( 3 ) }, "punkt " + id.substr( 3 ) );
+    } );
+  }
+
+  inline void CtrlOpenRemoveMenu() {
+    ControlEnsureLoaded();
+    MenuView v{ "Usun osnowe (biezacy swiat)", { { "one", "Usun jeden punkt (z listy)", "", true },
+                                                  { "g", "Usun punkty wzorcowe swiata (G..)", "", true },
+                                                  { "o", "Usun punkty zalozone GNSS (O..)", "", true },
+                                                  { "all", "Usun cala osnowe swiata", "", true } } };
+    MenuOpen( v, []( const std::string& id ) {
+      if ( id == "one" ) { CtrlOpenRemoveList( 0 ); return; }
+      std::vector<std::string> ids;
+      for ( const ControlPoint& c : ControlNear( gControl, ControlWorldName(), 0.0, 0.0, 0.0, 1e12 ) )
+        if ( id == "all" || ( id == "g" && c.id[0] == 'G' ) || ( id == "o" && c.id[0] == 'O' ) ) ids.push_back( c.id );
+      CtrlConfirmRemoveControl( ids, id == "all" ? "cala osnowe swiata" : id == "g" ? "punkty wzorcowe swiata" : "punkty zalozone GNSS" );
+    } );
+  }
+
   inline void CtrlOpenMenu() {
     if ( !gJob ) {
-      MenuOpen( MenuView{ "Menu geodezyjne", { { "start", "Rozpocznij robote", "", true }, { "world", "Zaladuj osnowe geodezyjna swiata", "", true }, { "control", "Pokaz osnowe", "", true }, { "map", "Mapa osnowy", "", true }, { "tp", "Teleport do punktu osnowy", "", true },
+      MenuOpen( MenuView{ "Menu geodezyjne", { { "start", "Rozpocznij robote", "", true }, { "world", "Zaladuj osnowe geodezyjna swiata", "", true }, { "control", "Pokaz osnowe", "", true }, { "map", "Mapa osnowy", "", true }, { "tp", "Teleport do punktu osnowy", "", true }, { "rm", "Usun osnowe", "", true },
                                              { "lvl", gLevelingOn ? "Poziomowanie instrumentow: wlaczone (zmien)" : "Poziomowanie instrumentow: wylaczone (zmien)", "dotyczy nastepnych stanowisk", true } } },
-                []( const std::string& id ) { if ( id == "lvl" ) { gLevelingOn = !gLevelingOn; HudMessage( gLevelingOn ? "Poziomowanie instrumentow wlaczone" : "Poziomowanie instrumentow wylaczone" ); } else if ( id == "control" ) CtrlShowControl(); else if ( id == "world" ) CtrlLoadWorldControl(); else if ( id == "map" ) MapOpen(); else if ( id == "tp" ) CtrlOpenTeleport( 0 ); else CtrlOpenStartMenu(); } );
+                []( const std::string& id ) { if ( id == "lvl" ) { gLevelingOn = !gLevelingOn; HudMessage( gLevelingOn ? "Poziomowanie instrumentow wlaczone" : "Poziomowanie instrumentow wylaczone" ); } else if ( id == "control" ) CtrlShowControl(); else if ( id == "world" ) CtrlLoadWorldControl(); else if ( id == "map" ) MapOpen(); else if ( id == "tp" ) CtrlOpenTeleport( 0 ); else if ( id == "rm" ) CtrlOpenRemoveMenu(); else CtrlOpenStartMenu(); } );
       return;
     }
     MenuView v{ gJob->Name(), gJob->Menu() };

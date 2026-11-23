@@ -115,6 +115,16 @@ inline void ControlSortById(std::vector<ControlPoint>& v) {
   });
 }
 
+// Usuwa z osnowy punkty swiata o podanych id; zwraca liczbe usunietych.
+inline int ControlRemove(std::vector<ControlPoint>& pts, const std::string& world, const std::vector<std::string>& ids) {
+  const std::string key = ControlWorldKey(world); int n = 0;
+  for (size_t i = pts.size(); i-- > 0;) {
+    if (ControlWorldKey(pts[i].world) != key) continue;
+    for (const std::string& id : ids) if (pts[i].id == id) { pts.erase(pts.begin() + (long)i); n++; break; }
+  }
+  return n;
+}
+
 // Punkty z danego swiata w poziomej odleglosci [minM, maxM] od (xCm, zCm), rosnaco wg odleglosci.
 inline std::vector<ControlPoint> ControlNear(const std::vector<ControlPoint>& pts, const std::string& world, double xCm, double zCm,
                                              double minM, double maxM) {

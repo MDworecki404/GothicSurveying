@@ -48,6 +48,12 @@ namespace GOTHIC_NAMESPACE {
     ControlEnsureLoaded();
     const std::string wn = ControlWorldName();
     if ( wn != gControlSyncWorld || ControlMarkersStale() ) { ControlForgetMarkers(); gControlSyncWorld = wn; }
+    for ( auto it = gControlMarkers.begin(); it != gControlMarkers.end(); ) {      // znaki punktow usunietych z osnowy znikaja
+      bool exists = false;
+      for ( const ControlPoint& cp : gControl ) if ( cp.id == it->first && ControlWorldKey( cp.world ) == ControlWorldKey( wn ) ) exists = true;
+      if ( exists ) { ++it; continue; }
+      RemoveVobSafe( it->second ); it = gControlMarkers.erase( it );
+    }
     for ( const ControlPoint& cp : gControl )
       if ( ControlWorldKey( cp.world ) == ControlWorldKey( wn ) && !gControlMarkers.count( cp.id ) ) gControlMarkers[cp.id] = SpawnVob( LV_VIS_REPER, zVEC3( (float)cp.x, (float)cp.y, (float)cp.z ) );
   }
@@ -67,6 +73,14 @@ namespace GOTHIC_NAMESPACE {
     const int added = ControlMergeWorldSet( gControl, ControlWorldName() );
     if ( added > 0 ) { ControlSave(); ControlSyncMarkers(); }
     return added;
+  }
+
+  // Usuwa punkty biezacego swiata o podanych id (plik i znaki w swiecie). Zwraca liczbe usunietych.
+  inline int ControlRemoveIds( const std::vector<std::string>& ids ) {
+    ControlEnsureLoaded();
+    const int n = ControlRemove( gControl, ControlWorldName(), ids );
+    if ( n > 0 ) { ControlSave(); ControlSyncMarkers(); }
+    return n;
   }
 
   // Dodaje punkt do osnowy: id, swiat, zapis pliku, znak w swiecie. Zwraca id; "" przy bledzie zapisu (punkt nie zostaje w pamieci).
