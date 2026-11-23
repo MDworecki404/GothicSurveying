@@ -1,4 +1,4 @@
-# GothicSurveying
+﻿# GothicSurveying
 
 Niwelacja geometryczna w **Gothic II: Noc Kruka** jako plugin [Union](https://gothic-modding-community.github.io/gmc/zengin/union).
 Stawiasz niwelator, łaty i żabki, patrzysz przez lunetę z krzyżem kresek, **sam odczytujesz podziałkę z łaty**
@@ -126,6 +126,15 @@ Osnowę można zakładać także **w trakcie roboty Tachimetria**: menu ma pozyc
 z lustrem: po założeniu punktu postaw tyczkę z lustrem ponownie; w trakcie pomiaru GNSS nie można jej przestawić. Nowy punkt trafia do osnowy i jest od razu dostępny jako źródło
 współrzędnych (przełącznik „Źródło współrzędnych”, możliwy przed postawieniem tachimetru). Punkty GNSS założone w tachimetrii nie trafiają do dziennika tachimetrycznego, tylko do `osnowa.csv`.
 
+**Osnowa geodezyjna świata (wzorcowa).** Wtyczka ma wbudowany gotowy zestaw punktów osnowy dla czterech światów Gothica II: Khorinis (21 punktów, `NEWWORLD`), Dolina Górnicza (31, `OLDWORLD`)
+i Jarkendar (11, `ADDONWORLD`); Irdorath (statek) nie ma zestawu. W menu głównym (bez roboty) pozycja **Załaduj osnowę geodezyjną świata** dopisuje punkty bieżącego świata do osnowy
+(id `G01`, `G02`…, opis miejsca w polu rozwiązania, np. „osnowa wzorcowa: Cmentarz”), stawia ich znaki i pokazuje listę od najbliższych z odległością i kierunkiem od ciebie. Ponowne
+załadowanie nic nie duplikuje, a punkty z robót GNSS (O1, O2…) zostają. Współrzędne punktów wzorcowych są dokładne (do 1 mm), więc nadają się jako osnowa wyższego rzędu niż punkty z GNSS.
+Rozmieszczenie wyliczył skrypt `assets/make_world_control.py` z modeli światów (płaski i otwarty teren w pobliżu dróg, odstępy co najmniej 40–70 m, wzajemna widoczność, nazwy
+od najbliższej lokacji). **Mapa osnowy** (pozycja „Mapa osnowy” w menu głównym i w menu każdej roboty) otwiera panel z mapą świata (cieniowany teren i sieć dróg, północ u góry),
+punktami osnowy z numerami (czerwone: wzorcowa G.., zielone: założona GNSS-em O..), żółtym znacznikiem ciebie i informacją o najbliższym punkcie; Enter albo Home zamyka. Mapy i dane
+generuje ten sam skrypt, a tekstury `LVL_MAP_<świat>.TGA` są w `assets/worldmaps` i trafiają do gry razem z modelami. **Teleport do punktu osnowy** (menu głównym i w menu roboty) pokazuje listę punktów świata (numery jak na mapie, nazwa miejsca, odległość i kierunek; po 10 na stronę) i przenosi bohatera nad wybrany znak. W ciasnych miejscach (miasto, wąwozy) jakość nieba bywa gorsza, więc fix GNSS tam nie jest pewny.
+
 Współrzędne osnowy mają błąd GNSS (centymetry), więc przechodzą na pomiary tachimetryczne oparte na osnowie. Obiekty pluginu (znaki, tyczki, sprzęt) nie są
 zapisywane w zapisach gry, a znaki osnowy są stawiane na nowo z pliku, więc nie powinny się dublować po wczytaniu zapisu. Zapisy zrobione starszą wersją pluginu mogą mieć
 „duchy” (zapisany kask, tyczkę lub znak) - wczytaj zapis sprzed pomiarów.
@@ -148,9 +157,14 @@ nawiązania albo przestawienie stanowiska kasuje odczyty (orientację trzeba zro
 
 **Rodzaj pomiaru** (menu): *na lustro* albo *bezlustrowy*. Pomiar bezlustrowy nie wymaga tyczki: celujesz w dowolny punkt terenu lub budynku, a odległość
 mierzy promień (pierwszy trafiony punkt, od 1,5 m do 300 m, szum odległości 3 mm + 2 ppm); wysokość lustra nie jest odejmowana, a punkt ma uwagę „bezlustrowy”.
+**Położenia lunety** (menu: jedno / dwa KL+KP): w trybie dwóch instrument ma ukryte błędy kolimacji i indeksu pionowego (kilka mgon), więc pojedynczy odczyt jest obciążony.
+Każdy cel (nawiązanie, punkt na lustro, punkt bezlustrowy) mierzysz **Enter** w KL, naciskasz **K** (przerzut lunety: panel pokazuje Hz+200 g i V′ = 400 g − V), celujesz ponownie i **Enter** w KP;
+wynik to średnia (Hz = Hz_KL + ½(Hz_KP − 200 − Hz_KL), V = ½(V_KL − V_KP + 400)), a komunikat i uwaga punktu podają wyznaczone `c` (kolimacja) i `i` (indeks) w mgon.
+Zmiana trybu kasuje orientację. Domyślnie jedno położenie, bez tych błędów.
+
 **Wysokość lustra** (menu: 1,500 / 1,800 / 2,000 / 1,300 m) to fizyczna wysokość środka lustra: tyczki (nawiązań i pomiarowa) mają model o tej wysokości.
 
-W lunecie: **← →** obrót w poziomie, **↑ ↓** pochylanie w pionie, **Shift** = powoli, **Enter** mierzy nawiązanie albo punkt, **F10** wychodzi. Panel w lewym dolnym rogu pokazuje
+W lunecie: **← →** obrót w poziomie, **↑ ↓** pochylanie w pionie, **Shift** = powoli, w niwelacji menu ma pozycję **Wysun laty** (3 → 4 → 5 m; łata ma wtedy 10 odcinków z opisem decymetrów do 49, a odczyt może być do 5000 mm), **PgUp / PgDn** zmieniają powiększenie lunety (3×–40×, domyślnie 20×; działa też w niwelatorze), **Z** szybko najeżdża na kolejne lustro (nawiązania i tyczka) — lustro ląduje w polu widzenia lunety, ale celowo obok krzyża, więc dokładne naprowadzenie robisz strzałkami; **Enter** mierzy nawiązanie albo punkt, **F10** wychodzi. Panel w lewym dolnym rogu pokazuje
 Hz i V na żywo (grady), stan nawiązań, rodzaj pomiaru, liczbę punktów i ostatni wynik. Celowanie wymaga trafienia w środek lustra z dokładnością **±0,02°** (nie mniej niż 1,5 cm),
 odległości 3–300 m i niezasłoniętej linii celowej; lustro nawiązania ma pierwszeństwo, gdy oba lustra leżą na tej samej linii.
 
@@ -214,7 +228,7 @@ Jeśli cyfry na łacie są w grze do góry nogami, ustaw `FLIP_V = True` w `asse
 
 - Plugin nie zapisuje stanu: po wyjściu z gry sprzęt trzeba postawić od nowa (wyniki zostają w CSV).
 - Trzy roboty: ciąg niwelacyjny, pomiar GNSS (RTK) i tachimetria; niwelacja trygonometryczna dojdzie jako kolejny moduł `Job`.
-- Tachimetria: bez wcięcia wstecz i w przód, bez stanowiska dowolnego, bez wyrównania osnowy, bez wytyczania i bez pomiaru w dwóch położeniach lunety; jedno stanowisko na robotę.
+- Tachimetria: bez wcięcia wstecz i w przód, bez stanowiska dowolnego, bez wyrównania osnowy, bez wytyczania i jedno stanowisko na robotę.
 - Pomiar GNSS: bez stacji bazowej i bez pomiaru statycznego.
 - Kreski dalmiercze liczone są dla pola widzenia gry; przy bardzo wąskim FOV mogą wypaść poza lunetę (wtedy są pomijane, wpis w `GothicSurveying.log`).
 - Hook na `zCWorld::Render` sprawdzono tylko na Gothic II NotR 2.6 (fix) ze Steam Gold Classic.

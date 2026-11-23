@@ -7,10 +7,11 @@
 
 namespace GOTHIC_NAMESPACE {
   inline const char*  LV_RETICLE   = "LVL_RETICLE.TGA";
-  inline const float  LV_ROD_LEN   = 300.0f;   // długość łaty [cm]
+  inline float        gRodLenCm    = 300.0f;   // długość wysuniętej łaty [cm]: 300, 400 albo 500 (menu niwelacji)
   inline const float  LV_ROD_HALF  = 5.0f;     // pionowa kreska musi leżeć na łacie (pół szerokości 6 cm, z zapasem) [cm]
   inline const float  LV_MAX_DIST  = 6000.0f;  // maks. celowa [cm]
-  inline const float  LV_ZOOM      = 20.0f;    // powiększenie lunety
+  inline const float  LV_ZOOM      = 20.0f;    // powiększenie lunety (domyślne; PgUp/PgDn zmieniają gZoom w granicach LV_ZOOM_MIN..MAX)
+  inline const float  LV_ZOOM_MIN  = 3.0f, LV_ZOOM_MAX = 40.0f, LV_ZOOM_STEP = 1.25f;
   inline const float  LV_TURN_FAST = 12.0f;    // obrót niwelatora [stopnie/s]
   inline const float  LV_TURN_SLOW = 1.0f;     // obrót powolny (Shift) [stopnie/s]
   inline const float  LV_STADIA_K  = 100.0f;   // stała dalmierza nitkowego (kreski na krzyżu są tylko wizualne; odczyt liczy robota)
@@ -27,6 +28,7 @@ namespace GOTHIC_NAMESPACE {
   inline bool      gScopeOn = false, gEntry = false, gTurning = false, gFovSaved = false, gHairsDone = false;
   inline float     gAz = 0, gFovX = 0, gFovY = 0;      // azymut osi lunety [rad]: kierunek (sin az, 0, cos az)
   inline DWORD     gLastTick = 0;
+  inline float     gZoom = LV_ZOOM;                    // bieżące powiększenie lunety (wspólne dla niwelatora i tachimetru)
   inline float     gTurnTo = 0;                        // docelowy azymut obrotu na łatę [rad]
   inline zVEC3     gInstrGround;
   inline zCView   *gReticle = nullptr, *gHairU = nullptr, *gHairL = nullptr, *gEntryPanel = nullptr;
@@ -37,6 +39,16 @@ namespace GOTHIC_NAMESPACE {
 
   inline bool ScopeActive() { return gScopeOn; }
 
+  // PgUp / PgDn: zmiana powiekszenia (x1,25 na nacisniecie); true gdy sie zmienilo.
+  inline bool ZoomKeys() {
+    const float old = gZoom;
+    if ( zinput->KeyToggled( LV_KEY_ZOOM_IN ) )  gZoom = ( std::min )( LV_ZOOM_MAX, gZoom * LV_ZOOM_STEP );
+    if ( zinput->KeyToggled( LV_KEY_ZOOM_OUT ) ) gZoom = ( std::max )( LV_ZOOM_MIN, gZoom / LV_ZOOM_STEP );
+    if ( gZoom == old ) return false;
+    char b[48]; sprintf( b, "Powiekszenie %.0fx", gZoom ); HudMessage( b );
+    return true;
+  }
+
   // Zbliżenie lunety; poza widokiem przywraca FOV gry.
   inline void ScopeApplyZoom() {
     zCCamera* c = zCCamera::activeCam;
@@ -44,7 +56,7 @@ namespace GOTHIC_NAMESPACE {
     if ( gScopeOn ) {
       if ( !gFovSaved ) { c->GetFOV( gFovX, gFovY ); gFovSaved = true; }
       const float rad = 3.14159265f / 180.0f;
-      c->SetFOV( (float)( 2 * atan( tan( gFovX * rad / 2 ) / LV_ZOOM ) / rad ), (float)( 2 * atan( tan( gFovY * rad / 2 ) / LV_ZOOM ) / rad ) );
+      c->SetFOV( (float)( 2 * atan( tan( gFovX * rad / 2 ) / gZoom ) / rad ), (float)( 2 * atan( tan( gFovY * rad / 2 ) / gZoom ) / rad ) );
     } else if ( gFovSaved ) {
       c->SetFOV( gFovX, gFovY ); gFovSaved = false;
     }
@@ -54,10 +66,10 @@ namespace GOTHIC_NAMESPACE {
   // wynosi 4096 * (1/(2k)) / tg(pionowe FOV zbliżenia / 2) = 4096 * zoom / (2k * tg(pionowe FOV gry / 2)).
   inline void ScopeOpenHairs() {
     const float rad = 3.14159265f / 180.0f;
-    int off = (int)( 4096.0 * LV_ZOOM / ( 2.0 * LV_STADIA_K * tan( gFovY * rad / 2 ) ) );
+    int off = (int)( 4096.0 * gZoom / ( 2.0 * LV_STADIA_K * tan( gFovY * rad / 2 ) ) );
     if ( off < 40 || off > 3600 ) { SvTrace( "kreski dalmiercze poza zakresem ekranu - pominiete" ); return; }
     auto hair = [&]( int y ) {
-      zCView* v = new zCView( 3500, y - 11, 4700, y + 11 );
+      zCView* v = new zCView( 3500, y - 6, 4700, y + 6 );
       v->InsertBack( "LVL_HAIR.TGA" );
       v->SetAlphaBlendFunc( zRND_ALPHA_FUNC_BLEND );
       screen->InsertItem( v ); ViewOpenNow( v );
@@ -141,7 +153,7 @@ namespace GOTHIC_NAMESPACE {
       }
     }
     double ideal = LevelReading( lineY, r.foot[VY], bestFwd, 0.0, 0.0 );
-    if ( ideal < 0 || ideal > LV_ROD_LEN ) { HudMessage( "Pozioma kreska jest poza lata (nad nia lub pod nia)" ); return; }
+    if ( ideal < 0 || ideal > gRodLenCm ) { HudMessage( "Pozioma kreska jest poza lata (nad nia lub pod nia)" ); return; }
 
     gEntryRole = r.role; gEntry = true; gEntryPoint = r.pointId; gEntryLen = 0; gEntryMm = 0; gTurning = false;
     HudClose();
@@ -159,6 +171,7 @@ namespace GOTHIC_NAMESPACE {
     DWORD now = GetTickCount();
     float dt = ( now - gLastTick ) / 1000.0f; gLastTick = now;
     if ( dt > 0.1f ) dt = 0.1f;
+    if ( ZoomKeys() ) { PanelClose( gHairU ); PanelClose( gHairL ); gHairsDone = false; }   // kreski dalmiercze przeliczone na nowe powiekszenie
     if ( !gHairsDone && gFovSaved ) { gHairsDone = true; ScopeOpenHairs(); }     // FOV gry znany dopiero po pierwszym zastosowaniu zbliżenia
 
     if ( zinput->KeyToggled( LV_KEY_SCOPE ) ) {        // klawisz lunety: anuluj wpisywanie, a gdy go nie ma - wyjdź z widoku
@@ -171,7 +184,7 @@ namespace GOTHIC_NAMESPACE {
         if ( zinput->KeyToggled( digitKeys[d] ) && gEntryLen < 4 ) { gEntryMm = gEntryMm * 10 + d; gEntryLen++; }
       if ( zinput->KeyToggled( KEY_BACK ) && gEntryLen > 0 ) { gEntryMm /= 10; gEntryLen--; }
       if ( zinput->KeyToggled( KEY_RETURN ) ) {
-        if ( gEntryLen > 0 && gEntryMm <= 3000 ) ScopeFinishEntry( gEntryMm );
+        if ( gEntryLen > 0 && gEntryMm <= (int)( gRodLenCm * 10 ) ) ScopeFinishEntry( gEntryMm );
       }
       if ( gEntry && gEntryPanel ) {
         char b[96];

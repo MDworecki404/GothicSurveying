@@ -87,7 +87,7 @@ class LevelingTraverse : public Job {
   }
 
   bool OnReading(int pointId, int midMm) override {
-    if (!instrument_ || midMm < 0 || midMm > 3000) return false;
+    if (!instrument_ || midMm < 0 || midMm > 5000) return false;
     if (backRod_ && !backRead_ && pointId == curBack_) {
       backMm_ = midMm; backSight_ = w_.SightDistCm(pointId); backStadia_ = LevelStadiaMeasured(midMm, backSight_); backRead_ = true; return true;
     }

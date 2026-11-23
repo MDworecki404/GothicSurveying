@@ -1,0 +1,81 @@
+// Wygenerowane przez assets/make_world_control.py - nie edytuj recznie.
+// Osnowa geodezyjna swiatow Gothic II (uklad lokalny wtyczki: E = x/100, N = z/100, H = y/100 w metrach; do dodania N0/E0).
+#pragma once
+
+struct WorldControlRow { const char* world; const char* id; const char* place; double e, n, h; };
+
+inline const WorldControlRow WORLD_CONTROL[] = {
+  {"NEWWORLD", "G01", "Burdel", -40.662, -50.715, 1.450},
+  {"NEWWORLD", "G02", "Burdel", -10.368, -19.826, -1.755},
+  {"NEWWORLD", "G03", "Burdel", 70.814, -88.205, 4.559},
+  {"NEWWORLD", "G04", "Cmentarz", 450.206, -145.881, 25.123},
+  {"NEWWORLD", "G05", "Gorne Miasto", 172.196, -72.570, 24.672},
+  {"NEWWORLD", "G06", "Gospodarstwo Lobarta", 138.830, -150.127, 16.987},
+  {"NEWWORLD", "G07", "Gospodarstwo Onara", 597.816, -104.526, 20.597},
+  {"NEWWORLD", "G08", "Gospodarstwo Onara", 644.777, -63.691, 24.703},
+  {"NEWWORLD", "G09", "Karczma", 2.196, 23.735, -1.831},
+  {"NEWWORLD", "G10", "Karczma", 315.130, 69.181, 36.056},
+  {"NEWWORLD", "G11", "Karczma", 411.422, -27.052, 37.508},
+  {"NEWWORLD", "G12", "Karczma", 542.779, -96.089, 17.398},
+  {"NEWWORLD", "G13", "Koszary", 128.032, 117.469, 40.962},
+  {"NEWWORLD", "G14", "Latarnia morska", -53.849, 138.406, -7.019},
+  {"NEWWORLD", "G15", "Latarnia morska", 6.153, 207.620, 30.148},
+  {"NEWWORLD", "G16", "Przejscie do: Irdorath", -72.914, -199.846, -2.259},
+  {"NEWWORLD", "G17", "Przelecz do Gorniczej Doliny", 521.947, -253.624, 31.541},
+  {"NEWWORLD", "G18", "Wawoz trolli", 537.643, 356.160, 77.837},
+  {"NEWWORLD", "G19", "Wawoz trolli", 606.165, 386.203, 69.783},
+  {"NEWWORLD", "G20", "Wawoz trolli", 647.976, 358.001, 71.137},
+  {"NEWWORLD", "G21", "Wieza Xardasa", 453.612, -226.865, 27.315},
+  {"OLDWORLD", "G01", "Leze smoka", -345.981, 24.105, 2.644},
+  {"OLDWORLD", "G02", "Leze smoka", -301.661, -143.857, 24.833},
+  {"OLDWORLD", "G03", "Leze smoka", -294.425, -48.653, 8.294},
+  {"OLDWORLD", "G04", "Leze smoka", -214.290, -40.028, 4.989},
+  {"OLDWORLD", "G05", "Leze smoka", -212.843, 152.040, -2.189},
+  {"OLDWORLD", "G06", "Leze smoka", -178.192, -121.593, 11.392},
+  {"OLDWORLD", "G07", "Leze smoka", -175.091, -211.457, 23.348},
+  {"OLDWORLD", "G08", "Leze smoka", -148.419, -290.291, 25.840},
+  {"OLDWORLD", "G09", "Leze smoka", -129.212, -131.031, 8.103},
+  {"OLDWORLD", "G10", "Leze smoka", -107.965, -2.361, -7.029},
+  {"OLDWORLD", "G11", "Leze smoka", -49.886, -56.647, -5.275},
+  {"OLDWORLD", "G12", "Leze smoka", 12.341, -252.071, 56.583},
+  {"OLDWORLD", "G13", "Leze smoka", 13.581, -301.127, 59.198},
+  {"OLDWORLD", "G14", "Leze smoka", 28.356, -119.088, 15.082},
+  {"OLDWORLD", "G15", "Leze smoka", 58.139, -43.710, -6.057},
+  {"OLDWORLD", "G16", "Leze smoka", 93.857, -274.152, 71.725},
+  {"OLDWORLD", "G17", "Leze smoka", 119.972, -79.248, 0.047},
+  {"OLDWORLD", "G18", "Leze smoka", 127.602, 5.673, 2.769},
+  {"OLDWORLD", "G19", "Leze smoka", 137.353, -147.324, 10.866},
+  {"OLDWORLD", "G20", "Leze smoka", 173.072, -167.227, 11.797},
+  {"OLDWORLD", "G21", "Leze smoka", 218.298, -178.174, 14.872},
+  {"OLDWORLD", "G22", "Nowy Oboz", -536.226, 138.439, 34.566},
+  {"OLDWORLD", "G23", "Nowy Oboz", -310.040, 114.848, 7.644},
+  {"OLDWORLD", "G24", "Nowy Oboz", -274.706, 180.490, -4.661},
+  {"OLDWORLD", "G25", "Przejscie do: Khorinis", -171.685, 133.203, -4.656},
+  {"OLDWORLD", "G26", "Przejscie do: Khorinis", -116.982, 183.365, -1.930},
+  {"OLDWORLD", "G27", "Przejscie do: Khorinis", -70.592, 77.148, -12.457},
+  {"OLDWORLD", "G28", "Przejscie do: Khorinis", 12.453, 112.819, -15.400},
+  {"OLDWORLD", "G29", "Przejscie do: Khorinis", 50.094, 52.888, -9.964},
+  {"OLDWORLD", "G30", "Przejscie do: Khorinis", 111.349, 128.780, -15.071},
+  {"OLDWORLD", "G31", "Przejscie do: Khorinis", 173.213, 61.148, 2.097},
+  {"ADDONWORLD", "G01", "Kanion", -227.218, 182.005, -11.427},
+  {"ADDONWORLD", "G02", "Krypta", -157.436, -60.412, -5.071},
+  {"ADDONWORLD", "G03", "Oboz piratow", -415.222, 246.216, -21.244},
+  {"ADDONWORLD", "G04", "Oboz piratow", -382.464, 220.634, -21.244},
+  {"ADDONWORLD", "G05", "Oboz piratow", -382.018, 93.032, -20.808},
+  {"ADDONWORLD", "G06", "Oboz piratow", -373.922, 178.318, -19.722},
+  {"ADDONWORLD", "G07", "Oboz piratow", -350.292, 251.263, -21.244},
+  {"ADDONWORLD", "G08", "Oboz piratow", -317.342, 281.599, -21.244},
+  {"ADDONWORLD", "G09", "Oboz piratow", -293.853, 139.246, -10.012},
+  {"ADDONWORLD", "G10", "Wejscie do Jarkendaru", -88.610, -108.507, -18.775},
+  {"ADDONWORLD", "G11", "Wejscie do Jarkendaru", 6.026, -76.667, -10.520},
+};
+inline const int WORLD_CONTROL_COUNT = (int)(sizeof(WORLD_CONTROL) / sizeof(WORLD_CONTROL[0]));
+
+// Mapa swiata (tekstura LVL_MAP_<swiat>.TGA, polnoc u gory): lewy dolny rog (E0, N0) i bok kwadratu [m] w ukladzie lokalnym.
+struct WorldMapInfo { const char* world; double e0, n0, side; };
+inline const WorldMapInfo WORLD_MAPS[] = {
+  {"NEWWORLD", -190.2, -559.2, 1150.0},
+  {"OLDWORLD", -694.3, -671.1, 1350.0},
+  {"ADDONWORLD", -516.3, -468.2, 1000.0},
+};
+inline const int WORLD_MAPS_COUNT = (int)(sizeof(WORLD_MAPS) / sizeof(WORLD_MAPS[0]));

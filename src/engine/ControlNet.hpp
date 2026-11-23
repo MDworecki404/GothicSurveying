@@ -1,6 +1,7 @@
 // Osnowa GNSS w silniku: trwaly plik GothicSurveying/osnowa.csv, znaki (repery) w swiecie niezalezne od robot.
 // Dolaczane raz z Plugin.hpp po Placement.hpp i przed World.hpp, bez straznika include.
 #include <filesystem>
+#include "calc/WorldControl.hpp"
 #include <fstream>
 #include <map>
 #include <sstream>
@@ -48,7 +49,7 @@ namespace GOTHIC_NAMESPACE {
     const std::string wn = ControlWorldName();
     if ( wn != gControlSyncWorld || ControlMarkersStale() ) { ControlForgetMarkers(); gControlSyncWorld = wn; }
     for ( const ControlPoint& cp : gControl )
-      if ( cp.world == wn && !gControlMarkers.count( cp.id ) ) gControlMarkers[cp.id] = SpawnVob( LV_VIS_REPER, zVEC3( (float)cp.x, (float)cp.y, (float)cp.z ) );
+      if ( ControlWorldKey( cp.world ) == ControlWorldKey( wn ) && !gControlMarkers.count( cp.id ) ) gControlMarkers[cp.id] = SpawnVob( LV_VIS_REPER, zVEC3( (float)cp.x, (float)cp.y, (float)cp.z ) );
   }
 
   // Co 0,5 s: pilnuje znakow (nowy swiat, wczytany zapis).
@@ -59,10 +60,19 @@ namespace GOTHIC_NAMESPACE {
     ControlSyncMarkers();
   }
 
+  // Wczytuje wzorcowa osnowe geodezyjna biezacego swiata (dane wbudowane we wtyczke): dopisuje brakujace punkty do osnowy, zapisuje plik,
+  // stawia znaki. Zwraca liczbe dopisanych punktow (0 = juz zaladowana albo brak zestawu dla swiata).
+  inline int ControlLoadWorldSet() {
+    ControlEnsureLoaded();
+    const int added = ControlMergeWorldSet( gControl, ControlWorldName() );
+    if ( added > 0 ) { ControlSave(); ControlSyncMarkers(); }
+    return added;
+  }
+
   // Dodaje punkt do osnowy: id, swiat, zapis pliku, znak w swiecie. Zwraca id; "" przy bledzie zapisu (punkt nie zostaje w pamieci).
   inline std::string ControlAdd( ControlPoint cp ) {
     ControlEnsureLoaded();
-    cp.id = ControlNextId( gControl ); cp.world = ControlWorldName();
+    cp.id = ControlNextId( gControl ); cp.world = ControlWorldKey( ControlWorldName() );
     gControl.push_back( cp );
     if ( !ControlSave() ) { gControl.pop_back(); return ""; }
     ControlSyncMarkers();

@@ -101,6 +101,7 @@ namespace GOTHIC_NAMESPACE {
       if ( r.points.size() > before ) AppendTachyLog( gReadingLog, r.points.back(), (int)r.points.size(), r.showTrueError );   // punkt od razu do logu
       return msg;
     };
+    cb.flip = []() { return gJob ? gJob->TachyFlip() : std::string(); };
     cb.panel = []( double az, double pitch ) { return gJob ? gJob->TachyPanel( az, pitch ) : std::vector<std::string>(); };
     TachyViewEnter( cb );
   }
@@ -231,28 +232,84 @@ namespace GOTHIC_NAMESPACE {
               []( const std::string& id ) { if ( gJob ) gJob->OnMenu( id ); } );
   }
 
-  // Podglad osnowy biezacego swiata (z pliku GothicSurveying/osnowa.csv).
+  // Podglad osnowy biezacego swiata (z pliku GothicSurveying/osnowa.csv): od najblizszych, z odlegloscia i kierunkiem od bohatera.
   inline void CtrlShowControl() {
     ControlEnsureLoaded();
     const std::string wn = ControlWorldName();
+    const zVEC3 hero = player ? player->GetPositionWorld() : zVEC3( 0, 0, 0 );
+    std::vector<ControlPoint> pts = ControlNear( gControl, wn, hero[VX], hero[VZ], 0.0, 1e9 );    // posortowane rosnaco wg odleglosci
     std::vector<std::string> lines;
-    for ( const ControlPoint& c : gControl ) {
-      if ( c.world != wn ) continue;
-      char b[200]; sprintf( b, "%s  N %.3f  E %.3f  H %.3f  %s  PDOP %.1f  %d ep.", c.id.c_str(), c.n, c.e, c.h, c.solution.c_str(), c.pdop, c.epochs );
+    for ( const ControlPoint& c : pts ) {
+      const double dx = c.x - hero[VX], dz = c.z - hero[VZ];
+      char b[220]; sprintf( b, "%s  %.0f m %s  N %.3f  E %.3f  H %.3f  %s", c.id.c_str(), sqrt( dx * dx + dz * dz ) / 100.0, ControlCompass( dx, dz ), c.n, c.e, c.h, c.solution.c_str() );
       lines.push_back( b );
     }
-    if ( lines.empty() ) lines.push_back( "Brak punktow osnowy w tym swiecie. Zaloz je w robocie GNSS (Zaloz punkt osnowy)." );
-    TextPanelShow( "Osnowa GNSS - punkty swiata " + wn, lines, "Plik: GothicSurveying/osnowa.csv" );
+    if ( lines.empty() ) lines.push_back( "Brak punktow osnowy w tym swiecie. Zaladuj osnowe swiata albo zaloz punkty w robocie GNSS." );
+    TextPanelShow( "Osnowa - swiat " + wn + " (od najblizszych)", lines, "Plik: GothicSurveying/osnowa.csv" );
+  }
+
+  // "Zaladuj osnowe geodezyjna swiata": wzorcowe punkty swiata trafiaja do osnowy (znaki w swiecie), potem lista od najblizszych.
+  inline void CtrlLoadWorldControl() {
+    const std::string wn = ControlWorldName();
+    const size_t total = WorldControlFor( wn ).size();
+    SvTrace( ( "osnowa wzorcowa: swiat \"" + wn + "\" (klucz " + ControlWorldKey( wn ) + "), punktow w zestawie: " + std::to_string( total ) ).c_str() );
+    if ( total == 0 ) { HudMessage( ( "Brak osnowy wzorcowej dla swiata " + wn ).c_str() ); return; }
+    const int added = ControlLoadWorldSet();
+    char b[160];
+    if ( added > 0 ) sprintf( b, "Zaladowano osnowe swiata: %d punktow (G01...)", added );
+    else sprintf( b, "Osnowa swiata jest juz zaladowana (%d punktow)", (int)total );
+    HudMessage( b );
+    CtrlShowControl();
+  }
+
+  // Teleport do punktu osnowy: lista punktow biezacego swiata (wg numerow z mapy), 10 na strone.
+  inline void CtrlOpenTeleport( int page ) {
+    ControlEnsureLoaded();
+    const std::string wn = ControlWorldName();
+    std::vector<ControlPoint> pts = ControlNear( gControl, wn, 0.0, 0.0, 0.0, 1e12 );
+    ControlSortById( pts );
+    if ( pts.empty() ) { HudMessage( "Brak punktow osnowy w tym swiecie (Zaladuj osnowe geodezyjna swiata)" ); return; }
+    const int per = 10, pages = ( (int)pts.size() + per - 1 ) / per;
+    page = ( std::max )( 0, ( std::min )( page, pages - 1 ) );
+    const zVEC3 hero = player ? player->GetPositionWorld() : zVEC3( 0, 0, 0 );
+    MenuView v{ "Teleport do punktu osnowy (" + std::to_string( page + 1 ) + "/" + std::to_string( pages ) + ")", {} };
+    for ( int i = page * per; i < (int)pts.size() && i < ( page + 1 ) * per; i++ ) {
+      const ControlPoint& c = pts[i]; const double dx = c.x - hero[VX], dz = c.z - hero[VZ];
+      char b[200]; sprintf( b, "%s  %s  %.0f m %s", c.id.c_str(), ControlPlaceName( c ).c_str(), sqrt( dx * dx + dz * dz ) / 100.0, ControlCompass( dx, dz ) );
+      v.items.push_back( { "tp:" + c.id, b, "", true } );
+    }
+    if ( page + 1 < pages ) v.items.push_back( { "tp_next", "Nastepna strona", "", true } );
+    if ( page > 0 ) v.items.push_back( { "tp_prev", "Poprzednia strona", "", true } );
+    MenuOpen( v, [page]( const std::string& id ) {
+      if ( id == "tp_next" ) { CtrlOpenTeleport( page + 1 ); return; }
+      if ( id == "tp_prev" ) { CtrlOpenTeleport( page - 1 ); return; }
+      for ( const ControlPoint& c : gControl )
+        if ( "tp:" + c.id == id && ControlWorldKey( c.world ) == ControlWorldKey( ControlWorldName() ) ) {
+          if ( player ) {
+            zVEC3 to( (float)c.x, (float)c.y + 100.0f, (float)c.z );     // 1 m nad znakiem, bohater opada na teren
+            const zVEC3 from = player->GetPositionWorld();
+            player->ResetPos( to );                                       // jak w silniku: przestawia tez AI/fizyke bohatera (samo SetPositionWorld wraca)
+            const zVEC3 now = player->GetPositionWorld();
+            char t[200]; sprintf( t, "teleport %s: z (%.0f,%.0f,%.0f) cel (%.0f,%.0f,%.0f) po (%.0f,%.0f,%.0f)", c.id.c_str(), from[VX], from[VY], from[VZ], to[VX], to[VY], to[VZ], now[VX], now[VY], now[VZ] );
+            SvTrace( t );
+          }
+          HudMessage( ( "Teleport: punkt " + c.id ).c_str() );
+          return;
+        }
+    } );
   }
 
   inline void CtrlOpenMenu() {
     if ( !gJob ) {
-      MenuOpen( MenuView{ "Menu geodezyjne", { { "start", "Rozpocznij robote", "", true }, { "control", "Pokaz osnowe", "", true } } },
-                []( const std::string& id ) { if ( id == "control" ) CtrlShowControl(); else CtrlOpenStartMenu(); } );
+      MenuOpen( MenuView{ "Menu geodezyjne", { { "start", "Rozpocznij robote", "", true }, { "world", "Zaladuj osnowe geodezyjna swiata", "", true }, { "control", "Pokaz osnowe", "", true }, { "map", "Mapa osnowy", "", true }, { "tp", "Teleport do punktu osnowy", "", true } } },
+                []( const std::string& id ) { if ( id == "control" ) CtrlShowControl(); else if ( id == "world" ) CtrlLoadWorldControl(); else if ( id == "map" ) MapOpen(); else if ( id == "tp" ) CtrlOpenTeleport( 0 ); else CtrlOpenStartMenu(); } );
       return;
     }
     MenuView v{ gJob->Name(), gJob->Menu() };
     if ( gJob->Kind() == JobKind::Leveling ) v.items.push_back( { "scope", "Patrz przez lunete (" LV_KEYNAME_SCOPE ")", "najpierw niwelator i lata", gWorld.HasInstrument() && !gJob->ActiveRodPoints().empty() } );
+    if ( gJob->Kind() == JobKind::Leveling ) { char b[64]; sprintf( b, "Wysun laty: teraz %.0f m (zmien na %.0f m)", gRodLenCm / 100.0f, gRodLenCm >= 500.0f ? 3.0f : gRodLenCm / 100.0f + 1.0f ); v.items.push_back( { "rodlen", b, "3, 4 albo 5 m", true } ); }
+    v.items.push_back( { "map", "Mapa osnowy", "", true } );
+    v.items.push_back( { "tp", "Teleport do punktu osnowy", "", true } );
     v.items.push_back( { "abort", "Przerwij robote (bez dziennika)", "", true } );
     MenuOpen( v, []( const std::string& id ) {
       if ( !gJob ) return;
@@ -261,6 +318,9 @@ namespace GOTHIC_NAMESPACE {
       else if ( id == "fine" ) PoleFineEnter();
       else if ( id == "view" ) { gJob->OnMenu( id ); CtrlEnterTachyView(); }
       else if ( gJob->NeedsChoice( id ) ) CtrlOpenChoice( id );
+      else if ( id == "rodlen" ) { gRodLenCm = gRodLenCm >= 500.0f ? 300.0f : gRodLenCm + 100.0f; gWorld.RefreshRods(); HudMessage( ( "Lata wysunieta na " + std::to_string( (int)( gRodLenCm / 100.0f ) ) + " m" ).c_str() ); }
+      else if ( id == "map" ) MapOpen();
+      else if ( id == "tp" ) CtrlOpenTeleport( 0 );
       else if ( id == "abort" ) CtrlConfirmAbort();
       else {
         const size_t before = gJob->Kind() == JobKind::Gnss ? gJob->FinishGnss( false ).points.size() : 0;
@@ -304,7 +364,7 @@ namespace GOTHIC_NAMESPACE {
         else CtrlSavePartial( gJob->Finish( false ) );
       }
       if ( FieldBookEditActive() ) { gPendingFb.complete = false; ExportFieldBook( gPendingFb, gJobDir, true ); }
-      FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); CtrlForgetJob(); gCtrlWorld = w;
+      FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); MapClose(); CtrlForgetJob(); gCtrlWorld = w;
     }
     if ( !w ) return;
     ControlTick();                                     // znaki osnowy: nowy swiat / wczytany zapis
@@ -312,7 +372,7 @@ namespace GOTHIC_NAMESPACE {
     const DWORD nowClock = GetTickCount();
     double dtClock = ( nowClock - lastClock ) / 1000.0; lastClock = nowClock;
     if ( dtClock > 0.2 ) dtClock = 0.2;
-    const bool gamePaused = MenuIsOpen() || ScopeActive() || FieldBookVisible() || TextPanelVisible() || FieldBookEditActive() || PoleFineActive() || TachyViewActive();
+    const bool gamePaused = MenuIsOpen() || ScopeActive() || FieldBookVisible() || TextPanelVisible() || FieldBookEditActive() || PoleFineActive() || TachyViewActive() || MapActive();
     if ( !gamePaused ) { gWorld.AdvanceClock( dtClock ); if ( gJob ) gJob->Tick(); }   // zegar symulacji stoi, gdy gra zatrzymana
     if ( !MenuIsOpen() && !ScopeActive() && !PoleFineActive() && !TachyViewActive() ) gWorld.DressTick();   // przy zatrzymanej grze nic się nie rusza
     ScopeTick();
@@ -321,6 +381,7 @@ namespace GOTHIC_NAMESPACE {
     HudTick();
     if ( ScopeActive() || PoleFineActive() || TachyViewActive() ) { CtrlCloseJobHud(); return; }
     if ( FieldBookEditActive() ) { if ( FieldBookEditTick() ) CtrlFinishManual(); return; }
+    if ( MapActive() ) { MapTick(); return; }
     if ( TextPanelVisible() ) { TextPanelTick(); return; }
     if ( FieldBookVisible() ) { FieldBookTick(); return; }
     if ( MenuIsOpen() ) { MenuTick(); return; }

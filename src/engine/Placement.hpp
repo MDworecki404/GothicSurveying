@@ -1,7 +1,7 @@
 // Stawianie obiektów pod stopami bohatera. Dołączane raz z Plugin.hpp, bez strażnika include.
 namespace GOTHIC_NAMESPACE {
   inline const char*  LV_VIS_INSTR = "LVL_INSTR.3DS";   // modele i tekstury: assets/make_models.py
-  inline const char*  LV_VIS_ROD   = "LVL_ROD.3DS";
+  inline const char*  LV_VIS_ROD[3] = { "LVL_ROD.3DS", "LVL_RODL4.3DS", "LVL_RODL5.3DS" };   // łata wysunięta na 3, 4 i 5 m
   inline const char*  LV_VIS_PLATE = "LVL_PLATE.3DS";
   inline const char*  LV_VIS_REPER = "LVL_REPER.3DS";
   inline const char*  LV_VIS_TACHY = "LVL_TACHY.3DS";    // tachimetr na statywie (os lunety 150 cm nad gruntem)

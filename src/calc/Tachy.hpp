@@ -44,6 +44,27 @@ inline TachyReading TachyMeasure(double camAzDeg, double camPitchDeg, double az0
   return {NormGon(DegToGon(hzDeg)), DegToGon(vDeg), (std::max)(0.0, slope)};
 }
 
+// Dwa polozenia lunety. Bledy instrumentu: kolimacji c (wplyw na Hz: c / sin V) i indeksu pionowego i (zero kola pionowego), oba w gradach.
+// KL (face 1): Hz = Hz0 + c/sinV, V = V0 + i.  KP (face 2): Hz = Hz0 + 200 - c/sinV, V = 400 - V0 + i.
+inline TachyReading TachyMeasureFace(double camAzDeg, double camPitchDeg, double az0Deg, double trueSlopeM, const TachyNoise& nz, GnssRng& rng,
+                                     int face, double collGon, double indexGon) {
+  TachyReading r = TachyMeasure(camAzDeg, camPitchDeg, az0Deg, trueSlopeM, nz, rng);
+  const double sinV = (std::max)(0.05, std::sin(GonToDeg(r.vGon) * TACHY_PI / 180.0)), ch = collGon / sinV;
+  if (face == 2) return {NormGon(r.hzGon + 200.0 - ch), (std::min)(400.0, (std::max)(0.0, 400.0 - r.vGon + indexGon)), r.slopeM};
+  return {NormGon(r.hzGon + ch), (std::min)(400.0, (std::max)(0.0, r.vGon + indexGon)), r.slopeM};
+}
+
+struct TachyFaceMean { TachyReading r; double twoC = 0, index = 0; };   // twoC = Hz(KP) - 200 - Hz(KL) [gon] (= -2c/sinV), index = (V_KL + V_KP - 400) / 2 [gon]
+
+// Srednia z KL i KP: usuwa kolimacje i indeks; odchylki pokazuja wielkosc bledow instrumentu.
+inline TachyFaceMean TachyCombineFaces(const TachyReading& kl, const TachyReading& kp) {
+  double d = NormGon(kp.hzGon - 200.0 - kl.hzGon + 200.0) - 200.0;           // do (-200, 200)
+  TachyFaceMean m;
+  m.r = {NormGon(kl.hzGon + d / 2.0), (kl.vGon - kp.vGon + 400.0) / 2.0, (kl.slopeM + kp.slopeM) / 2.0};
+  m.twoC = d; m.index = (kl.vGon + kp.vGon - 400.0) / 2.0;
+  return m;
+}
+
 struct TachyResult { double n, e, h, hDistM, azDeg; };
 
 // Wynik biegunowy z odczytów: Az = azymut nawiązania + Hz, d = D sin V, H = Hs + ih + D cos V - wysokość lustra.

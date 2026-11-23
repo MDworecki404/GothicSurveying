@@ -9,6 +9,7 @@ namespace GOTHIC_NAMESPACE {
   struct TachyCallbacks {
     std::function<std::string( double camAzDeg, double camPitchDeg )> fire;                  // Enter: komunikat (ASCII) do wyswietlenia
     std::function<std::vector<std::string>( double, double )> panel;                         // linie panelu odczytow
+    std::function<std::string()> flip;                                                       // K: przerzut lunety; komunikat
     std::function<void()> onLeave;
   };
 
@@ -29,7 +30,7 @@ namespace GOTHIC_NAMESPACE {
     const float rad = 3.14159265f / 180.0f;
     if ( gTachyOn ) {
       if ( !gTachyFovSaved ) { c->GetFOV( gTachyFovX, gTachyFovY ); gTachyFovSaved = true; }
-      c->SetFOV( (float)( 2 * atan( tan( gTachyFovX * rad / 2 ) / LV_ZOOM ) / rad ), (float)( 2 * atan( tan( gTachyFovY * rad / 2 ) / LV_ZOOM ) / rad ) );
+      c->SetFOV( (float)( 2 * atan( tan( gTachyFovX * rad / 2 ) / gZoom ) / rad ), (float)( 2 * atan( tan( gTachyFovY * rad / 2 ) / gZoom ) / rad ) );
     } else if ( gTachyFovSaved ) {
       c->SetFOV( gTachyFovX, gTachyFovY ); gTachyFovSaved = false;
     }
@@ -75,6 +76,7 @@ namespace GOTHIC_NAMESPACE {
     gTachyOn = true; gTachyLast = GetTickCount();
     ogame->Pause();
     TachyViewRedraw();
+    HudMessage( LV_KEYNAME_AIM " - szybkie najechanie na lustro, " LV_KEYNAME_ZOOM " - powiekszenie" );
   }
 
   inline void TachyViewTick() {
@@ -92,6 +94,19 @@ namespace GOTHIC_NAMESPACE {
     const float lim = 89.0f * 3.14159265f / 180.0f;             // nie przechodzimy przez zenit/nadir
     if ( gTachyPitch > lim ) gTachyPitch = lim;
     if ( gTachyPitch < -lim ) gTachyPitch = -lim;
+    ZoomKeys();
+    if ( zinput->KeyToggled( LV_KEY_FLIP ) && gTachyCb.flip ) { const std::string m = gTachyCb.flip(); if ( !m.empty() ) HudMessage( m.c_str() ); }
+    if ( zinput->KeyToggled( LV_KEY_AIM ) ) {                   // najazd z celowym bledem: lustro ma sie pojawic w polu widzenia, ale nie w krzyzu
+      const std::vector<zVEC3> t = gWorld.PrismTops();
+      if ( t.empty() ) HudMessage( "Brak lustra do najechania" );
+      else {
+        static size_t next = 0; const zVEC3& p = t[next++ % t.size()];
+        const float dx = p[VX] - gTachyGround[VX], dz = p[VZ] - gTachyGround[VZ], dy = p[VY] - ( gTachyGround[VY] + LV_INSTR_H );
+        const float fx = 2 * atanf( tanf( gTachyFovX * 3.14159265f / 360.0f ) / gZoom ), fy = 2 * atanf( tanf( gTachyFovY * 3.14159265f / 360.0f ) / gZoom );
+        gTachyAz = atan2f( dx, dz ) + 0.25f * fx;               // ~1/4 pola widzenia w prawo i ~1/6 w gore od lustra
+        gTachyPitch = atan2f( dy, sqrtf( dx * dx + dz * dz ) ) + 0.17f * fy;
+      }
+    }
     if ( zinput->KeyToggled( KEY_RETURN ) && gTachyCb.fire ) {
       const std::string msg = gTachyCb.fire( gTachyAz * 180.0 / 3.14159265, gTachyPitch * 180.0 / 3.14159265 );
       if ( !msg.empty() ) HudMessage( msg.c_str() );

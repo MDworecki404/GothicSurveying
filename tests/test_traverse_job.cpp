@@ -118,7 +118,7 @@ static void abort_without_stands_returns_incomplete_empty_book() {
 
 static void reading_rejects_out_of_range() {
   Fx f; f.menu("reper_a"); f.menu("instrument"); f.menu("rod_back");
-  assert(!f.read(1, 3001));
+  assert(!f.read(1, 5001));
   assert(!f.read(1, -5));
   assert(f.read(1, 1500));
 }
