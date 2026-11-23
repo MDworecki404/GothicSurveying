@@ -20,9 +20,9 @@ class TrigLevelJob : public Job {
     const std::string instAt = Name_(InstPoint()), prismAt = Name_(PrismPoint());
     return {
       {"reper_a", "Postaw reper A (punkt startowy)", "stan w miejscu reperu", !hasA_},
-      {"inst", (instUp_ ? "Przestaw tachimetr na punkcie " : "Postaw tachimetr na punkcie ") + instAt, "najpierw reper A; stan na punkcie (60 cm)", hasA_},
+      {"inst", (instUp_ ? "Przestaw tachimetr na punkcie " : "Postaw tachimetr na punkcie ") + instAt, "najpierw reper A; tachimetr staje nad znakiem punktu", hasA_ && InstPoint() > 0},
       {"prism", T_ == 0 && phase_ == 0 ? "Postaw punkt celu z lustrem" : (prismUp_ ? "Przestaw lustro na punkcie " : "Postaw lustro na punkcie ") + prismAt,
-       "najpierw reper A; lustro stoi w punkcie celu (tam) albo startowym (powrot)", hasA_},
+       "najpierw reper A; tam: nowy punkt celu pod stopami, powrot: lustro na punkcie startowym", hasA_},
       {"prismh", ph, "najpierw reper A", hasA_},
       {"view", "Patrz przez lunete (" LV_KEYNAME_SCOPE ")", "najpierw tachimetr i lustro na swoich punktach", instUp_ && prismUp_},
       {"finish", "Zakoncz robote", "najpierw zmierz co najmniej jeden odcinek tam i z powrotem", CanFinish()},
@@ -36,17 +36,15 @@ class TrigLevelJob : public Job {
       hasA_ = true; S_ = 1; hS_ = w_.PointHeightM(1); nextId_ = 2;
       char b[80]; std::snprintf(b, sizeof b, "Reper A: H = %.3f m", hS_); w_.Say(b);
     } else if (id == "inst") {
-      if (!w_.FeetWithinCm(InstPoint(), 60.0)) { w_.Say("Stan na punkcie " + Name_(InstPoint()) + " (60 cm)"); return; }
-      if (!w_.PlaceTachymeter()) { w_.Say("Brak gruntu pod stopami"); return; }
+      if (!w_.PlaceTachymeterOnPoint(InstPoint())) { w_.Say("Nie mozna postawic tachimetru na punkcie " + Name_(InstPoint())); return; }
       instUp_ = true;
     } else if (id == "prism") {
       if (phase_ == 0 && T_ == 0) {                   // nowy punkt celu: znak i lustro w miejscu stania
         if (!w_.PlaceMarker(nextId_, MarkerKind::Turning)) { w_.Say("Brak gruntu pod stopami"); return; }
-        if (!w_.PlacePrism()) { w_.Say("Brak gruntu pod stopami"); return; }
+        if (!w_.PlacePrismOnPoint(nextId_)) { w_.Say("Nie mozna postawic lustra"); return; }
         T_ = nextId_++;
       } else {
-        if (!w_.FeetWithinCm(PrismPoint(), 60.0)) { w_.Say("Stan na punkcie " + Name_(PrismPoint()) + " (60 cm)"); return; }
-        if (!w_.PlacePrism()) { w_.Say("Brak gruntu pod stopami"); return; }
+        if (!w_.PlacePrismOnPoint(PrismPoint())) { w_.Say("Nie mozna postawic lustra na punkcie " + Name_(PrismPoint())); return; }
       }
       prismUp_ = true;
     } else if (id == "prismh") {

@@ -86,6 +86,19 @@ namespace GOTHIC_NAMESPACE {
       PlaceTachymeterPos( zVEC3( (float)cp.x, (float)cp.y, (float)cp.z ) );
       return true;
     }
+    bool PlaceTachymeterOnPoint( int pointId ) override {          // nad znakiem punktu (reper A, punkt celu): staje dokladnie na jego pozycji
+      if ( !pts_.count( pointId ) ) return false;
+      PlaceTachymeterPos( Foot( pointId ) );
+      return true;
+    }
+    bool PlacePrismOnPoint( int pointId ) override {
+      if ( !pts_.count( pointId ) ) return false;
+      const zVEC3 p = Foot( pointId );
+      RemoveVobSafe( pole_ );
+      pole_ = SpawnVob( PrismModel( prismH_ ), p ); poleGround_ = p; hasPole_ = true; poleIsPrism_ = true;
+      FaceInstrument( pole_ );
+      return true;
+    }
     bool PlaceBacksight( int slot ) override {         // nawiazanie nr slot: znak + lustro na tyczce pod stopami
       zVEC3 p;
       if ( slot < 1 || slot > 5 || !FeetGround( p ) ) return false;

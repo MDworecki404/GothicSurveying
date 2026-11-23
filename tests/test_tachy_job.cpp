@@ -48,6 +48,8 @@ struct FakeTachy : IWorld {
   GridPos StationGrid() const override { return station; }
   GridPos PointGrid(int slot) const override { return back[slot - 1]; }
   bool PlacePrism() override { placed.push_back("prism"); return ground; }
+  bool PlaceTachymeterOnPoint(int) override { placed.push_back("tachymeter-on-point"); return true; }
+  bool PlacePrismOnPoint(int) override { placed.push_back("prism-on-point"); return true; }
   // GNSS wewnatrz roboty tachimetrycznej: tyczka z odbiornikiem, niebo, zegar, zapis osnowy
   SkyMask mask; double now = 0; std::vector<ControlPoint> stored; std::string nextId = "O1";
   bool PlacePole() override { placed.push_back("pole"); return ground; }

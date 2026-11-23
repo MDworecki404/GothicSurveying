@@ -196,9 +196,9 @@ przerwana: `pomiar_tachimetryczny_przerwany.csv`), każdy punkt od razu w `odczy
 i **z powrotem** (tachimetr na T, lustro na S): średnia usuwa wpływ wysokości instrumentu i lustra oraz większość krzywizny i refrakcji, a suma obu pomiarów to kontrola
 (dopuszczalnie 10 mm + 20 mm/km).
 
-Przebieg: **Postaw reper A** (wysokość znana) → **Postaw tachimetr na punkcie A** (stań na nim, 60 cm) → przejdź i **Postaw punkt celu z lustrem** → **Patrz przez lunetę** (**F10**),
+Przebieg: **Postaw reper A** (wysokość znana) → **Postaw tachimetr na punkcie A** (staje nad znakiem, bez chodzenia) → przejdź i **Postaw punkt celu z lustrem** (znak i lustro pod stopami) → **Patrz przez lunetę** (**F10**),
 wyceluj w lustro (jak w tachimetrii, ±0,02°) i **Enter** → komunikat prosi o przeniesienie tachimetru na B i lustra na A → pomiar z powrotem → wynik odcinka (Δh średnie, suma, H punktu B).
-Następny odcinek zaczyna się na B: potwierdź tachimetr na B (stań na nim) i postaw nowy punkt celu C itd. Wyniki: `pomiar_tachimetryczny.csv` i `.docx` w folderze roboty (tabela odcinków i pojedyncze obserwacje); opcja prawdziwego błędu dodaje błąd Δh.
+Następny odcinek zaczyna się na B: postaw tachimetr na B (staje nad znakiem) i nowy punkt celu C itd. Przy pomiarze z powrotem tachimetr i lustro też stają nad znakami punktów, więc nie musisz przy nich stać. Wyniki: `pomiar_tachimetryczny.csv` i `.docx` w folderze roboty (tabela odcinków i pojedyncze obserwacje); opcja prawdziwego błędu dodaje błąd Δh.
 
 ## Obsadzka (zmiana wysokości niwelatora)
 
