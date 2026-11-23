@@ -12,7 +12,7 @@ namespace GOTHIC_NAMESPACE {
 
   inline const char* LV_FONT = "FONT_OLD_10_WHITE.TGA";   // mniejsza czcionka; większa: FONT_OLD_20_WHITE.TGA
 
-  inline const int LV_FRAME_PX = 5;                           // grubość złotej ramki paneli [piksele ekranu]
+  inline const int LV_FRAME_PX = 3;                           // grubość złotej ramki paneli [piksele ekranu]
   inline std::map<zCView*, std::vector<zCView*>> gPanelFrames;   // cztery paski ramki każdego panelu (zamykane razem z nim)
 
   inline void ViewOpenNow( zCView* v ) {                       // bez animacji powiększania przy otwieraniu i zamykaniu
@@ -34,7 +34,7 @@ namespace GOTHIC_NAMESPACE {
     v->SetFont( LV_FONT );
     screen->InsertItem( v );
     ViewOpenNow( v );
-    const int tx = screen->nax( LV_FRAME_PX ), ty = screen->nay( LV_FRAME_PX );   // stała grubość w pikselach, niezależnie od rozmiaru panelu
+    const int tx = screen->anx( LV_FRAME_PX ), ty = screen->any( LV_FRAME_PX );   // stała grubość w pikselach, niezależnie od rozmiaru panelu
     gPanelFrames[v] = { PanelBar( x0, y0, x1, y0 + ty, "LVL_GOLDH.TGA" ), PanelBar( x0, y1 - ty, x1, y1, "LVL_GOLDH.TGA" ),
                         PanelBar( x0, y0, x0 + tx, y1, "LVL_GOLDV.TGA" ), PanelBar( x1 - tx, y0, x1, y1, "LVL_GOLDV.TGA" ) };
     return v;

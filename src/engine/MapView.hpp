@@ -19,8 +19,8 @@ namespace GOTHIC_NAMESPACE {
   }
 
   inline void MapDot( const char* tex, int centerXpx, int centerYpx, int sizePx ) {      // mały znacznik na mapie (pozycja i rozmiar w pikselach ekranu)
-    zCView* d = new zCView( screen->nax( centerXpx - sizePx / 2 ), screen->nay( centerYpx - sizePx / 2 ),
-                            screen->nax( centerXpx + sizePx / 2 ), screen->nay( centerYpx + sizePx / 2 ) );
+    zCView* d = new zCView( screen->anx( centerXpx - sizePx / 2 ), screen->any( centerYpx - sizePx / 2 ),
+                            screen->anx( centerXpx + sizePx / 2 ), screen->any( centerYpx + sizePx / 2 ) );
     d->InsertBack( tex );
     d->SetAlphaBlendFunc( zRND_ALPHA_FUNC_BLEND );
     screen->InsertItem( d ); ViewOpenNow( d );
@@ -32,14 +32,14 @@ namespace GOTHIC_NAMESPACE {
     const std::string wn = ControlWorldName(); WorldMapView mv;
     if ( !WorldMapFor( wn, mv ) ) { HudMessage( ( "Brak mapy osnowy dla swiata " + wn ).c_str() ); return; }
     ControlEnsureLoaded();
-    const int sw = screen->anx( 8192 ), sh = screen->any( 8192 );          // rozmiar ekranu w pikselach
+    const int sw = screen->nax( 8192 ), sh = screen->nay( 8192 );          // rozmiar ekranu w pikselach
     const int S = (int)( sh * 0.72 ), bar = 38, gap = 6;                    // mapa kwadratowa S x S px, paski tekstu nad i pod nią
     const int total = S + 2 * bar + 2 * gap, x0 = ( sw - S ) / 2, y0 = ( sh - total ) / 2;
     const int my0 = y0 + bar + gap;                                         // górny brzeg mapy [px]
     const std::string tex = "LVL_MAP_" + ControlWorldKey( wn ) + ".TGA";
-    gMapTop    = PanelOpen( screen->nax( x0 ), screen->nay( y0 ), screen->nax( x0 + S ), screen->nay( y0 + bar ) );
-    gMapPanel  = PanelOpenTex( screen->nax( x0 ), screen->nay( my0 ), screen->nax( x0 + S ), screen->nay( my0 + S ), tex.c_str() );
-    gMapBottom = PanelOpen( screen->nax( x0 ), screen->nay( my0 + S + gap ), screen->nax( x0 + S ), screen->nay( my0 + S + gap + bar ) );
+    gMapTop    = PanelOpen( screen->anx( x0 ), screen->any( y0 ), screen->anx( x0 + S ), screen->any( y0 + bar ) );
+    gMapPanel  = PanelOpenTex( screen->anx( x0 ), screen->any( my0 ), screen->anx( x0 + S ), screen->any( my0 + S ), tex.c_str() );
+    gMapBottom = PanelOpen( screen->anx( x0 ), screen->any( my0 + S + gap ), screen->anx( x0 + S ), screen->any( my0 + S + gap + bar ) );
     ogame->Pause();
 
     const zVEC3 hero = player ? player->GetPositionWorld() : zVEC3( 0, 0, 0 );
