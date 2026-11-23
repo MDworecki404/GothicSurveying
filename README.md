@@ -200,6 +200,14 @@ Przebieg: **Postaw reper A** (wysokość znana) → **Postaw tachimetr na punkci
 wyceluj w lustro (jak w tachimetrii, ±0,02°) i **Enter** → komunikat prosi o przeniesienie tachimetru na B i lustra na A → pomiar z powrotem → wynik odcinka (Δh średnie, suma, H punktu B).
 Następny odcinek zaczyna się na B: postaw tachimetr na B (staje nad znakiem) i nowy punkt celu C itd. Przy pomiarze z powrotem tachimetr i lustro też stają nad znakami punktów, więc nie musisz przy nich stać. Wyniki: `pomiar_tachimetryczny.csv` i `.docx` w folderze roboty (tabela odcinków i pojedyncze obserwacje); opcja prawdziwego błędu dodaje błąd Δh.
 
+## Poziomowanie instrumentu
+
+Każdy niwelator i tachimetr (także w niwelacji trygonometrycznej) staje po postawieniu **krzywo na statywie** (pochylenie 9–16′, babelek poza kółkiem libelli).
+W menu roboty jest **„Poziomuj instrument (libella)”**: panel z libellą okrągłą, babelkiem i trzema śrubami ustawczymi (1 u góry, 2 w lewym dolnym, 3 w prawym dolnym rogu).
+**1 / 2 / 3** podnoszą śrubę (obrót w prawo) i przesuwają babelek w jej stronę, **4 / 5 / 6** opuszczają, **Shift** = dokładnie (0,1′ zamiast 1′); Enter zamyka.
+Niwelator wymaga babelka w kółku (≤ 8′), tachimetr libelli elektronicznej (≤ 0,5′ = 30″; poniżej 1,25′ panel powiększa widok). Bez tego odczyt jest blokowany
+(„niwelator niewypoziomowany”). Każde nowe stanowisko trzeba poziomować od nowa. W menu głównym można wyłączyć poziomowanie („Poziomowanie instrumentów”, dla następnych stanowisk).
+
 ## Obsadzka (zmiana wysokości niwelatora)
 
 Gdy na stanowisku masz odczyty wstecz i wprzód, w menu (Home) dostępna jest **Obsadzka**: niwelator zostaje losowo podniesiony albo obniżony

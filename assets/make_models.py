@@ -215,6 +215,21 @@ def reticle_pixel(w, h):
     return px
 
 
+def libella_pixel(w, h):
+    """Libella okragla: ciemne tlo, pierscien tolerancji (0,4 promienia), obrys szkla (0,9 promienia) i krzyz."""
+    cx, cy, R = (w - 1) / 2, (h - 1) / 2, 0.45 * w
+    def px(x, y):
+        r = math.hypot(x - cx, y - cy) / R
+        if r > 1.02:
+            return (10, 10, 20, 255)
+        if abs(r - 1.0) < 0.012 or abs(r - 0.4) < 0.012:
+            return (230, 200, 90, 255)                           # zloty obrys szkla i okrag tolerancji
+        if abs(x - cx) < 1.0 or abs(y - cy) < 1.0:
+            return (90, 90, 110, 255)                            # krzyz srodka
+        return (24, 40, 30, 255) if r < 1.0 else (10, 10, 20, 255)
+    return px
+
+
 def hair_pixel(w, h):
     """Kreska dalmiercza: czarny środek z białą obwódką (jak główny krzyż); rozciągana na widok ~1200x28."""
     def px(x, y):
@@ -315,6 +330,7 @@ def main():
     tga(tex / "LVL_HIVIS.TGA", 64, 16, hivis_pixel)
     tga32(tex / "LVL_RETICLE.TGA", 2048, 1024, reticle_pixel(2048, 1024))   # 2x gęstsza => krzyż ok. 2x cieńszy na ekranie
     tga32(tex / "LVL_PANEL.TGA", 64, 64, panel_pixel(64, 64))
+    tga32(tex / "LVL_LIBELLA.TGA", 512, 512, libella_pixel(512, 512))    # libella okragla (poziomowanie instrumentu)
     tga32(tex / "LVL_HAIR.TGA", 16, 8, hair_pixel(16, 8))
     for nm, col in (("LVL_DOTR.TGA", (230, 30, 30)), ("LVL_DOTG.TGA", (40, 200, 60)), ("LVL_DOTY.TGA", (255, 220, 0))):
         tga32(tex / nm, 16, 16, dot_pixel(col))                   # znaczniki mapy osnowy

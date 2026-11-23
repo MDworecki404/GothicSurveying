@@ -10,7 +10,8 @@
 
 class TrigLevelJob : public Job {
  public:
-  TrigLevelJob(IWorld& w, const JobOptions& o) : w_(w), opt_(o), rng_((uint32_t)(w.Random01() * 4e9) + 1) { w_.SetPrismHeightM(kPrism[0]); }
+  TrigLevelJob(IWorld& w, const JobOptions& o) : w_(w), opt_(o), rng_((uint32_t)(w.Random01() * 4e9) + 1) { w_.SetPrismHeightM(kPrism[0]); lib_.enabled = w_.InstrumentLevelingEnabled(); }
+  Libella* GetLibella() override { return &lib_; }
 
   std::string Name() const override { return "Niwelacja trygonometryczna"; }
   JobKind Kind() const override { return JobKind::Tachy; }          // widok lunety i raport jak w tachimetrii
@@ -37,7 +38,7 @@ class TrigLevelJob : public Job {
       char b[80]; std::snprintf(b, sizeof b, "Reper A: H = %.3f m", hS_); w_.Say(b);
     } else if (id == "inst") {
       if (!w_.PlaceTachymeterOnPoint(InstPoint())) { w_.Say("Nie mozna postawic tachimetru na punkcie " + Name_(InstPoint())); return; }
-      instUp_ = true;
+      instUp_ = true; if (lib_.enabled) { const double u1 = w_.Random01(), u2 = w_.Random01(); lib_.Reset(u1, u2); }   // nowe ustawienie: instrument krzywo na statywie
     } else if (id == "prism") {
       if (phase_ == 0 && T_ == 0) {                   // nowy punkt celu: znak i lustro w miejscu stania
         if (!w_.PlaceMarker(nextId_, MarkerKind::Turning)) { w_.Say("Brak gruntu pod stopami"); return; }
@@ -55,6 +56,7 @@ class TrigLevelJob : public Job {
 
   std::string TachyFire(double camAzDeg, double camPitchDeg) override {
     if (!instUp_ || !prismUp_) return "Najpierw tachimetr i lustro na swoich punktach";
+    if (!lib_.Within(kTachyLevelArcmin)) { char m[120]; std::snprintf(m, sizeof m, "Tachimetr niewypoziomowany (pochylenie %.1f'): menu - Poziomuj instrument", lib_.Mag()); return lastMsg_ = m; }
     const GridPos s = w_.StationGrid(), g = w_.PoleGroundGrid();
     const double ph = kPrism[prismIdx_];
     const TachyAim a = TachyAimError(g.n - s.n, g.e - s.e, (g.h + ph) - (s.h + kInstrH), camAzDeg, camPitchDeg);
@@ -127,7 +129,7 @@ class TrigLevelJob : public Job {
   int InstPoint() const { return phase_ == 0 ? S_ : T_; }
   int PrismPoint() const { return phase_ == 0 ? T_ : S_; }
 
-  IWorld& w_; JobOptions opt_; GnssRng rng_; TachyNoise noise_;
+  IWorld& w_; JobOptions opt_; GnssRng rng_; TachyNoise noise_; Libella lib_;
   bool hasA_ = false, instUp_ = false, prismUp_ = false;
   int S_ = 0, T_ = 0, phase_ = 0, nextId_ = 2, prismIdx_ = 0;      // S_ punkt startowy odcinka, T_ cel (0 = jeszcze nie postawiony), phase_ 0 = tam, 1 = powrot
   double hS_ = 0, trueDhMm_ = 0; TrigLeg cur_;

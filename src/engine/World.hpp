@@ -54,6 +54,7 @@ namespace GOTHIC_NAMESPACE {
       return sqrt( dx * dx + dz * dz );
     }
     // --- GNSS: tyczka z odbiornikiem, promienie do nieba, zegar gry ---
+    bool InstrumentLevelingEnabled() const override { return gLevelingOn; }
     bool PlaceBase( GridPos& g ) override {            // stacja bazowa RTK: model tripodu, jedna naraz
       zVEC3 p;
       if ( !FeetGround( p ) ) return false;

@@ -47,6 +47,7 @@ struct FakeTachy : IWorld {
   bool TraceSight(double, double, GridPos& hit, double& slopeM) const override { hit = sightGrid; slopeM = sightDist; return sightHit; }
   GridPos StationGrid() const override { return station; }
   GridPos PointGrid(int slot) const override { return back[slot - 1]; }
+  bool levelingOn = false; bool InstrumentLevelingEnabled() const override { return levelingOn; }
   bool PlacePrism() override { placed.push_back("prism"); return ground; }
   bool PlaceTachymeterOnPoint(int) override { placed.push_back("tachymeter-on-point"); return true; }
   bool PlacePrismOnPoint(int) override { placed.push_back("prism-on-point"); return true; }
@@ -410,6 +411,21 @@ static void trig_leveling_leg_both_ways() {
   for (auto& it : job->Menu()) if (it.id == "inst") assert(has(it.label, "B"));
 }
 
+static void instrument_must_be_levelled() {
+  Fx f([](FakeTachy& w) { w.levelingOn = true; });
+  f.setup(1);
+  Libella* lib = f.job->GetLibella();
+  assert(lib && lib->enabled && !lib->Within(kTachyLevelArcmin));                      // nowe stanowisko: krzywo
+  std::string m = f.readBack(1);
+  assert(has(m, "niewypoziomowany") && f.job->FinishTachy(true).backsights.empty());
+  lib->x = 0.3; lib->y = 0.2;                                                          // w tolerancji libelli elektronicznej (0,5')
+  assert(has(f.readBack(1), "Nawiazanie"));
+  lib->x = 3.0;                                                                        // rozpoziomowany ponownie nie jest: pomiar blokowany
+  f.w.prism = GridPos{5500040.0, 6500030.0, 100.0};
+  assert(has(f.fireAt(f.w.prism, 1.5), "niewypoziomowany"));
+  Fx g; assert(g.job->GetLibella() && !g.job->GetLibella()->enabled);                   // swiat bez poziomowania: instrument zawsze poziomy
+}
+
 int main() {
   registry_lists_tachy(); menu_state_true_mode(); multiple_backsights_orientation_mean(); single_backsight_works(); measure_before_orient_refused();
   backsight_aiming_is_angular(); remeasure_overwrites(); orientation_locked_after_first_point(); gnss_items_and_control_point_in_tachy_job(); gnss_pole_and_prism_exclude_each_other(); changes_clear_readings(); limit_five_backsights();
@@ -420,6 +436,7 @@ int main() {
   free_station_resection(); stakeout_guides_and_confirms();
   multiple_stations_in_one_job();
   trig_leveling_leg_both_ways();
+  instrument_must_be_levelled();
   std::puts("test_tachy_job OK");
   return 0;
 }

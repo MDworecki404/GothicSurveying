@@ -12,6 +12,7 @@
 #include "engine/PoleFine.hpp"
 #include "engine/TachyView.hpp"
 #include "engine/MapView.hpp"
+#include "engine/LevelView.hpp"
 #include "engine/Export.hpp"
 #include "engine/FieldBookView.hpp"
 #include "engine/FieldBookEdit.hpp"

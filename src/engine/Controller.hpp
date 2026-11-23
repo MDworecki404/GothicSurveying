@@ -18,7 +18,7 @@ namespace GOTHIC_NAMESPACE {
   inline void CtrlEndJob() { gJob.reset(); gWorld.ClearAll(); CtrlCloseJobHud(); }
   inline void CtrlForgetJob() {                        // po zmianie świata: obiekty zniknęły razem ze światem
     gWorld.ForgetAll();                                // najpierw oddaj vob-y, potem callbacki lunety nie dotkną starych obiektów
-    ScopeLeave(); PoleFineLeave(); TachyViewLeave(); MenuClose(); gJob.reset(); CtrlCloseJobHud();
+    ScopeLeave(); PoleFineLeave(); TachyViewLeave(); LevelClose(); MenuClose(); gJob.reset(); CtrlCloseJobHud();
   }
 
   inline void CtrlEnterScope() {
@@ -44,6 +44,7 @@ namespace GOTHIC_NAMESPACE {
       AppendReadingLog( gReadingLog, p, m );
       return true;
     };
+    cb.block = []() { return gJob ? gJob->InstrumentBlock() : std::string(); };
     cb.onEnter = []() { gWorld.TurnRodsToInstrument(); gWorld.SetInstrumentVisible( false ); };
     cb.onLeave = []() { gWorld.SetInstrumentVisible( true ); };
     ScopeEnter( gWorld.InstrumentGround(), cb );
@@ -302,13 +303,16 @@ namespace GOTHIC_NAMESPACE {
 
   inline void CtrlOpenMenu() {
     if ( !gJob ) {
-      MenuOpen( MenuView{ "Menu geodezyjne", { { "start", "Rozpocznij robote", "", true }, { "world", "Zaladuj osnowe geodezyjna swiata", "", true }, { "control", "Pokaz osnowe", "", true }, { "map", "Mapa osnowy", "", true }, { "tp", "Teleport do punktu osnowy", "", true } } },
-                []( const std::string& id ) { if ( id == "control" ) CtrlShowControl(); else if ( id == "world" ) CtrlLoadWorldControl(); else if ( id == "map" ) MapOpen(); else if ( id == "tp" ) CtrlOpenTeleport( 0 ); else CtrlOpenStartMenu(); } );
+      MenuOpen( MenuView{ "Menu geodezyjne", { { "start", "Rozpocznij robote", "", true }, { "world", "Zaladuj osnowe geodezyjna swiata", "", true }, { "control", "Pokaz osnowe", "", true }, { "map", "Mapa osnowy", "", true }, { "tp", "Teleport do punktu osnowy", "", true },
+                                             { "lvl", gLevelingOn ? "Poziomowanie instrumentow: wlaczone (zmien)" : "Poziomowanie instrumentow: wylaczone (zmien)", "dotyczy nastepnych stanowisk", true } } },
+                []( const std::string& id ) { if ( id == "lvl" ) { gLevelingOn = !gLevelingOn; HudMessage( gLevelingOn ? "Poziomowanie instrumentow wlaczone" : "Poziomowanie instrumentow wylaczone" ); } else if ( id == "control" ) CtrlShowControl(); else if ( id == "world" ) CtrlLoadWorldControl(); else if ( id == "map" ) MapOpen(); else if ( id == "tp" ) CtrlOpenTeleport( 0 ); else CtrlOpenStartMenu(); } );
       return;
     }
     MenuView v{ gJob->Name(), gJob->Menu() };
     if ( gJob->Kind() == JobKind::Leveling ) v.items.push_back( { "scope", "Patrz przez lunete (" LV_KEYNAME_SCOPE ")", "najpierw niwelator i lata", gWorld.HasInstrument() && !gJob->ActiveRodPoints().empty() } );
     if ( gJob->Kind() == JobKind::Leveling ) { char b[64]; sprintf( b, "Wysun laty: teraz %.0f m (zmien na %.0f m)", gRodLenCm / 100.0f, gRodLenCm >= 500.0f ? 3.0f : gRodLenCm / 100.0f + 1.0f ); v.items.push_back( { "rodlen", b, "3, 4 albo 5 m", true } ); }
+    if ( gJob->GetLibella() && gJob->GetLibella()->enabled && gWorld.HasInstrument() )
+      v.items.push_back( { "level", "Poziomuj instrument (libella)", "", true } );
     v.items.push_back( { "map", "Mapa osnowy", "", true } );
     v.items.push_back( { "tp", "Teleport do punktu osnowy", "", true } );
     v.items.push_back( { "abort", "Przerwij robote (bez dziennika)", "", true } );
@@ -320,6 +324,7 @@ namespace GOTHIC_NAMESPACE {
       else if ( id == "view" ) { gJob->OnMenu( id ); CtrlEnterTachyView(); }
       else if ( gJob->NeedsChoice( id ) ) CtrlOpenChoice( id );
       else if ( id == "rodlen" ) { gRodLenCm = gRodLenCm >= 500.0f ? 300.0f : gRodLenCm + 100.0f; gWorld.RefreshRods(); HudMessage( ( "Lata wysunieta na " + std::to_string( (int)( gRodLenCm / 100.0f ) ) + " m" ).c_str() ); }
+      else if ( id == "level" ) LevelOpen( gJob->GetLibella(), gJob->Kind() == JobKind::Leveling ? kLevelBubbleArcmin : kTachyLevelArcmin, gJob->Kind() == JobKind::Leveling ? "niwelatora" : "tachimetru" );
       else if ( id == "map" ) MapOpen();
       else if ( id == "tp" ) CtrlOpenTeleport( 0 );
       else if ( id == "abort" ) CtrlConfirmAbort();
@@ -365,7 +370,7 @@ namespace GOTHIC_NAMESPACE {
         else CtrlSavePartial( gJob->Finish( false ) );
       }
       if ( FieldBookEditActive() ) { gPendingFb.complete = false; ExportFieldBook( gPendingFb, gJobDir, true ); }
-      FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); MapClose(); CtrlForgetJob(); gCtrlWorld = w;
+      FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); MapClose(); LevelClose(); CtrlForgetJob(); gCtrlWorld = w;
     }
     if ( !w ) return;
     ControlTick();                                     // znaki osnowy: nowy swiat / wczytany zapis
@@ -373,7 +378,7 @@ namespace GOTHIC_NAMESPACE {
     const DWORD nowClock = GetTickCount();
     double dtClock = ( nowClock - lastClock ) / 1000.0; lastClock = nowClock;
     if ( dtClock > 0.2 ) dtClock = 0.2;
-    const bool gamePaused = MenuIsOpen() || ScopeActive() || FieldBookVisible() || TextPanelVisible() || FieldBookEditActive() || PoleFineActive() || TachyViewActive() || MapActive();
+    const bool gamePaused = MenuIsOpen() || ScopeActive() || FieldBookVisible() || TextPanelVisible() || FieldBookEditActive() || PoleFineActive() || TachyViewActive() || MapActive() || LevelActive();
     if ( !gamePaused ) { gWorld.AdvanceClock( dtClock ); if ( gJob ) gJob->Tick(); }   // zegar symulacji stoi, gdy gra zatrzymana
     if ( !MenuIsOpen() && !ScopeActive() && !PoleFineActive() && !TachyViewActive() ) gWorld.DressTick();   // przy zatrzymanej grze nic się nie rusza
     ScopeTick();
@@ -383,6 +388,7 @@ namespace GOTHIC_NAMESPACE {
     if ( ScopeActive() || PoleFineActive() || TachyViewActive() ) { CtrlCloseJobHud(); return; }
     if ( FieldBookEditActive() ) { if ( FieldBookEditTick() ) CtrlFinishManual(); return; }
     if ( MapActive() ) { MapTick(); return; }
+    if ( LevelActive() ) { LevelTick(); return; }
     if ( TextPanelVisible() ) { TextPanelTick(); return; }
     if ( FieldBookVisible() ) { FieldBookTick(); return; }
     if ( MenuIsOpen() ) { MenuTick(); return; }

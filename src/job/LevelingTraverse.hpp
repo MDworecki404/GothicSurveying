@@ -8,7 +8,9 @@
 
 class LevelingTraverse : public Job {
  public:
-  LevelingTraverse(IWorld& w, const JobOptions& o) : w_(w), opt_(o) {}
+  LevelingTraverse(IWorld& w, const JobOptions& o) : w_(w), opt_(o) { lib_.enabled = w.InstrumentLevelingEnabled(); }
+  Libella* GetLibella() override { return &lib_; }
+  std::string InstrumentBlock() const override { return lib_.Within(kLevelBubbleArcmin) ? "" : "Niwelator niewypoziomowany (menu: Poziomuj instrument)"; }
 
   std::string Name() const override { return "Ciag niwelacyjny"; }
 
@@ -38,7 +40,7 @@ class LevelingTraverse : public Job {
       char b[80]; std::snprintf(b, sizeof b, "Reper A: H = %.3f m", w_.PointHeightM(1)); w_.Say(b);
     } else if (id == "instrument") {
       if (!w_.PlaceInstrument()) { w_.Say("Brak gruntu pod stopami"); return; }
-      instrument_ = true;
+      instrument_ = true; if (lib_.enabled) { const double u1 = w_.Random01(), u2 = w_.Random01(); lib_.Reset(u1, u2); }   // nowe stanowisko: instrument krzywo na statywie
     } else if (id == "obsadzka") {
       first_ = Current();                                  // komplet I zostaje; po przestawieniu czytamy obie łaty jeszcze raz
       const double sign = w_.Random01(), size = w_.Random01();      // osobno: kolejność argumentów jest nieokreślona
@@ -129,7 +131,7 @@ class LevelingTraverse : public Job {
     Stand s = first_; s.back2Mm = backMm_; s.fore2Mm = foreMm_; return s;          // komplet I + II
   }
 
-  IWorld& w_; JobOptions opt_;
+  IWorld& w_; JobOptions opt_; Libella lib_;
   Stand first_{0, 0, 0, 0};                         // komplet I zapamiętany przy obsadzce
   bool second_ = false;                             // trwa (albo skończony) komplet II
   bool hasA_ = false, instrument_ = false, backRod_ = false, foreRod_ = false, backRead_ = false, foreRead_ = false, foreIsEnd_ = false;

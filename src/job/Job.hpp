@@ -6,6 +6,7 @@
 #include "calc/FieldBook.hpp"
 #include "calc/Control.hpp"
 #include "calc/GnssReport.hpp"
+#include "calc/Libella.hpp"
 #include "calc/TachyReport.hpp"
 
 enum class RodRole { Back, Fore };
@@ -34,6 +35,7 @@ class IWorld {
   virtual bool     PlaceBase(GridPos& g) { (void)g; return false; }                // stacja bazowa RTK pod stopami; g = prawdziwe wspolrzedne gruntu
   virtual bool     PlaceTachymeterOnPoint(int pointId) { (void)pointId; return false; }   // tachimetr dokladnie nad znakiem punktu (bohater nie musi tam stac)
   virtual bool     PlacePrismOnPoint(int pointId) { (void)pointId; return false; }        // tyczka z lustrem dokladnie na znaku punktu
+  virtual bool     InstrumentLevelingEnabled() const { return false; }               // czy instrument trzeba poziomowac (libella)
   virtual bool     PlacePole() { return false; }                  // tyczka z antena pod stopami; false = brak gruntu
   virtual void     RemovePole() {}
   virtual SkyMask  SkyHorizon() const { return SkyMask{}; }       // maska horyzontu z promieni ku niebu z miejsca tyczki
@@ -68,6 +70,8 @@ class Job {
   virtual bool OnReading(int pointId, int midMm) = 0;             // odczyt środkowej kreski; dalmierz liczy robota sama
   virtual std::string Hud() const = 0;                            // ASCII
   virtual bool CanFinish() const = 0;
+  virtual Libella* GetLibella() { return nullptr; }               // libella instrumentu roboty (nullptr = brak poziomowania)
+  virtual std::string InstrumentBlock() const { return ""; }      // niepusty = odczyt zablokowany (np. niwelator niewypoziomowany)
   virtual FieldBook Finish(bool complete) = 0;                    // complete=false przy przerwaniu
   virtual JobKind Kind() const { return JobKind::Leveling; }
   virtual TachyReport FinishTachy(bool complete) { (void)complete; return TachyReport{}; }

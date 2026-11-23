@@ -15,7 +15,9 @@ class TachyStationJob : public Job {
     control_ = !w_.ControlNearHero(1e9).empty();      // domyslnie osnowa GNSS, gdy w swiecie sa jej punkty
     gnss_ = CreateGnssRover(w_, opt_);                // GNSS w robocie: zakladanie osnowy bez wychodzenia z tachimetrii
     w_.SetPrismHeightM(kPrism[0]);
+    lib_.enabled = w_.InstrumentLevelingEnabled();
   }
+  Libella* GetLibella() override { return &lib_; }
 
   std::string Name() const override { return "Tachimetria (pomiar biegunowy)"; }
   JobKind Kind() const override { return JobKind::Tachy; }
@@ -104,7 +106,7 @@ class TachyStationJob : public Job {
         if (!w_.PlaceTachymeter()) { w_.Say("Brak gruntu pod stopami"); return; }
         ClearBacksights();
         st_.n = st_.e = st_.h = 0; solved_ = false;
-        stationUp_ = true; ClearReadings();
+        stationUp_ = true; ClearReadings(); NewSetup();
         return;
       }
       if (control_) {                                  // osnowa: stanowisko tylko z listy
@@ -118,7 +120,7 @@ class TachyStationJob : public Job {
         ClearBacksights();
         const GridPos s = w_.StationGrid(); st_.n = Mm(s.n); st_.e = Mm(s.e); st_.h = Mm(s.h);
       }
-      stationUp_ = true; ClearReadings();
+      stationUp_ = true; ClearReadings(); NewSetup();
     } else if (base == "backsight") {
       const int slot = BackCount() + 1;
       Back b;
@@ -158,6 +160,7 @@ class TachyStationJob : public Job {
 
   std::string TachyFire(double camAzDeg, double camPitchDeg) override {
     if (!stationUp_) return "Najpierw postaw tachimetr";
+    if (!lib_.Within(kTachyLevelArcmin)) { char m[120]; std::snprintf(m, sizeof m, "Tachimetr niewypoziomowany (pochylenie %.1f'): menu - Poziomuj instrument", lib_.Mag()); return lastMsg_ = m; }
     const std::string bs = TryBacksight(camAzDeg, camPitchDeg);      // celowanie w lustro nawiazania ma pierwszenstwo
     if (!bs.empty()) return bs;
     if (!oriented_) return lastMsg_ = "Najpierw zmierz nawiazanie (celuj w lustro nawiazania)";
@@ -238,6 +241,7 @@ class TachyStationJob : public Job {
   static constexpr double kMinSightM = 1.5;                             // minimalna odleglosc pomiaru bezlustrowego
   static constexpr double kStationRadiusM = 2.0;                        // znak osnowy dla stanowiska max 2 m od bohatera
 
+  void NewSetup() { if (!lib_.enabled) return; const double u1 = w_.Random01(), u2 = w_.Random01(); lib_.Reset(u1, u2); }   // nowe stanowisko: instrument krzywo na statywie
   bool PointsHere() const { return points_.size() > stationStart_; }       // czy na biezacym stanowisku zmierzono juz punkt
 
   TachyStationRec CurrentRec() const {
@@ -396,7 +400,7 @@ class TachyStationJob : public Job {
     return lastMsg_ = b;
   }
 
-  IWorld& w_; JobOptions opt_; GnssRng rng_;
+  IWorld& w_; JobOptions opt_; GnssRng rng_; Libella lib_;
   TachyNoise noise_;
   TachyStation st_{0, 0, 0};
   ControlPoint stationCp_;

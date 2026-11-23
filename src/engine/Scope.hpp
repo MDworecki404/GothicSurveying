@@ -22,12 +22,14 @@ namespace GOTHIC_NAMESPACE {
     std::function<std::vector<RodTarget>()> targets;                           // łaty do wyboru pod pionową kreską
     std::function<bool( bool fore, zVEC3& foot )> rodFoot;                     // stopa łaty wprzód/wstecz; false = brak takiej łaty
     std::function<bool( int pointId, int midMm )> onReading;                   // false = odczyt odrzucony
+    std::function<std::string()> block;                                        // niepusty komunikat = odczyt zablokowany (niewypoziomowany niwelator)
     std::function<void()> onEnter, onLeave;                                    // np. ukrycie niwelatora, obrót łat
   };
 
   inline bool      gScopeOn = false, gEntry = false, gTurning = false, gFovSaved = false, gHairsDone = false;
   inline float     gAz = 0, gFovX = 0, gFovY = 0;      // azymut osi lunety [rad]: kierunek (sin az, 0, cos az)
   inline DWORD     gLastTick = 0;
+  inline bool      gLevelingOn = true;                 // poziomowanie instrumentow (libella); wylaczalne w menu glownym
   inline float     gZoom = LV_ZOOM;                    // bieżące powiększenie lunety (wspólne dla niwelatora i tachimetru)
   inline float     gTurnTo = 0;                        // docelowy azymut obrotu na łatę [rad]
   inline zVEC3     gInstrGround;
@@ -139,6 +141,7 @@ namespace GOTHIC_NAMESPACE {
     double bestFwd = 0;
     int best = ScopeRodUnderLine( targets, &bestFwd );
     if ( best < 0 ) { HudMessage( "Pionowa kreska nie lezy na lacie" ); return; }
+    if ( gCb.block ) { const std::string bm = gCb.block(); if ( !bm.empty() ) { HudMessage( bm.c_str() ); return; } }
     const RodTarget& r = targets[best];
 
     double lineY = gInstrGround[VY] + LV_INSTR_H;
