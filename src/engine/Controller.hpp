@@ -257,7 +257,7 @@ namespace GOTHIC_NAMESPACE {
     std::vector<std::string> lines;
     for ( const ControlPoint& c : pts ) {
       const double dx = c.x - hero[VX], dz = c.z - hero[VZ];
-      char b[220]; sprintf( b, "%s  %.0f m %s  N %.3f  E %.3f  H %.3f  %s", c.id.c_str(), sqrt( dx * dx + dz * dz ) / 100.0, ControlCompass( dx, dz ), c.n, c.e, c.h, c.solution.c_str() );
+      char b[220]; sprintf( b, "%s  %.0f m %s  N %.3f  E %.3f  H %.3f  %s", c.id.c_str(), sqrt( dx * dx + dz * dz ) / 100.0, ControlCompass( dx, dz ), c.n, c.e, c.h, ControlDisplaySolution( c ).c_str() );
       lines.push_back( b );
     }
     if ( lines.empty() ) lines.push_back( "Brak punktow osnowy w tym swiecie. Zaladuj osnowe swiata albo zaloz punkty w robocie GNSS." );
@@ -291,7 +291,7 @@ namespace GOTHIC_NAMESPACE {
     MenuView v{ "Teleport do punktu osnowy (" + std::to_string( page + 1 ) + "/" + std::to_string( pages ) + ")", {} };
     for ( int i = page * per; i < (int)pts.size() && i < ( page + 1 ) * per; i++ ) {
       const ControlPoint& c = pts[i]; const double dx = c.x - hero[VX], dz = c.z - hero[VZ];
-      char b[200]; sprintf( b, "%s  %s  %.0f m %s", c.id.c_str(), ControlPlaceName( c ).c_str(), sqrt( dx * dx + dz * dz ) / 100.0, ControlCompass( dx, dz ) );
+      char b[200]; sprintf( b, "%s  %.0f m %s", c.id.c_str(), sqrt( dx * dx + dz * dz ) / 100.0, ControlCompass( dx, dz ) );
       v.items.push_back( { "tp:" + c.id, b, "", true } );
     }
     if ( page + 1 < pages ) v.items.push_back( { "tp_next", "Nastepna strona", "", true } );

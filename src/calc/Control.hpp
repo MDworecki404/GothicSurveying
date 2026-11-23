@@ -100,10 +100,10 @@ inline const char* ControlCompass(double dx, double dz) {
   return d[((int)std::floor(std::atan2(dx, dz) * 180.0 / 3.14159265358979 / 45.0 + 0.5) % 8 + 8) % 8];
 }
 
-// Nazwa miejsca z opisu punktu wzorcowego ("osnowa wzorcowa: <miejsce>"); pusta dla pozostalych.
-inline std::string ControlPlaceName(const ControlPoint& c) {
-  static const std::string pre = "osnowa wzorcowa: ";
-  return c.solution.compare(0, pre.size(), pre) == 0 ? c.solution.substr(pre.size()) : std::string();
+// Opis rozwiazania do wyswietlania: punkty wzorcowe zapisane starsza wersja maja w opisie nazwe miejsca ("osnowa wzorcowa: <miejsce>") - ucinamy ja.
+inline std::string ControlDisplaySolution(const ControlPoint& c) {
+  static const std::string pre = "osnowa wzorcowa";
+  return c.solution.compare(0, pre.size(), pre) == 0 ? pre : c.solution;
 }
 
 // Kolejnosc wg id: litera (G przed O), potem numer rosnaco.

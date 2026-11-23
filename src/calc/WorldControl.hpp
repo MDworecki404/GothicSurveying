@@ -31,7 +31,7 @@ inline std::vector<ControlPoint> WorldControlFor(const std::string& world) {
     ControlPoint p; p.id = r.id; p.world = r.world;
     p.n = GNSS_N0 + r.n; p.e = GNSS_E0 + r.e; p.h = r.h + GNSS_H0;
     p.x = r.e * 100.0; p.y = r.h * 100.0; p.z = r.n * 100.0;          // E = x/100, N = z/100, H = y/100
-    p.solution = std::string("osnowa wzorcowa: ") + r.place;
+    p.solution = "osnowa wzorcowa";       // r.place (nazwa lokacji z modelu) bywa bledna - nie pokazujemy jej
     out.push_back(p);
   }
   return out;

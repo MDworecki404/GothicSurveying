@@ -22,7 +22,7 @@ static void points_are_consistent() {
     std::set<std::string> ids;
     for (const ControlPoint& p : v) {
       assert(ids.insert(p.id).second && p.id.size() == 3 && p.id[0] == 'G');                        // G01, G02, ... unikalne
-      assert(p.world == w && p.solution.rfind("osnowa wzorcowa: ", 0) == 0);
+      assert(p.world == w && p.solution == "osnowa wzorcowa");
       assert(near(p.n - GNSS_N0, p.z / 100.0, 1e-3) && near(p.e - GNSS_E0, p.x / 100.0, 1e-3) && near(p.h, p.y / 100.0, 1e-3));   // uklad jak w grze
       assert(std::isfinite(p.n) && std::isfinite(p.e) && std::isfinite(p.h));
     }

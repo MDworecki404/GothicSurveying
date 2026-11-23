@@ -30,8 +30,7 @@ namespace GOTHIC_NAMESPACE {
     float fx = 0, fy = 0; cam->Project( &v, fx, fy );
     const int x = screen->anx( fx ), y = screen->any( fy );
     if ( x < 0 || x > 8192 || y < 0 || y > 8192 ) { ControlLabelHide(); return; }
-    const std::string place = ControlPlaceName( *best );
-    const std::string text = best->id + ( place.empty() ? "" : " - " + place ) + " (" + std::to_string( (int)( bestD / 100.0 + 0.5 ) ) + " m)";
+    const std::string text = best->id + " (" + std::to_string( (int)( bestD / 100.0 + 0.5 ) ) + " m)";
     if ( text != gCtlLabelText || !gCtlLabel ) {
       PanelClose( gCtlLabel );
       gCtlLabelW = 70 * (int)text.size() + 400;

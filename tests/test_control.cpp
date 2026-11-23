@@ -62,19 +62,19 @@ static void near_matches_world_by_key() {
   assert(ControlNear(v, "ADDONWORLD.ZEN", 0.0, 0.0, 0.0, 100.0).empty());
 }
 
-static void compass_place_and_sort_helpers() {
+static void compass_solution_and_sort_helpers() {
   assert(std::string(ControlCompass(0, 5)) == "N" && std::string(ControlCompass(5, 0)) == "E" && std::string(ControlCompass(0, -5)) == "S" && std::string(ControlCompass(-5, 0)) == "W");
   assert(std::string(ControlCompass(3, 3)) == "NE" && std::string(ControlCompass(-3, -3)) == "SW" && std::string(ControlCompass(3, -3)) == "SE" && std::string(ControlCompass(-3, 3)) == "NW");
-  ControlPoint g = P("G07", "W", 0, 0); g.solution = "osnowa wzorcowa: Cmentarz";
+  ControlPoint g = P("G07", "W", 0, 0); g.solution = "osnowa wzorcowa: Cmentarz";            // stary zapis z nazwa miejsca
   ControlPoint o = P("O1", "W", 0, 0); o.solution = "fix RTK";
-  assert(ControlPlaceName(g) == "Cmentarz" && ControlPlaceName(o).empty());
+  assert(ControlDisplaySolution(g) == "osnowa wzorcowa" && ControlDisplaySolution(o) == "fix RTK");
   std::vector<ControlPoint> v = {P("O2", "W", 0, 0), P("G10", "W", 0, 0), P("G02", "W", 0, 0), P("O10", "W", 0, 0), P("G01", "W", 0, 0)};
   ControlSortById(v);
   assert(v[0].id == "G01" && v[1].id == "G02" && v[2].id == "G10" && v[3].id == "O2" && v[4].id == "O10");        // G przed O, numerycznie
 }
 
 int main() {
-  csv_roundtrip(); csv_tolerates_garbage(); next_id(); near_filters_and_sorts(); world_key_normalizes_names(); near_matches_world_by_key(); compass_place_and_sort_helpers();
+  csv_roundtrip(); csv_tolerates_garbage(); next_id(); near_filters_and_sorts(); world_key_normalizes_names(); near_matches_world_by_key(); compass_solution_and_sort_helpers();
   std::puts("test_control OK");
   return 0;
 }
