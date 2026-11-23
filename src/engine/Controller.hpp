@@ -76,6 +76,7 @@ namespace GOTHIC_NAMESPACE {
     std::vector<std::string> lines = TachySummaryLines( r );
     lines.push_back( "" );
     for ( const TachyPoint& p : r.points ) {
+      if ( r.trig ) break;                             // niwelacja trygonometryczna: podsumowanie odcinkow wystarcza
       char b[220];
       sprintf( b, "%s  Hz %.4f g  V %.4f g  D %.3f m  N %.3f  E %.3f  H %.3f", p.name.c_str(), p.hzGon, p.vGon, p.slopeM, p.n, p.e, p.h );
       lines.push_back( b );
@@ -84,7 +85,7 @@ namespace GOTHIC_NAMESPACE {
         lines.push_back( b );
       }
     }
-    TextPanelShow( "Tachimetria - podsumowanie", lines, ok ? "Zapisano w folderze: " + gJobDir : "BLAD ZAPISU plikow dziennika" );
+    TextPanelShow( r.trig ? "Niwelacja trygonometryczna - podsumowanie" : "Tachimetria - podsumowanie", lines, ok ? "Zapisano w folderze: " + gJobDir : "BLAD ZAPISU plikow dziennika" );
     SvTrace( "Tachimetria zakonczona" );
     CtrlEndJob();
   }

@@ -65,6 +65,13 @@ inline TachyFaceMean TachyCombineFaces(const TachyReading& kl, const TachyReadin
   return m;
 }
 
+// Niwelacja trygonometryczna: przewyzszenie z odczytow V (zenitalny) i odleglosci skosnej, z poprawka na krzywizne Ziemi i refrakcje.
+// dh = D cosV + ih - t + (1 - k) d^2 / (2 R),  d = D sinV (odleglosc pozioma), k = 0,13, R = 6371 km. Wynik w metrach.
+inline double TrigHeightDiffM(double slopeM, double vGon, double instrH, double targetH) {
+  const double v = GonToDeg(vGon) * TACHY_PI / 180.0, d = slopeM * std::sin(v), k = 0.13, R = 6371000.0;
+  return slopeM * std::cos(v) + instrH - targetH + (1.0 - k) * d * d / (2.0 * R);
+}
+
 struct TachyResult { double n, e, h, hDistM, azDeg; };
 
 // Wynik biegunowy z odczytów: Az = azymut nawiązania + Hz, d = D sin V, H = Hs + ih + D cos V - wysokość lustra.

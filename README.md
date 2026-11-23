@@ -189,6 +189,17 @@ Wyniki: `pomiar_tachimetryczny.csv` i `.docx` w folderze roboty (stanowisko, źr
 przerwana: `pomiar_tachimetryczny_przerwany.csv`), każdy punkt od razu w `odczyty_biezace.csv`; opcja prawdziwego błędu dodaje kolumny `blad_N_m`, `blad_E_m`, `blad_H_m`, `blad_2D_m`
 (przy osnowie błąd zawiera też błąd osnowy GNSS; przy pomiarze bezlustrowym jest liczony względem trafionego punktu).
 
+## Niwelacja trygonometryczna
+
+„Rozpocznij robotę” → „Niwelacja trygonometryczna” (pytanie o prawdziwy błąd). Przewyższenia mierzysz tachimetrem: z odczytanego kąta zenitalnego V i odległości skośnej D,
+`Δh = D·cosV + i − t + (1−k)·d²/(2R)` (i = 1,5 m wysokość instrumentu, t = wysokość lustra, k = 0,13, R = 6371 km). Odcinek S→T mierzysz **tam** (tachimetr na S, lustro na T)
+i **z powrotem** (tachimetr na T, lustro na S): średnia usuwa wpływ wysokości instrumentu i lustra oraz większość krzywizny i refrakcji, a suma obu pomiarów to kontrola
+(dopuszczalnie 10 mm + 20 mm/km).
+
+Przebieg: **Postaw reper A** (wysokość znana) → **Postaw tachimetr na punkcie A** (stań na nim, 60 cm) → przejdź i **Postaw punkt celu z lustrem** → **Patrz przez lunetę** (**F10**),
+wyceluj w lustro (jak w tachimetrii, ±0,02°) i **Enter** → komunikat prosi o przeniesienie tachimetru na B i lustra na A → pomiar z powrotem → wynik odcinka (Δh średnie, suma, H punktu B).
+Następny odcinek zaczyna się na B: potwierdź tachimetr na B (stań na nim) i postaw nowy punkt celu C itd. Wyniki: `pomiar_tachimetryczny.csv` i `.docx` w folderze roboty (tabela odcinków i pojedyncze obserwacje); opcja prawdziwego błędu dodaje błąd Δh.
+
 ## Obsadzka (zmiana wysokości niwelatora)
 
 Gdy na stanowisku masz odczyty wstecz i wprzód, w menu (Home) dostępna jest **Obsadzka**: niwelator zostaje losowo podniesiony albo obniżony
@@ -242,7 +253,7 @@ Jeśli cyfry na łacie są w grze do góry nogami, ustaw `FLIP_V = True` w `asse
 ## Znane ograniczenia
 
 - Plugin nie zapisuje stanu: po wyjściu z gry sprzęt trzeba postawić od nowa (wyniki zostają w CSV).
-- Trzy roboty: ciąg niwelacyjny, pomiar GNSS (RTK) i tachimetria; niwelacja trygonometryczna dojdzie jako kolejny moduł `Job`.
+- Cztery roboty: ciąg niwelacyjny, pomiar GNSS (RTK), tachimetria i niwelacja trygonometryczna (jeden odcinek naraz, bez wyrównania całego ciągu).
 - Tachimetria: bez wcięcia w przód i bez wyrównania osnowy ani wspólnego wyrównania stanowisk.
 - Pomiar GNSS: poprawki z własnej bazy to model uproszczony (1 ppm + przesunięcie bazy), bez wielu baz i bez przetwarzania linii bazowych; statyka to pojedyncza sesja 120 epok.
 - Kreski dalmiercze liczone są dla pola widzenia gry; przy bardzo wąskim FOV mogą wypaść poza lunetę (wtedy są pomijane, wpis w `GothicSurveying.log`).

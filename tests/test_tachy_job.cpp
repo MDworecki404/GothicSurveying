@@ -379,6 +379,35 @@ static void multiple_stations_in_one_job() {
   assert(has(TachySummaryLines(r)[0], "Stanowiska: 2"));
 }
 
+static void trig_leveling_leg_both_ways() {
+  FakeTachy w; w.station = GridPos{5500000.0, 6500000.0, 100.0}; w.prism = GridPos{5500000.0, 6500050.0, 100.5};
+  auto job = CreateTrigLevel(w, JobOptions{TraverseKind::Open, CalcMode::Auto, true});
+  Fx dummy;                                                                             // tylko do liczenia kierunku celowania
+  auto aimAt = [&](double& az, double& pitch) {
+    const double dN = w.prism.n - w.station.n, dE = w.prism.e - w.station.e, dH = (w.prism.h + 1.5) - (w.station.h + 1.5);
+    az = std::atan2(dE, dN) * 180.0 / PI; pitch = std::atan2(dH, std::hypot(dN, dE)) * 180.0 / PI;
+  };
+  auto enabled = [&](const std::string& id) { for (auto& m : job->Menu()) if (m.id == id) return m.enabled; return false; };
+  assert(job->Kind() == JobKind::Tachy && !enabled("inst") && !enabled("view") && !job->CanFinish());
+  job->OnMenu("reper_a"); job->OnMenu("inst"); job->OnMenu("prism");
+  assert(enabled("view"));
+  double az, pitch; aimAt(az, pitch);
+  std::string m = job->TachyFire(az, pitch);
+  assert(has(m, "Tam A>B") && has(m, "dh +50") && !enabled("view") && !job->CanFinish());
+  std::swap(w.station, w.prism); job->OnMenu("inst"); job->OnMenu("prism");              // powrot: tachimetr na B, lustro na A
+  aimAt(az, pitch); m = job->TachyFire(az, pitch);
+  assert(has(m, "Odcinek A-B") && has(m, "ok") && job->CanFinish());
+  const TachyReport r = job->FinishTachy(true);
+  assert(r.trig && r.legs.size() == 1 && r.points.size() == 2 && r.points[0].name == "A>B tam" && r.points[1].name == "B>A powrot");
+  const TrigLeg& l = r.legs[0];
+  assert(near(l.meanMm, 500.0, 6.0) && near(l.sumMm, 0.0, 10.0) && l.ok && near(l.hToM, 100.0 + 0.0 + 0.5 - 100.0, 0.01) && l.hasTrue && std::fabs(l.errMm) < 6.0);
+  const std::string csv = TachyToCsv(r);
+  assert(has(csv, "odcinek;od;do") && has(csv, "A;B;") && has(TachySummaryLines(r)[0], "Odcinki: 1"));
+  assert(!TachyBuildDocx(r).empty());
+  job->OnMenu("prism");                                                                   // nowy odcinek B>C: punkt celu dochodzi dopiero z lustrem
+  for (auto& it : job->Menu()) if (it.id == "inst") assert(has(it.label, "B"));
+}
+
 int main() {
   registry_lists_tachy(); menu_state_true_mode(); multiple_backsights_orientation_mean(); single_backsight_works(); measure_before_orient_refused();
   backsight_aiming_is_angular(); remeasure_overwrites(); orientation_locked_after_first_point(); gnss_items_and_control_point_in_tachy_job(); gnss_pole_and_prism_exclude_each_other(); changes_clear_readings(); limit_five_backsights();
@@ -388,6 +417,7 @@ int main() {
   two_faces_measure_in_kl_and_kp(); single_face_in_two_face_mode_has_errors_and_kp_needs_kl();
   free_station_resection(); stakeout_guides_and_confirms();
   multiple_stations_in_one_job();
+  trig_leveling_leg_both_ways();
   std::puts("test_tachy_job OK");
   return 0;
 }
