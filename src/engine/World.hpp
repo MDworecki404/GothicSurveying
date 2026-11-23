@@ -42,7 +42,7 @@ namespace GOTHIC_NAMESPACE {
       zVEC3 p;
       if ( !FeetGround( p ) ) return false;
       RemoveVobSafe( instr_ );
-      instr_ = SpawnVob( LV_VIS_INSTR, p ); instrGround_ = p; hasInstr_ = true;
+      instr_ = SpawnVob( LV_VIS_INSTR, p ); instrGround_ = p; hasInstr_ = true; instrTachy_ = false;
       return true;
     }
     void RemoveInstrument() override { RemoveVobSafe( instr_ ); hasInstr_ = false; }
@@ -59,7 +59,7 @@ namespace GOTHIC_NAMESPACE {
     bool PlaceBase( GridPos& g ) override {            // stacja bazowa RTK: model tripodu, jedna naraz
       zVEC3 p;
       if ( !FeetGround( p ) ) return false;
-      RemoveVobSafe( base_ ); base_ = SpawnVob( LV_VIS_INSTR, p );
+      RemoveVobSafe( base_ ); base_ = SpawnVob( LV_VIS_INSTR, p ); baseGround_ = p; hasBase_ = true;
       g = GnssToGrid( p[VX], p[VY], p[VZ] );
       return true;
     }
@@ -294,7 +294,7 @@ namespace GOTHIC_NAMESPACE {
       DropVobRef( rod_[0] ); DropVobRef( rod_[1] ); DropVobRef( instr_ ); DropVobRef( pole_ ); DropVobRef( base_ ); hasPole_ = false; poleIsPrism_ = false;
       for ( Back& b : back_ ) { DropVobRef( b.marker ); DropVobRef( b.prism ); b.up = false; }
       DropVobRef( helmet_ ); DropVobRef( vest_ ); helmetNode_ = vestNode_ = nullptr;
-      pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false;
+      pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false; hasBase_ = false;
     }
     bool Stale() const {                                 // któryś z naszych vobów nie należy już do bieżącego świata
       for ( const auto& kv : pts_ ) if ( VobIsStale( kv.second.marker ) ) return true;
@@ -305,7 +305,44 @@ namespace GOTHIC_NAMESPACE {
       RemoveVobSafe( rod_[0] ); RemoveVobSafe( rod_[1] ); RemoveVobSafe( instr_ ); RemoveVobSafe( pole_ ); RemoveVobSafe( base_ ); hasPole_ = false; poleIsPrism_ = false;
       for ( int i = 1; i <= 5; i++ ) RemoveBacksight( i );
       DressOff();
-      pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false;
+      pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false; hasBase_ = false;
+    }
+
+    // Zapis i odtworzenie sprzetu roboty (znaki, lacie, instrument, tyczka, nawiazania, baza) - zapis gry w trakcie roboty.
+    static void PutPos( StateKV& s, const std::string& k, const zVEC3& p ) { s.Num( k + ".x", p[VX] ); s.Num( k + ".y", p[VY] ); s.Num( k + ".z", p[VZ] ); }
+    static zVEC3 GetPos( const StateKV& s, const std::string& k ) { return zVEC3( (float)s.GetNum( k + ".x" ), (float)s.GetNum( k + ".y" ), (float)s.GetNum( k + ".z" ) ); }
+    void SaveState( StateKV& s ) const {
+      s.Num( "prismH", prismH_ ); s.Int( "pts.n", (long long)pts_.size() ); int i = 0;
+      for ( const auto& kv : pts_ ) { const std::string p = "pts." + std::to_string( i++ ); s.Int( p + ".id", kv.first ); PutPos( s, p, kv.second.pos ); s.Bool( p + ".reper", kv.second.reper ); }
+      s.Int( "rod0", rodPoint_[0] ); s.Int( "rod1", rodPoint_[1] );
+      s.Bool( "instr", hasInstr_ ); s.Bool( "instrTachy", instrTachy_ ); PutPos( s, "instrPos", instrGround_ );
+      s.Bool( "pole", hasPole_ ); s.Bool( "poleIsPrism", poleIsPrism_ ); PutPos( s, "polePos", poleGround_ );
+      for ( int k = 0; k < 5; k++ ) { const std::string p = "back" + std::to_string( k ); s.Bool( p + ".up", back_[k].up ); s.Bool( p + ".marker", back_[k].marker != nullptr ); PutPos( s, p, back_[k].pos ); }
+      s.Bool( "base", hasBase_ ); PutPos( s, "basePos", baseGround_ );
+    }
+    void LoadState( const StateKV& s ) {                // po CtrlForgetJob/ClearAll: swiat bez naszych obiektow
+      prismH_ = s.GetNum( "prismH", 1.5 );
+      const int n = s.GetInt( "pts.n" );
+      for ( int i = 0; i < n; i++ ) {
+        const std::string p = "pts." + std::to_string( i ); Pt pt; pt.pos = GetPos( s, p ); pt.reper = s.GetBool( p + ".reper" );
+        pt.marker = SpawnVob( pt.reper ? LV_VIS_REPER : LV_VIS_PLATE, pt.pos ); pts_[s.GetInt( p + ".id" )] = pt;
+      }
+      if ( s.GetBool( "instr" ) ) {
+        const zVEC3 ip = GetPos( s, "instrPos" );
+        if ( s.GetBool( "instrTachy" ) ) PlaceTachymeterPos( ip );
+        else { instr_ = SpawnVob( LV_VIS_INSTR, ip ); instrGround_ = ip; hasInstr_ = true; instrTachy_ = false; }
+      }
+      for ( int r = 0; r < 2; r++ ) { const int id = s.GetInt( r ? "rod1" : "rod0", -1 ); if ( id >= 0 ) PlaceRod( r ? RodRole::Fore : RodRole::Back, id ); }
+      if ( s.GetBool( "pole" ) ) {
+        poleIsPrism_ = s.GetBool( "poleIsPrism" ); poleGround_ = GetPos( s, "polePos" ); hasPole_ = true;
+        pole_ = SpawnVob( poleIsPrism_ ? PrismModel( prismH_ ) : LV_VIS_POLE, poleGround_ );
+        if ( poleIsPrism_ ) FaceInstrument( pole_ );
+      }
+      for ( int k = 0; k < 5; k++ ) {
+        const std::string p = "back" + std::to_string( k );
+        if ( s.GetBool( p + ".up" ) ) PlaceBacksightPos( k + 1, GetPos( s, p ), s.GetBool( p + ".marker" ) );
+      }
+      if ( s.GetBool( "base" ) ) { baseGround_ = GetPos( s, "basePos" ); hasBase_ = true; base_ = SpawnVob( LV_VIS_INSTR, baseGround_ ); }
     }
 
    private:
@@ -324,7 +361,7 @@ namespace GOTHIC_NAMESPACE {
     bool BacksightsStale() const { for ( const Back& b : back_ ) if ( VobIsStale( b.marker ) || VobIsStale( b.prism ) ) return true; return false; }
     void PlaceTachymeterPos( const zVEC3& p ) {
       RemoveVobSafe( instr_ );
-      instr_ = SpawnVob( LV_VIS_TACHY, p ); instrGround_ = p; hasInstr_ = true;
+      instr_ = SpawnVob( LV_VIS_TACHY, p ); instrGround_ = p; hasInstr_ = true; instrTachy_ = true;
       if ( poleIsPrism_ ) FaceInstrument( pole_ );
       for ( Back& b : back_ ) if ( b.up ) FaceInstrument( b.prism );
     }
@@ -341,7 +378,8 @@ namespace GOTHIC_NAMESPACE {
       zVEC3 d( instrGround_[VX] - p[VX], 0, instrGround_[VZ] - p[VZ] );
       if ( d.Length() > 0.1f ) { d.Normalize(); v->SetHeadingAtWorld( d ); }
     }
-    zCVob* base_ = nullptr;                            // stacja bazowa RTK
+    zCVob* base_ = nullptr; zVEC3 baseGround_; bool hasBase_ = false;   // stacja bazowa RTK
+    bool instrTachy_ = false;                          // instr_ to tachimetr (a nie niwelator)
     zCVob* pole_ = nullptr; zVEC3 poleGround_; bool hasPole_ = false; double clock_ = 0;   // GNSS: tyczka i zegar gry [s]
     zCVob *helmet_ = nullptr, *vest_ = nullptr; zCModelNodeInst *helmetNode_ = nullptr, *vestNode_ = nullptr;
     zVEC3 dressPos_[2] = { zVEC3( 1e9f, 0, 0 ), zVEC3( 1e9f, 0, 0 ) }, dressAt_[2] = { zVEC3( 0, 0, 0 ), zVEC3( 0, 0, 0 ) };

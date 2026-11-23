@@ -196,12 +196,24 @@ static void static_needs_120_epochs_and_is_flagged() {
   assert(has(f.job->FinishGnss(true).points[0].note, "statyka"));
 }
 
+static void state_roundtrip_gnss() {
+  Fx f; f.menu("corr"); f.menu("mode"); f.menu("base"); f.menu("antenna");
+  f.measure(160); f.menu("store");                                                  // jeden punkt zapisany (statyka, wlasna baza)
+  f.menu("start"); f.advance(5);                                                    // drugi pomiar w trakcie: sesja nie jest zapisywana
+  StateKV st; assert(f.job->CanSaveState()); f.job->SaveState(st);
+  Fx g; assert(g.job->LoadState(StateKV::FromText(st.ToText())));
+  const GnssReport a = f.job->FinishGnss(true), b = g.job->FinishGnss(true);
+  assert(a.points.size() == 1 && b.points.size() == 1 && GnssToCsv(a) == GnssToCsv(b));
+  assert(g.label("corr") == f.label("corr") && g.label("mode") == f.label("mode") && g.label("antenna") == f.label("antenna") && g.enabled("start") && !g.enabled("discard"));   // sesja zerwana, tyczka stoi
+}
+
 int main() {
   registry_lists_gnss(); menu_enablement_follows_state(); pole_blocked_without_ground(); open_sky_fix_then_store();
   store_without_fix_is_flagged(); blocked_sky_never_enables_store(); clock_frozen_means_no_epochs();
   antenna_presets_cycle_and_bias_height(); true_error_columns_when_enabled(); abort_returns_partial_report(); discard_clears_measurement();
   control_requires_fix_and_20_epochs(); control_stores_point_and_report(); control_failure_does_not_store();
   own_base_needed_for_corrections(); base_on_control_point_is_accurate_arbitrary_base_shifts_all(); static_needs_120_epochs_and_is_flagged();
+  state_roundtrip_gnss();
   std::puts("test_gnss_job OK");
   return 0;
 }

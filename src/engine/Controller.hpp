@@ -6,6 +6,9 @@ namespace GOTHIC_NAMESPACE {
   inline zCWorld*           gCtrlWorld = nullptr;
   inline zCView*            gJobHud = nullptr;       // stały panel z bieżącym krokiem roboty
   inline std::string        gJobHudText;
+  inline JobOptions         gJobOpts{ TraverseKind::Open, CalcMode::Auto, false };   // opcje biezacej roboty (do zapisu stanu)
+  inline int                gJobTypeIdx = -1;         // indeks typu biezacej roboty w JobTypes() (do zapisu stanu)
+  inline int                gPendingLoadSlot = -2;    // -2 = brak; slot wczytywanego zapisu (ustawia hook LoadSavegame, zuzywa ControllerTick)
   inline std::string        gReadingLog;              // GothicSurveying/odczyty_biezace.csv: log odczytów bieżącej roboty (po końcu trafia do folderu roboty)
   inline std::string        gJobDir;                  // folder zakończonej roboty: GothicSurveying/<data_godzina>
 
@@ -184,7 +187,8 @@ namespace GOTHIC_NAMESPACE {
   }
 
   inline void CtrlStartJob( int typeIdx, TraverseKind kind, CalcMode mode, bool showTrueError = false ) {
-    gJob = JobTypes()[typeIdx].create( gWorld, JobOptions{ kind, mode, showTrueError } );
+    gJobOpts = JobOptions{ kind, mode, showTrueError };
+    gJob = JobTypes()[typeIdx].create( gWorld, gJobOpts ); gJobTypeIdx = typeIdx;
     gReadingLog = PrepareReadingLog();
     gWorld.DressOn();                                  // zdejmuje CtrlEndJob (Zakończ / Przerwij / zmiana świata)
     HudMessage( ( "Robota: " + gJob->Name() + ". " LV_KEYNAME_MENU " - menu" ).c_str() );
@@ -372,9 +376,48 @@ namespace GOTHIC_NAMESPACE {
     gStatusText = text;
   }
 
+  // --- zapis gry w trakcie roboty: stan roboty i sprzetu w pliku GothicSurveying/stan_slot<N>.txt ---
+  inline std::string CtrlStatePath( int slot ) { return std::string( LV_OUT_DIR ) + "/stan_slot" + std::to_string( slot ) + ".txt"; }
+
+  inline void CtrlSaveJobState( int slot ) {          // wywoluje hook zapisu gry; bez roboty kasuje stary stan tego slotu
+    namespace fs = std::filesystem; std::error_code ec;
+    const std::string path = CtrlStatePath( slot );
+    if ( !gJob || gJobTypeIdx < 0 || !gJob->CanSaveState() ) { fs::remove( path, ec ); return; }
+    StateKV job, world, top;
+    gJob->SaveState( job ); gWorld.SaveState( world );
+    top.Int( "ver", 1 ); top.Str( "world", ControlWorldKey( ControlWorldName() ) ); top.Str( "type", JobTypes()[gJobTypeIdx].id );
+    top.Int( "kind", (int)gJobOpts.kind ); top.Int( "mode", (int)gJobOpts.mode ); top.Bool( "trueErr", gJobOpts.showTrueError );
+    top.Str( "job", job.ToText() ); top.Str( "wld", world.ToText() );
+    fs::create_directories( LV_OUT_DIR, ec );
+    WriteBytes( path, top.ToText() );
+    SvTrace( ( "stan roboty zapisany: " + path ).c_str() );
+  }
+
+  // Po wczytaniu zapisu: odtwarza robote i sprzet ze stanu slotu. false = brak stanu albo inny swiat/typ.
+  inline bool CtrlRestoreJobState( int slot ) {
+    std::ifstream f( CtrlStatePath( slot ), std::ios::binary );
+    if ( !f.good() ) return false;
+    const std::string text( ( std::istreambuf_iterator<char>( f ) ), std::istreambuf_iterator<char>() );
+    const StateKV top = StateKV::FromText( text );
+    if ( top.GetInt( "ver" ) != 1 || top.GetStr( "world" ) != ControlWorldKey( ControlWorldName() ) ) return false;
+    int idx = -1; for ( size_t i = 0; i < JobTypes().size(); i++ ) if ( JobTypes()[i].id == top.GetStr( "type" ) ) idx = (int)i;
+    if ( idx < 0 ) return false;
+    gJobOpts = JobOptions{ (TraverseKind)top.GetInt( "kind" ), (CalcMode)top.GetInt( "mode" ), top.GetBool( "trueErr" ) };
+    std::unique_ptr<Job> job = JobTypes()[idx].create( gWorld, gJobOpts );
+    if ( !job->LoadState( StateKV::FromText( top.GetStr( "job" ) ) ) ) return false;
+    gJob = std::move( job ); gJobTypeIdx = idx;
+    gWorld.LoadState( StateKV::FromText( top.GetStr( "wld" ) ) );
+    gReadingLog = PrepareReadingLog();
+    gWorld.DressOn();
+    HudMessage( ( "Wznowiono robote: " + gJob->Name() ).c_str() );
+    SvTrace( ( "robota wznowiona ze stanu: " + CtrlStatePath( slot ) ).c_str() );
+    return true;
+  }
+
   inline void ControllerTick() {
     zCWorld* w = ogame->GetWorld();
-    if ( w != gCtrlWorld || ( w && gWorld.Stale() ) ) {   // inny świat albo ten sam obiekt świata po wczytaniu zapisu (voby zniknęły)                           // zmiana świata (wczytanie zapisu): zapisz, co się zmierzyło, i posprzątaj
+    const int loadSlot = gPendingLoadSlot; gPendingLoadSlot = -2;     // wczytanie zapisu zakonczone (hook zadzialal przed ta klatka)
+    if ( loadSlot != -2 || w != gCtrlWorld || ( w && gWorld.Stale() ) ) {   // inny świat albo ten sam obiekt świata po wczytaniu zapisu (voby zniknęły)                           // zmiana świata (wczytanie zapisu): zapisz, co się zmierzyło, i posprzątaj
       if ( gJob ) {
         if ( gJob->Kind() == JobKind::Gnss ) CtrlSavePartialGnss( gJob->FinishGnss( false ) );
         else if ( gJob->Kind() == JobKind::Tachy ) CtrlSavePartialTachy( gJob->FinishTachy( false ) );
@@ -382,6 +425,7 @@ namespace GOTHIC_NAMESPACE {
       }
       if ( FieldBookEditActive() ) { gPendingFb.complete = false; ExportFieldBook( gPendingFb, gJobDir, true ); }
       FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); MapClose(); LevelClose(); CtrlForgetJob(); gCtrlWorld = w;
+      if ( loadSlot != -2 && w ) CtrlRestoreJobState( loadSlot );
     }
     if ( !w ) return;
     ControlTick();                                     // znaki osnowy: nowy swiat / wczytany zapis

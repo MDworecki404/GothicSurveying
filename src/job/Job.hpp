@@ -7,6 +7,7 @@
 #include "calc/Control.hpp"
 #include "calc/GnssReport.hpp"
 #include "calc/Libella.hpp"
+#include "calc/State.hpp"
 #include "calc/TachyReport.hpp"
 
 enum class RodRole { Back, Fore };
@@ -71,6 +72,9 @@ class Job {
   virtual bool OnReading(int pointId, int midMm) = 0;             // odczyt środkowej kreski; dalmierz liczy robota sama
   virtual std::string Hud() const = 0;                            // ASCII
   virtual bool CanFinish() const = 0;
+  virtual bool CanSaveState() const { return false; }              // czy robota umie zapisac stan (zapis gry w trakcie roboty)
+  virtual void SaveState(StateKV& s) const { (void)s; }
+  virtual bool LoadState(const StateKV& s) { (void)s; return false; }   // false = stan nie pasuje
   virtual Libella* GetLibella() { return nullptr; }               // libella instrumentu roboty (nullptr = brak poziomowania)
   virtual std::string InstrumentBlock() const { return ""; }      // niepusty = odczyt zablokowany (np. niwelator niewypoziomowany)
   virtual FieldBook Finish(bool complete) = 0;                    // complete=false przy przerwaniu

@@ -426,6 +426,40 @@ static void instrument_must_be_levelled() {
   Fx g; assert(g.job->GetLibella() && !g.job->GetLibella()->enabled);                   // swiat bez poziomowania: instrument zawsze poziomy
 }
 
+static void state_roundtrip_tachy_multi_station() {
+  auto init = [](FakeTachy& w) { w.allControls = {CP("G0", ST), CP("G1", G1p), CP("G2", G2p)}; w.nearHero = {CP("G0", ST)}; w.nearStation = {CP("G1", G1p), CP("G2", G2p)}; };
+  Fx f(init);
+  f.menu("station:G0"); f.menu("backsight:G1"); f.menu("prism"); f.orient(1);
+  f.w.prism = GridPos{5500040.0, 6500030.0, 100.0};
+  assert(has(f.fireAt(f.w.prism, 1.5), "T1") || has(f.fireAt(f.w.prism, 1.5), "KL"));
+  f.job->TachyFlip(); f.fireAt(f.w.prism, 1.5);                                      // KL i KP: punkt zapisany, albo w trakcie
+  StateKV st; assert(f.job->CanSaveState()); f.job->SaveState(st);
+  Fx g(init); assert(g.job->LoadState(StateKV::FromText(st.ToText())));
+  assert(TachyToCsv(f.job->FinishTachy(true)) == TachyToCsv(g.job->FinishTachy(true)));
+  for (const char* id : {"station", "backsight", "newst", "view", "stake", "faces", "free", "finish"}) assert(f.enabled(id) == g.enabled(id));
+  assert(f.job->Hud() == g.job->Hud() && f.label("faces") == g.label("faces"));
+  const size_t before = g.job->FinishTachy(true).points.size();
+  g.job->TachyFlip(); g.fireAt(g.w.prism, 1.5);
+  g.job->TachyFlip(); const std::string m = g.fireAt(g.w.prism, 1.5);                  // dalszy pomiar dziala po wczytaniu (orientacja zachowana)
+  assert(g.job->FinishTachy(true).points.size() >= before && (has(m, "T") || has(m, "KL") || has(m, "KP")));
+  f.menu("newst");
+  StateKV st2; f.job->SaveState(st2);                                                // stan po zamknieciu stanowiska: zachowane stanowisko S1
+  Fx h(init); assert(h.job->LoadState(StateKV::FromText(st2.ToText())));
+  assert(h.job->FinishTachy(true).stations.size() == f.job->FinishTachy(true).stations.size() && h.enabled("station"));
+}
+
+static void state_roundtrip_trig() {
+  FakeTachy w; w.station = GridPos{5500000.0, 6500000.0, 100.0}; w.prism = GridPos{5500000.0, 6500050.0, 100.5};
+  auto job = CreateTrigLevel(w, JobOptions{TraverseKind::Open, CalcMode::Auto, true});
+  job->OnMenu("reper_a"); job->OnMenu("inst"); job->OnMenu("prism");
+  StateKV st; assert(job->CanSaveState()); job->SaveState(st);
+  FakeTachy w2; w2.station = w.station; w2.prism = w.prism;
+  auto job2 = CreateTrigLevel(w2, JobOptions{TraverseKind::Open, CalcMode::Auto, true});
+  assert(job2->LoadState(StateKV::FromText(st.ToText())) && job2->Hud() == job->Hud());
+  const double az = std::atan2(50.0, 0.0) * 180.0 / PI, pitch = std::atan2(0.5, 50.0) * 180.0 / PI;
+  assert(has(job2->TachyFire(az, pitch), "Tam A>B"));                                // wczytana robota mierzy dalej
+}
+
 int main() {
   registry_lists_tachy(); menu_state_true_mode(); multiple_backsights_orientation_mean(); single_backsight_works(); measure_before_orient_refused();
   backsight_aiming_is_angular(); remeasure_overwrites(); orientation_locked_after_first_point(); gnss_items_and_control_point_in_tachy_job(); gnss_pole_and_prism_exclude_each_other(); changes_clear_readings(); limit_five_backsights();
@@ -437,6 +471,7 @@ int main() {
   multiple_stations_in_one_job();
   trig_leveling_leg_both_ways();
   instrument_must_be_levelled();
+  state_roundtrip_tachy_multi_station(); state_roundtrip_trig();
   std::puts("test_tachy_job OK");
   return 0;
 }

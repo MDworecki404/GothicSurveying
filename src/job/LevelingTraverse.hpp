@@ -124,6 +124,31 @@ class LevelingTraverse : public Job {
     return BuildFieldBook(opt_.kind, opt_.mode, stands, names, hStart, hEnd, complete);
   }
 
+ public:
+  bool CanSaveState() const override { return true; }
+  void SaveState(StateKV& s) const override {
+    s.Bool("hasA", hasA_); s.Bool("instrument", instrument_); s.Bool("backRod", backRod_); s.Bool("foreRod", foreRod_); s.Bool("backRead", backRead_); s.Bool("foreRead", foreRead_);
+    s.Bool("foreIsEnd", foreIsEnd_); s.Bool("second", second_); s.Int("curBack", curBack_); s.Int("forePoint", forePoint_); s.Int("nextId", nextId_); s.Int("turnNo", turnNo_);
+    s.Int("backMm", backMm_); s.Int("foreMm", foreMm_); s.Num("backSight", backSight_); s.Num("foreSight", foreSight_); s.Num("backStadia", backStadia_); s.Num("foreStadia", foreStadia_);
+    s.Int("names.n", (long long)names_.size()); int i = 0;
+    for (const auto& kv : names_) { s.Int("names." + std::to_string(i) + ".id", kv.first); s.Str("names." + std::to_string(i) + ".v", kv.second); i++; }
+    PutVec(s, "stands", stands_, PutStand);
+    s.Int("foreNames.n", (long long)foreNames_.size());
+    for (size_t k = 0; k < foreNames_.size(); k++) s.Str("foreNames." + std::to_string(k), foreNames_[k]);
+    PutStand(s, "first", first_); s.Num("lib.x", lib_.x); s.Num("lib.y", lib_.y);
+  }
+  bool LoadState(const StateKV& s) override {
+    hasA_ = s.GetBool("hasA"); instrument_ = s.GetBool("instrument"); backRod_ = s.GetBool("backRod"); foreRod_ = s.GetBool("foreRod"); backRead_ = s.GetBool("backRead"); foreRead_ = s.GetBool("foreRead");
+    foreIsEnd_ = s.GetBool("foreIsEnd"); second_ = s.GetBool("second"); curBack_ = s.GetInt("curBack"); forePoint_ = s.GetInt("forePoint"); nextId_ = s.GetInt("nextId", 1); turnNo_ = s.GetInt("turnNo");
+    backMm_ = s.GetInt("backMm"); foreMm_ = s.GetInt("foreMm"); backSight_ = s.GetNum("backSight"); foreSight_ = s.GetNum("foreSight"); backStadia_ = s.GetNum("backStadia", -1); foreStadia_ = s.GetNum("foreStadia", -1);
+    names_.clear(); const int nn = s.GetInt("names.n");
+    for (int i = 0; i < nn; i++) names_[s.GetInt("names." + std::to_string(i) + ".id")] = s.GetStr("names." + std::to_string(i) + ".v");
+    stands_ = GetVec<Stand>(s, "stands", GetStand);
+    foreNames_.clear(); const int fn = s.GetInt("foreNames.n"); for (int k = 0; k < fn; k++) foreNames_.push_back(s.GetStr("foreNames." + std::to_string(k)));
+    first_ = GetStand(s, "first"); lib_.x = s.GetNum("lib.x"); lib_.y = s.GetNum("lib.y");
+    return true;
+  }
+
  private:
   bool Ended() const { return foreIsEnd_ && backRead_ && foreRead_; }
   Stand Current() const {

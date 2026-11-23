@@ -200,6 +200,13 @@ Przebieg: **Postaw reper A** (wysokość znana) → **Postaw tachimetr na punkci
 wyceluj w lustro (jak w tachimetrii, ±0,02°) i **Enter** → komunikat prosi o przeniesienie tachimetru na B i lustra na A → pomiar z powrotem → wynik odcinka (Δh średnie, suma, H punktu B).
 Następny odcinek zaczyna się na B: postaw tachimetr na B (staje nad znakiem) i nowy punkt celu C itd. Przy pomiarze z powrotem tachimetr i lustro też stają nad znakami punktów, więc nie musisz przy nich stać. Wyniki: `pomiar_tachimetryczny.csv` i `.docx` w folderze roboty (tabela odcinków i pojedyncze obserwacje); opcja prawdziwego błędu dodaje błąd Δh.
 
+## Zapis gry w trakcie roboty
+
+Gdy zapisujesz grę w trakcie roboty (F5/F6 albo menu zapisu), plugin zapisuje obok niej stan roboty i sprzętu w `GothicSurveying/stan_slot<N>.txt` (N = numer slotu zapisu): zmierzone odczyty i punkty,
+kroki roboty, ustawienia (KL/KP, źródło współrzędnych, własna baza, statyka, wysokość lustra, wysunięcie łaty…), pochylenie libelli oraz położenie znaków, instrumentu, łat, tyczek, luster i bazy.
+Po **wczytaniu** takiego zapisu robota wraca w tym samym stanie, ze sprzętem na swoich miejscach (komunikat „Wznowiono robotę”). Zapis bez roboty usuwa stan tego slotu, a wczytanie zapisu
+bez stanu albo z innego świata kończy bieżącą robotę jak dotąd (zmierzone punkty trafiają do folderu „przerwana”). Wznowiona robota ma nowy dziennik bieżący (`odczyty_biezace.csv`) bez wcześniejszych odczytów; raport końcowy jest kompletny.
+
 ## Poziomowanie instrumentu
 
 **Domyślnie włączone** (dla niwelatora i tachimetru). Tachimetr domyślnie mierzy też w **dwóch położeniach lunety** (KL+KP) — wyłączysz to w menu roboty „Położenia lunety”.
@@ -262,7 +269,7 @@ Jeśli cyfry na łacie są w grze do góry nogami, ustaw `FLIP_V = True` w `asse
 
 ## Znane ograniczenia
 
-- Plugin nie zapisuje stanu: po wyjściu z gry sprzęt trzeba postawić od nowa (wyniki zostają w CSV).
+- Zapis gry w trakcie roboty zapisuje też stan roboty i sprzętu (patrz „Zapis gry w trakcie roboty”). Trwający pomiar punktu GNSS (sesja) i połowa pomiaru KL bez KP nie są zapisywane; zapisy zrobione wersją bez tej funkcji nie mają stanu.
 - Cztery roboty: ciąg niwelacyjny, pomiar GNSS (RTK), tachimetria i niwelacja trygonometryczna (jeden odcinek naraz, bez wyrównania całego ciągu).
 - Tachimetria: bez wcięcia w przód i bez wyrównania osnowy ani wspólnego wyrównania stanowisk.
 - Pomiar GNSS: poprawki z własnej bazy to model uproszczony (1 ppm + przesunięcie bazy), bez wielu baz i bez przetwarzania linii bazowych; statyka to pojedyncza sesja 120 epok.

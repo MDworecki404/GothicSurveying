@@ -119,6 +119,23 @@ class GnssRover : public Job {
   bool OnReading(int, int) override { return false; }
   FieldBook Finish(bool) override { return FieldBook{}; }
 
+ public:
+  bool CanSaveState() const override { return true; }
+  void SaveState(StateKV& s) const override {                                // trwajacy pomiar punktu (sesja) nie jest zapisywany: po wczytaniu trzeba go zaczac od nowa
+    s.Bool("poleUp", poleUp_); s.Bool("ownBase", ownBase_); s.Bool("baseUp", baseUp_); s.Bool("static", static_); s.Int("ant", antIdx_);
+    s.Num("base.n", baseTruth_.n); s.Num("base.e", baseTruth_.e); s.Num("base.h", baseTruth_.h);
+    s.Num("off0", baseOff_[0]); s.Num("off1", baseOff_[1]); s.Num("off2", baseOff_[2]); s.Str("baseNote", baseNote_);
+    PutVec(s, "points", points_, PutGnssPoint);
+  }
+  bool LoadState(const StateKV& s) override {
+    poleUp_ = s.GetBool("poleUp"); ownBase_ = s.GetBool("ownBase"); baseUp_ = s.GetBool("baseUp"); static_ = s.GetBool("static"); antIdx_ = s.GetInt("ant") % kAntennaCount;
+    baseTruth_ = GridPos{s.GetNum("base.n"), s.GetNum("base.e"), s.GetNum("base.h")};
+    baseOff_[0] = s.GetNum("off0"); baseOff_[1] = s.GetNum("off1"); baseOff_[2] = s.GetNum("off2"); baseNote_ = s.GetStr("baseNote");
+    points_ = GetVec<GnssPoint>(s, "points", GetGnssPoint);
+    measuring_ = false; session_.reset();
+    return true;
+  }
+
  private:
   static constexpr int kStaticEpochs = 120;
   static constexpr int kAntennaCount = 5;

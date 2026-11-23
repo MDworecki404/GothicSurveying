@@ -120,6 +120,22 @@ class TrigLevelJob : public Job {
   bool OnReading(int, int) override { return false; }
   FieldBook Finish(bool) override { return FieldBook{}; }
 
+ public:
+  bool CanSaveState() const override { return true; }
+  void SaveState(StateKV& s) const override {
+    s.Bool("hasA", hasA_); s.Bool("instUp", instUp_); s.Bool("prismUp", prismUp_); s.Int("S", S_); s.Int("T", T_); s.Int("phase", phase_); s.Int("nextId", nextId_); s.Int("prismIdx", prismIdx_);
+    s.Num("hS", hS_); s.Num("trueDh", trueDhMm_); PutTrigLeg(s, "cur", cur_); PutVec(s, "legs", legs_, PutTrigLeg); PutVec(s, "points", points_, PutTachyPoint);
+    s.Num("lib.x", lib_.x); s.Num("lib.y", lib_.y);
+  }
+  bool LoadState(const StateKV& s) override {
+    hasA_ = s.GetBool("hasA"); instUp_ = s.GetBool("instUp"); prismUp_ = s.GetBool("prismUp"); S_ = s.GetInt("S"); T_ = s.GetInt("T"); phase_ = s.GetInt("phase"); nextId_ = s.GetInt("nextId", 2);
+    prismIdx_ = s.GetInt("prismIdx") % kPrismCount; hS_ = s.GetNum("hS"); trueDhMm_ = s.GetNum("trueDh"); cur_ = GetTrigLeg(s, "cur");
+    legs_ = GetVec<TrigLeg>(s, "legs", GetTrigLeg); points_ = GetVec<TachyPoint>(s, "points", GetTachyPoint);
+    lib_.x = s.GetNum("lib.x"); lib_.y = s.GetNum("lib.y"); lastMsg_.clear();
+    w_.SetPrismHeightM(kPrism[prismIdx_]);
+    return true;
+  }
+
  private:
   static constexpr int kPrismCount = 4;
   static constexpr double kPrism[kPrismCount] = {1.5, 1.8, 2.0, 1.3};

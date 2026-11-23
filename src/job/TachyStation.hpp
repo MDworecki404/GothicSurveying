@@ -230,6 +230,42 @@ class TachyStationJob : public Job {
   bool OnReading(int, int) override { return false; }
   FieldBook Finish(bool) override { return FieldBook{}; }
 
+ public:
+  bool CanSaveState() const override { return true; }
+  void SaveState(StateKV& s) const override {
+    s.Bool("control", control_); s.Bool("free", free_); s.Bool("solved", solved_); s.Bool("stakeOn", stakeOn_); s.Bool("stationUp", stationUp_); s.Bool("prismUp", prismUp_);
+    s.Bool("oriented", oriented_); s.Bool("reflectorless", reflectorless_); s.Bool("twoFace", twoFace_); s.Bool("errDrawn", errDrawn_); s.Int("face", face_);
+    s.Num("coll", collGon_); s.Num("index", indexGon_); s.Int("prismIdx", prismIdx_); s.Num("az0", az0_); s.Num("freeRms", freeRms_);
+    s.Num("st.n", st_.n); s.Num("st.e", st_.e); s.Num("st.h", st_.h); s.Num("st.ih", st_.instrH); s.Num("st.azb", st_.azBackDeg); s.Num("st.az0", st_.az0Deg);
+    PutControl(s, "stationCp", stationCp_); PutControl(s, "stake", stake_);
+    s.Int("backs.n", (long long)backs_.size());
+    for (size_t i = 0; i < backs_.size(); i++) {
+      const std::string p = "backs." + std::to_string(i); const Back& b = backs_[i];
+      s.Str(p + ".name", b.name); PutControl(s, p + ".cp", b.cp); s.Bool(p + ".read", b.read); s.Num(p + ".az", b.azMeasDeg); s.Num(p + ".d", b.distMeasM); s.Num(p + ".hd", b.hdMeasM); s.Num(p + ".dh", b.dHMeasM);
+    }
+    PutVec(s, "points", points_, PutTachyPoint); PutVec(s, "done", done_, PutTachyStationRec);
+    s.Int("stationNo", stationNo_); s.Int("stationStart", (long long)stationStart_); s.Num("lib.x", lib_.x); s.Num("lib.y", lib_.y);
+    { StateKV g; gnss_->SaveState(g); s.Str("gnss", g.ToText()); }                 // zagniezdzony odbiornik GNSS (zakladanie osnowy w robocie)
+  }
+  bool LoadState(const StateKV& s) override {
+    control_ = s.GetBool("control"); free_ = s.GetBool("free"); solved_ = s.GetBool("solved"); stakeOn_ = s.GetBool("stakeOn"); stationUp_ = s.GetBool("stationUp"); prismUp_ = s.GetBool("prismUp");
+    oriented_ = s.GetBool("oriented"); reflectorless_ = s.GetBool("reflectorless"); twoFace_ = s.GetBool("twoFace"); errDrawn_ = s.GetBool("errDrawn"); face_ = s.GetInt("face", 1);
+    collGon_ = s.GetNum("coll"); indexGon_ = s.GetNum("index"); prismIdx_ = s.GetInt("prismIdx") % kPrismCount; az0_ = s.GetNum("az0"); freeRms_ = s.GetNum("freeRms");
+    st_.n = s.GetNum("st.n"); st_.e = s.GetNum("st.e"); st_.h = s.GetNum("st.h"); st_.instrH = s.GetNum("st.ih", 1.5); st_.azBackDeg = s.GetNum("st.azb"); st_.az0Deg = s.GetNum("st.az0");
+    stationCp_ = GetControl(s, "stationCp"); stake_ = GetControl(s, "stake");
+    backs_.clear(); const int nb = s.GetInt("backs.n");
+    for (int i = 0; i < nb; i++) {
+      const std::string p = "backs." + std::to_string(i); Back b;
+      b.name = s.GetStr(p + ".name"); b.cp = GetControl(s, p + ".cp"); b.read = s.GetBool(p + ".read"); b.azMeasDeg = s.GetNum(p + ".az"); b.distMeasM = s.GetNum(p + ".d"); b.hdMeasM = s.GetNum(p + ".hd"); b.dHMeasM = s.GetNum(p + ".dh");
+      backs_.push_back(b);
+    }
+    points_ = GetVec<TachyPoint>(s, "points", GetTachyPoint); done_ = GetVec<TachyStationRec>(s, "done", GetTachyStationRec);
+    stationNo_ = s.GetInt("stationNo", 1); stationStart_ = (size_t)s.GetInt("stationStart"); lib_.x = s.GetNum("lib.x"); lib_.y = s.GetNum("lib.y");
+    half_.valid = false; lastMsg_.clear();
+    w_.SetPrismHeightM(kPrism[prismIdx_]);
+    return gnss_->LoadState(StateKV::FromText(s.GetStr("gnss")));
+  }
+
  private:
   struct Back { std::string name; ControlPoint cp; bool read = false; double azMeasDeg = 0, distMeasM = 0, hdMeasM = 0, dHMeasM = 0; };   // cp.n,e,h = wspolrzedne uzywane do obliczen
   static constexpr int kMaxBack = 5;

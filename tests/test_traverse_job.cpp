@@ -205,6 +205,19 @@ static void instrument_can_be_repositioned_before_readings() {
   assert(!f.enabled("instrument"));                                   // po odczycie już nie
 }
 
+static void state_roundtrip_mid_traverse() {
+  Fx f; f.menu("reper_a");
+  do_stand(f, 1, 1500, "rod_fore_turn", 2, 1200, false); f.menu("move_next");
+  f.menu("instrument"); assert(f.read(2, 1400));                                 // w trakcie drugiego stanowiska: odczyt wstecz, bez wprzod
+  StateKV st; assert(f.job->CanSaveState()); f.job->SaveState(st);
+  Fx g; assert(g.job->LoadState(StateKV::FromText(st.ToText())));
+  for (const char* id : {"reper_a", "instrument", "rod_back", "rod_fore_turn", "rod_fore_end", "move_next", "obsadzka", "finish"}) assert(f.enabled(id) == g.enabled(id));
+  assert(f.job->Hud() == g.job->Hud());
+  g.menu("rod_fore_end"); assert(g.read(3, 1100));                                  // dalszy ciag dziala: odczyt wprzod, potem koniec
+  const FieldBook a = g.job->Finish(true);
+  assert(a.rows.size() == 2 && a.rows[0].backMm == 1500 && a.rows[1].backMm == 1400 && a.rows[1].foreMm == 1100);
+}
+
 int main() {
   menu_at_start_only_allows_reper_a(); rod_fore_blocked_until_instrument_and_back_rod();
   full_anchored_run_produces_expected_fieldbook(); move_next_swaps_roles_and_removes_instrument();
@@ -212,6 +225,7 @@ int main() {
   abort_without_stands_returns_incomplete_empty_book(); reading_rejects_out_of_range(); reading_on_unplaced_rod_is_rejected();
   readings_order_is_free(); job_registry_lists_traverse();
   obsadzka_takes_second_set_and_averages(); abort_during_second_set_keeps_first_set(); stadia_is_measured_automatically(); rod_point_for_reports_roles(); redo_readings_allows_second_reading(); instrument_can_be_repositioned_before_readings();
+  state_roundtrip_mid_traverse();
   std::puts("test_traverse_job OK");
   return 0;
 }
