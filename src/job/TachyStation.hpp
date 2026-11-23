@@ -183,6 +183,7 @@ class TachyStationJob : public Job {
     else std::snprintf(b, sizeof b, "Pomiar na lustro %.3f m   Punkty: %d", kPrism[prismIdx_], (int)points_.size());
     out.push_back(b);
     if (free_ && stationUp_) { std::snprintf(b, sizeof b, solved_ ? "Stanowisko dowolne: N %.3f E %.3f (rms %.1f mm)" : "Stanowisko dowolne: zmierz min. 2 nawiazania", st_.n, st_.e, freeRms_ * 1000.0); out.push_back(b); }
+    if (lib_.enabled) { std::snprintf(b, sizeof b, lib_.Within(kTachyLevelArcmin) ? "Instrument: poziomo (%.1f')" : "Instrument: NIEWYPOZIOMOWANY (%.1f') - menu: Poziomuj", lib_.Mag()); out.push_back(b); }
     out.push_back(lastMsg_.empty() ? (twoFace_ ? "Enter - zmierz w KL, " LV_KEYNAME_FLIP " - przerzut, Enter - w KP" : "Enter - zmierz (lustro nawiazania albo punkt)") : lastMsg_);
     return out;
   }

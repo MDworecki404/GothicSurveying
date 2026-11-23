@@ -21,6 +21,15 @@ namespace GOTHIC_NAMESPACE {
     ScopeLeave(); PoleFineLeave(); TachyViewLeave(); LevelClose(); MenuClose(); gJob.reset(); CtrlCloseJobHud();
   }
 
+  // Stan poziomowania instrumentu roboty: "" gdy bez libelli albo bez instrumentu.
+  inline std::string CtrlLevelState() {
+    Libella* l = gJob ? gJob->GetLibella() : nullptr;
+    if ( !l || !l->enabled || !gWorld.HasInstrument() ) return "";
+    const double lim = gJob->Kind() == JobKind::Leveling ? kLevelBubbleArcmin : kTachyLevelArcmin;
+    char b[64]; sprintf( b, l->Within( lim ) ? "poziomo (%.1f')" : "NIEWYPOZIOMOWANY (%.1f')", l->Mag() );
+    return b;
+  }
+
   inline void CtrlEnterScope() {
     if ( !gJob || !gWorld.HasInstrument() || gJob->ActiveRodPoints().empty() ) { HudMessage( "Najpierw postaw niwelator i late (" LV_KEYNAME_MENU ")" ); return; }
     ScopeCallbacks cb;
@@ -45,6 +54,7 @@ namespace GOTHIC_NAMESPACE {
       return true;
     };
     cb.block = []() { return gJob ? gJob->InstrumentBlock() : std::string(); };
+    cb.levelState = []() { return gJob ? CtrlLevelState() : std::string(); };
     cb.onEnter = []() { gWorld.TurnRodsToInstrument(); gWorld.SetInstrumentVisible( false ); };
     cb.onLeave = []() { gWorld.SetInstrumentVisible( true ); };
     ScopeEnter( gWorld.InstrumentGround(), cb );
@@ -342,6 +352,7 @@ namespace GOTHIC_NAMESPACE {
   inline void CtrlUpdateJobHud() {
     if ( !gJob ) { CtrlCloseJobHud(); return; }
     std::string text = gJob->Hud();
+    { const std::string ls = CtrlLevelState(); if ( !ls.empty() ) text += "   |   Instrument: " + ls; }
     if ( gJobHud && text == gJobHudText ) return;
     PanelClose( gJobHud );
     gJobHud = PanelOpen( 600, 7350, 7600, 8000 );

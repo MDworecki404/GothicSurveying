@@ -95,6 +95,7 @@ class TrigLevelJob : public Job {
     char b[120]; std::vector<std::string> out;
     std::snprintf(b, sizeof b, "V: %.4f g   Tachimetr: %s   Lustro: %s", v, Name_(InstPoint()).c_str(), Name_(PrismPoint()).c_str()); out.push_back(b);
     std::snprintf(b, sizeof b, "Odcinek %s>%s, pomiar %s   Odcinkow gotowych: %d", Name_(S_).c_str(), Name_(T_).c_str(), phase_ == 0 ? "tam" : "z powrotem", (int)legs_.size()); out.push_back(b);
+    if (lib_.enabled) { std::snprintf(b, sizeof b, lib_.Within(kTachyLevelArcmin) ? "Instrument: poziomo (%.1f')" : "Instrument: NIEWYPOZIOMOWANY (%.1f') - menu: Poziomuj", lib_.Mag()); out.push_back(b); }
     out.push_back(lastMsg_.empty() ? "Enter - zmierz V i odleglosc do lustra" : lastMsg_);
     return out;
   }

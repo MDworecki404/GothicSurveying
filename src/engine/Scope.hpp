@@ -22,6 +22,7 @@ namespace GOTHIC_NAMESPACE {
     std::function<std::vector<RodTarget>()> targets;                           // łaty do wyboru pod pionową kreską
     std::function<bool( bool fore, zVEC3& foot )> rodFoot;                     // stopa łaty wprzód/wstecz; false = brak takiej łaty
     std::function<bool( int pointId, int midMm )> onReading;                   // false = odczyt odrzucony
+    std::function<std::string()> levelState;                                   // "poziomo" / "NIEWYPOZIOMOWANY" / "" (brak poziomowania): wskaznik w lunecie
     std::function<std::string()> block;                                        // niepusty komunikat = odczyt zablokowany (niewypoziomowany niwelator)
     std::function<void()> onEnter, onLeave;                                    // np. ukrycie niwelatora, obrót łat
   };
@@ -134,13 +135,16 @@ namespace GOTHIC_NAMESPACE {
 
   // Podpowiedź w lewym górnym rogu: skróty Z/X oraz to, na którą łatę celuje pionowa kreska (albo trwający wpis).
   inline void ScopeUpdateHint( const std::string& aim ) {
-    const std::string line2 = aim.empty() ? "Celujesz: brak lat" : "Celujesz: lata " + aim;
-    if ( line2 == gHintText && gHintPanel ) return;
-    gHintText = line2;
-    if ( !gHintPanel ) gHintPanel = PanelOpen( 150, 150, 3900, 1050 );
+    const std::string ls = gCb.levelState ? gCb.levelState() : std::string();
+    const std::string line2 = aim.empty() ? "Celujesz: brak lat" : "Celujesz: lata " + aim, line3 = ls.empty() ? "" : "Instrument: " + ls;
+    if ( line2 + "|" + line3 == gHintText && gHintPanel ) return;
+    gHintText = line2 + "|" + line3;
+    if ( !gHintPanel ) gHintPanel = PanelOpen( 150, 150, 3900, ls.empty() ? 1050 : 1450 );
     gHintPanel->ClrPrintwin();
+    const int h = ls.empty() ? 1 : 3;                                          // 3 wiersze (z instrumentem) albo 2: pozycje liczone od wysokosci panelu
     gHintPanel->PrintCX( 1800, zSTRING( LV_KEYNAME_ROD_BACK " - lata wstecz   " LV_KEYNAME_ROD_FORE " - lata wprzod" ) );
-    gHintPanel->PrintCX( 4300, zSTRING( line2.c_str() ) );
+    gHintPanel->PrintCX( h == 1 ? 4300 : 3300, zSTRING( line2.c_str() ) );
+    if ( !ls.empty() ) gHintPanel->PrintCX( 5500, zSTRING( line3.c_str() ) );
   }
 
   // Enter w widoku: łata pod pionową kreską krzyża, sprawdź celową i przejdź do wpisywania odczytów.
