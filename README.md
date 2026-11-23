@@ -121,6 +121,11 @@ W robocie GNSS, gdy odbiornik ma **fix** i co najmniej **20 epok**, menu ma pozy
 położenie znaku w grze, rozwiązanie, PDOP, epoki, czas) i **stawia znak (reper)**, który zostaje po zakończeniu roboty. Po wczytaniu zapisu albo wejściu
 do świata znaki wracają z pliku. W menu głównym (bez roboty) pozycja **Pokaż osnowę** wyświetla punkty bieżącego świata.
 
+Osnowę można zakładać także **w trakcie roboty Tachimetria**: menu ma pozycje „GNSS: Postaw tyczkę z odbiornikiem”, „GNSS: Wysokość anteny”, „GNSS: Rozpocznij pomiar punktu”,
+„GNSS: Załóż punkt osnowy” i „GNSS: Odrzuć pomiar” (te same zasady co w robocie GNSS: fix i 20 epok, panel odbiornika w lewym górnym rogu). Tyczka GNSS zajmuje miejsce tyczki
+z lustrem: po założeniu punktu postaw tyczkę z lustrem ponownie; w trakcie pomiaru GNSS nie można jej przestawić. Nowy punkt trafia do osnowy i jest od razu dostępny jako źródło
+współrzędnych (przełącznik „Źródło współrzędnych”, możliwy przed postawieniem tachimetru). Punkty GNSS założone w tachimetrii nie trafiają do dziennika tachimetrycznego, tylko do `osnowa.csv`.
+
 Współrzędne osnowy mają błąd GNSS (centymetry), więc przechodzą na pomiary tachimetryczne oparte na osnowie. Obiekty pluginu (znaki, tyczki, sprzęt) nie są
 zapisywane w zapisach gry, a znaki osnowy są stawiane na nowo z pliku, więc nie powinny się dublować po wczytaniu zapisu. Zapisy zrobione starszą wersją pluginu mogą mieć
 „duchy” (zapisany kask, tyczkę lub znak) - wczytaj zapis sprzed pomiarów.
