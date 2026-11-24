@@ -12,7 +12,7 @@
 
 enum class RodRole { Back, Fore };
 enum class MarkerKind { Reper, Turning };
-enum class JobKind { Leveling, Gnss, Tachy };
+enum class JobKind { Leveling, Gnss, Tachy, Scan };
 
 struct MenuItem { std::string id, label, hint; bool enabled; };
 struct JobOptions { TraverseKind kind; CalcMode mode; bool showTrueError = false; };
@@ -38,6 +38,8 @@ class IWorld {
   virtual bool     PlacePrismOnPoint(int pointId) { (void)pointId; return false; }        // tyczka z lustrem dokladnie na znaku punktu
   virtual bool     TwoFaceByDefault() const { return false; }                       // tachimetr domyslnie w dwoch polozeniach lunety (KL+KP)
   virtual bool     InstrumentLevelingEnabled() const { return false; }               // czy instrument trzeba poziomowac (libella)
+  virtual bool     ScanRay(double azDeg, double elevDeg, double& distM, double& cosInc, bool& isVob) const { (void)azDeg; (void)elevDeg; (void)distM; (void)cosInc; (void)isVob; return false; }   // skaner: promien z oka instrumentu (az od polnocy, elev nad poziomem); false = brak trafienia w 120 m
+  virtual std::string ScanOutDir() { return ""; }                                    // folder wynikow skanu (tworzy); "" = blad
   virtual bool     PlacePole() { return false; }                  // tyczka z antena pod stopami; false = brak gruntu
   virtual void     RemovePole() {}
   virtual SkyMask  SkyHorizon() const { return SkyMask{}; }       // maska horyzontu z promieni ku niebu z miejsca tyczki
@@ -72,6 +74,7 @@ class Job {
   virtual bool OnReading(int pointId, int midMm) = 0;             // odczyt środkowej kreski; dalmierz liczy robota sama
   virtual std::string Hud() const = 0;                            // ASCII
   virtual bool CanFinish() const = 0;
+  virtual std::vector<std::string> SummaryLines() const { return {}; }   // podsumowanie roboty (skaner) do panelu po zakonczeniu
   virtual bool CanSaveState() const { return false; }              // czy robota umie zapisac stan (zapis gry w trakcie roboty)
   virtual void SaveState(StateKV& s) const { (void)s; }
   virtual bool LoadState(const StateKV& s) { (void)s; return false; }   // false = stan nie pasuje
@@ -90,4 +93,4 @@ class Job {
   virtual std::vector<std::string> StatusLines() const { return {}; }   // panel statusu (ASCII); pusty = brak panelu
 };
 
-struct JobType { std::string id, name; std::unique_ptr<Job> (*create)(IWorld&, const JobOptions&); bool gnss = false, tachy = false; };
+struct JobType { std::string id, name; std::unique_ptr<Job> (*create)(IWorld&, const JobOptions&); bool gnss = false, tachy = false, scan = false; };

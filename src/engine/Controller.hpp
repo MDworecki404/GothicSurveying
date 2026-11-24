@@ -28,7 +28,7 @@ namespace GOTHIC_NAMESPACE {
   inline std::string CtrlLevelState() {
     Libella* l = gJob ? gJob->GetLibella() : nullptr;
     if ( !l || !l->enabled || !gWorld.HasInstrument() ) return "";
-    const double lim = gJob->Kind() == JobKind::Leveling ? kLevelBubbleArcmin : kTachyLevelArcmin;
+    const double lim = gJob->Kind() == JobKind::Leveling || gJob->Kind() == JobKind::Scan ? kLevelBubbleArcmin : kTachyLevelArcmin;
     char b[64]; sprintf( b, l->Within( lim ) ? "poziomo (%.1f')" : "NIEWYPOZIOMOWANY (%.1f')", l->Mag() );
     return b;
   }
@@ -154,6 +154,7 @@ namespace GOTHIC_NAMESPACE {
     if ( !gJob ) return;
     if ( gJob->Kind() == JobKind::Gnss ) { CtrlFinishGnss(); return; }
     if ( gJob->Kind() == JobKind::Tachy ) { CtrlFinishTachy(); return; }
+    if ( gJob->Kind() == JobKind::Scan ) { TextPanelShow( "Skaner laserowy - podsumowanie", gJob->SummaryLines(), "Pliki .pts i .las w folderze GothicSurveying" ); SvTrace( "Skaner zakonczony" ); CtrlEndJob(); return; }
     FieldBook fb = gJob->Finish( true );
     gJobDir = MakeJobDir();                            // nazwa folderu = czas zakończenia roboty
     MoveReadingLog( gReadingLog, gJobDir );
@@ -221,7 +222,8 @@ namespace GOTHIC_NAMESPACE {
     for ( size_t i = 0; i < types.size(); i++ ) v.items.push_back( { std::to_string( i ), types[i].name, "", true } );
     MenuOpen( v, []( const std::string& id ) {
       const int idx = std::stoi( id );
-      if ( JobTypes()[idx].gnss || JobTypes()[idx].tachy ) CtrlOpenTrueErrorMenu( idx ); else CtrlOpenKindMenu( idx );
+      if ( JobTypes()[idx].scan ) CtrlStartJob( idx, TraverseKind::Open, CalcMode::Auto );
+      else if ( JobTypes()[idx].gnss || JobTypes()[idx].tachy ) CtrlOpenTrueErrorMenu( idx ); else CtrlOpenKindMenu( idx );
     } );
   }
 
@@ -387,7 +389,7 @@ namespace GOTHIC_NAMESPACE {
       else if ( id == "view" ) { gJob->OnMenu( id ); CtrlEnterTachyView(); }
       else if ( gJob->NeedsChoice( id ) ) CtrlOpenChoice( id );
       else if ( id == "rodlen" ) { gRodLenCm = gRodLenCm >= 500.0f ? 300.0f : gRodLenCm + 100.0f; gWorld.RefreshRods(); HudMessage( ( "Lata wysunieta na " + std::to_string( (int)( gRodLenCm / 100.0f ) ) + " m" ).c_str() ); }
-      else if ( id == "level" ) LevelOpen( gJob->GetLibella(), gJob->Kind() == JobKind::Leveling ? kLevelBubbleArcmin : kTachyLevelArcmin, gJob->Kind() == JobKind::Leveling ? "niwelatora" : "tachimetru" );
+      else if ( id == "level" ) LevelOpen( gJob->GetLibella(), gJob->Kind() == JobKind::Leveling || gJob->Kind() == JobKind::Scan ? kLevelBubbleArcmin : kTachyLevelArcmin, gJob->Kind() == JobKind::Leveling ? "niwelatora" : gJob->Kind() == JobKind::Scan ? "skanera" : "tachimetru" );
       else if ( id == "map" ) MapOpen();
       else if ( id == "tp" ) CtrlOpenTeleport( 0 );
       else if ( id == "abort" ) CtrlConfirmAbort();

@@ -207,6 +207,18 @@ kroki roboty, ustawienia (KL/KP, źródło współrzędnych, własna baza, staty
 Po **wczytaniu** takiego zapisu robota wraca w tym samym stanie, ze sprzętem na swoich miejscach (komunikat „Wznowiono robotę”). Zapis bez roboty usuwa stan tego slotu, a wczytanie zapisu
 bez stanu albo z innego świata kończy bieżącą robotę jak dotąd (zmierzone punkty trafiają do folderu „przerwana”). Wznowiona robota ma nowy dziennik bieżący (`odczyty_biezace.csv`) bez wcześniejszych odczytów; raport końcowy jest kompletny.
 
+## Skaner laserowy naziemny
+
+„Rozpocznij robotę” → „Skaner laserowy”. **Postaw skaner (stanowisko)** (pod stopami; stając przy znaku osnowy dziedziczy jego współrzędne GNSS, inaczej używa prawdziwych),
+**wypoziomuj** go (menu „Poziomuj instrument”, jak niwelator: babelek w kółku ≤ 8′), wybierz **rozdzielczość** i **Rozpocznij skan**. Skaner wykonuje siatkę promieni jak prawdziwy:
+360° w poziomie, kąt zenitalny V od 0° do 125° (martwe pole pod statywem), kolumna po kolumnie; każdy promień trafia w teren albo w voby świata (z kolizją; bez postaci)
+i daje punkt, jeśli odległość mieści się w 0,5–120 m. Szum odległości 1,5 mm + 10 ppm, intensywność 0–255 z kąta padania i odległości (powierzchnie prostopadłe są jaśniejsze, voby nieco jaśniejsze od terenu).
+Skan trwa w czasie gry (klatka po klatce w budżecie ok. 12 ms; pasek postępu z liczbą punktów), a „Przerwij skan” go anuluje. Rozdzielczości: krok 1,0° (ok. 45 tys. kierunków), 0,5°, 0,25° i 0,1° (ok. 4,5 mln kierunków; to już minuty).
+
+Wyniki w folderze `GothicSurveying/RRRR-MM-DD_GG-MM-SS_skan/`: `skanNN.pts` (liczba punktów w pierwszej linii, potem `E N H intensywnosc`; X = E, Y = N, Z = H w układzie lokalnym siatki),
+`skanNN.las` (LAS 1.2, format 0, skala 1 mm; otwiera się np. w CloudCompare) i `skanNN_opis.txt` (parametry i stanowisko). Można zrobić wiele skanów na różnych stanowiskach w jednej robocie;
+po „Zakończ robotę” panel podsumowuje stanowiska i liczby punktów. Punkty zapisywane są strumieniowo na dysk, więc chmura nie obciąża pamięci gry. Rejestracja wielu skanów (tarcze) jest następnym krokiem.
+
 ## Poziomowanie instrumentu
 
 **Domyślnie włączone** (dla niwelatora i tachimetru). Tachimetr domyślnie mierzy też w **dwóch położeniach lunety** (KL+KP) — wyłączysz to w menu roboty „Położenia lunety”.

@@ -43,6 +43,7 @@ STEROWANIE
   K - przerzut lunety (opcja "Polozenia lunety: dwa" = KL+KP, usuwa bledy kolimacji i indeksu), "Stanowisko dowolne" (wciecie wstecz), "Wytycz punkt osnowy", "Nowe stanowisko" (wiele stanowisk w robocie).
 - Poziomowanie niwelatora i tachimetru (libella, sruby 1-6) jest domyslnie WLACZONE (menu roboty: Poziomuj instrument; wylaczysz w menu glownym). Tachimetr domyslnie mierzy w dwoch polozeniach lunety (KL+KP).
 - Zapis gry w trakcie roboty zapisuje tez stan roboty i sprzetu (GothicSurveying\stan_slot<N>.txt); wczytanie zapisu wznawia robote.
+- Skaner laserowy: "Rozpocznij robote" -> "Skaner laserowy"; postaw i wypoziomuj skaner, wybierz rozdzielczosc, skanuj; wyniki (.pts, .las) w GothicSurveying\<data>_skan.
 - Osnowa swiata: "Zaladuj osnowe geodezyjna swiata" (wzorcowe punkty G.. dla Khorinis, Doliny Gornickiej i Jarkendaru), "Mapa osnowy" (mapa swiata z punktami),
   "Teleport do punktu osnowy". Pomiar GNSS: wlasna baza (poprawki RTK) i pomiar statyczny.
 - Pomiar GNSS (RTK): "Rozpocznij robote" -> "Pomiar GNSS (RTK)"; tyczka z odbiornikiem, panel w lewym gornym rogu,

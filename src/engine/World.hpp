@@ -150,6 +150,27 @@ namespace GOTHIC_NAMESPACE {
       hit = GnssToGrid( h[VX], h[VY], h[VZ] ); slopeM = ( h - from ).Length() / 100.0;
       return true;
     }
+    // Skaner laserowy: promien z oka instrumentu; teren i voby ze swiata (bez postaci i voba skanera), zasieg 120 m.
+    bool ScanRay( double azDeg, double elevDeg, double& distM, double& cosInc, bool& isVob ) const override {
+      zCWorld* w = ogame->GetWorld();
+      if ( !w || !hasInstr_ ) return false;
+      const float rad = 3.14159265f / 180.0f, az = (float)azDeg * rad, p = (float)elevDeg * rad;
+      const zVEC3 from = instrGround_ + zVEC3( 0, LV_INSTR_H, 0 );
+      const zVEC3 dir( sinf( az ) * cosf( p ), sinf( p ), cosf( az ) * cosf( p ) );
+      if ( !w->TraceRayNearestHit( from, dir * 12000.0f, instr_, zTRACERAY_VOB_IGNORE_NO_CD_DYN | zTRACERAY_VOB_IGNORE_CHARACTER | zTRACERAY_POLY_IGNORE_TRANSP ) ) return false;
+      const zTTraceRayReport& r = w->traceRayReport;
+      distM = ( r.foundIntersection - from ).Length() / 100.0;
+      zVEC3 n = r.foundPolyNormal; const float nl = n.Length();
+      cosInc = nl > 0.5f ? fabs( ( n[VX] * dir[VX] + n[VY] * dir[VY] + n[VZ] * dir[VZ] ) / nl ) : 0.5;
+      isVob = r.foundVob != nullptr;
+      return true;
+    }
+    std::string ScanOutDir() override {
+      time_t t = time( nullptr ); tm lt; localtime_s( &lt, &t ); char st[32]; strftime( st, sizeof st, "%Y-%m-%d_%H-%M-%S", &lt );
+      std::error_code ec; const std::string dir = std::string( "GothicSurveying/" ) + st + "_skan";
+      std::filesystem::create_directories( dir, ec );
+      return ec ? std::string() : dir;
+    }
     GridPos StationGrid() const override { return GnssToGrid( instrGround_[VX], instrGround_[VY], instrGround_[VZ] ); }
     GridPos PointGrid( int slot ) const override {
       if ( slot < 1 || slot > 5 || !back_[slot - 1].up ) return GridPos{ 0, 0, 0 };

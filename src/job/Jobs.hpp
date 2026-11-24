@@ -5,6 +5,7 @@
 #include "GnssRover.hpp"
 #include "TachyStation.hpp"
 #include "TrigLevel.hpp"
+#include "ScanJob.hpp"
 
 inline const std::vector<JobType>& JobTypes() {
   static const std::vector<JobType> types = {
@@ -12,6 +13,7 @@ inline const std::vector<JobType>& JobTypes() {
     {"gnss", "Pomiar GNSS (RTK)", &CreateGnssRover, true, false},
     {"tachy", "Tachimetria (pomiar biegunowy)", &CreateTachyStation, false, true},
     {"trig", "Niwelacja trygonometryczna", &CreateTrigLevel, false, true},
+    {"scan", "Skaner laserowy", &CreateScanJob, false, false, true},
   };
   return types;
 }
