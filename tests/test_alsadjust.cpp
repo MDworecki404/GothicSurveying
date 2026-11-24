@@ -24,7 +24,7 @@ static bool Hit(const Terrain& f, const Vec3& o, const Vec3& d, double& range) {
 struct Scene { std::string raw, csv; double originN, originE, originH; Rot3 trueBore; double boreDeg[3]; long long points; };
 
 // Lot nad terenem: trajektoria z FlightPath (wobble 1 st.), tylko boresight jako blad, pulsy 1 kHz; zapis rekordow 34 B i trajektorii CSV (format jak w AerialJob).
-static Scene MakeScene(const std::string& name, const Terrain& terrain, double boreDeg, int cross, double side = 120.0, int skipStripsAfter = 99) {
+static Scene MakeScene(const std::string& name, const Terrain& terrain, double boreDeg, int cross, double side = 120.0, int skipStripsAfter = 99, std::vector<Vec3> stripOff = {}) {
   FlightParams p; p.aglM = 50; p.speedMps = 5; p.sidelapPct = 30; p.crossStrips = cross; p.sensor.fovDeg = 60; p.sensor.pulseHz = 1000; p.sensor.lineHz = 25;
   p.area = {{N0, E0}, {N0, E0 + side}, {N0 + side, E0 + side}, {N0 + side, E0}};
   const PlanPt home{N0 - 10, E0 - 10}; const FlightPlan pl = PlanFlight(p, home);
@@ -37,7 +37,8 @@ static Scene MakeScene(const std::string& name, const Terrain& terrain, double b
   const Vec3 lever{0.0, 0.15, -0.30}; const Rot3 I = RotFromRpy(0, 0, 0); char b[300];
   for (double t = 0; t <= fp.Duration(); t += 0.1) {
     const TrajSample s = fp.At(t);
-    std::snprintf(b, sizeof b, "%.2f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%d\n", t, s.pos.y, s.pos.x, s.pos.z, s.pos.y, s.pos.x, s.pos.z, s.rollDeg, s.pitchDeg, s.yawDeg, s.rollDeg, s.pitchDeg, s.yawDeg, s.scanning ? s.strip : -1);
+    Vec3 off{0, 0, 0}; if (s.scanning && s.strip < (int)stripOff.size()) off = stripOff[s.strip];
+    std::snprintf(b, sizeof b, "%.2f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%d\n", t, s.pos.y, s.pos.x, s.pos.z, s.pos.y + off.y, s.pos.x + off.x, s.pos.z + off.z, s.rollDeg, s.pitchDeg, s.yawDeg, s.rollDeg, s.pitchDeg, s.yawDeg, s.scanning ? s.strip : -1);
     csv << b;
   }
   auto lerpAng = [](double a, double b, double f) { double d = std::fmod(b - a, 360.0); if (d > 180) d -= 360; if (d < -180) d += 360; return a + d * f; };
@@ -50,7 +51,8 @@ static Scene MakeScene(const std::string& name, const Terrain& terrain, double b
     const TrajSample s = lerp(s0, s1, (t - k * 0.1) / 0.1);
     const double th = MirrorThetaDeg(t, p.sensor); const AlsRay ray = TrueRay(s, sc.trueBore, lever, th); double range;
     if (!Hit(terrain, ray.origin, ray.dir, range)) continue;
-    const Vec3 g = GeorefPoint(s, I, lever, th, range);
+    TrajSample est = s; if (s0.strip < (int)stripOff.size()) { est.pos.x += stripOff[s0.strip].x; est.pos.y += stripOff[s0.strip].y; est.pos.z += stripOff[s0.strip].z; }   // blad GNSS na poziomie szeregu
+    const Vec3 g = GeorefPoint(est, I, lever, th, range);
     AlsPoint q{}; q.x = (float)(g.x - sc.originE); q.y = (float)(g.y - sc.originN); q.z = (float)(g.z - sc.originH); q.gps = 345600.0 + t; q.strip = (std::uint16_t)s0.strip; q.i = 100; q.r = q.g = q.b = 128; q.theta = (float)th; q.range = (float)range;
     w.Append(q); sc.points++;
   }
@@ -62,8 +64,8 @@ static double AngleDeg(const Rot3& a, const Rot3& b) {                  // kat o
   return std::acos((std::max)(-1.0, (std::min)(1.0, (tr - 1.0) / 2.0))) * 180.0 / PI;
 }
 
-static AdjustResult Run(const Scene& sc, const std::string& out = "") {
-  AlsAdjuster ad(sc.raw, sc.csv, out.empty() ? sc.raw + ".out" : out, sc.originN, sc.originE, sc.originH, {});
+static AdjustResult Run(const Scene& sc, std::vector<ControlPoint> cps = {}) {
+  AlsAdjuster ad(sc.raw, sc.csv, sc.raw + ".out", sc.originN, sc.originE, sc.originH, cps);
   for (int i = 0; i < 100000 && !ad.Step(50); i++) {}
   return ad.Result();
 }
@@ -104,6 +106,37 @@ static void flat_terrain_only_roll_is_determined() {
   assert(r.rmsCalibrated < 0.3 * r.rmsBefore);
 }
 
+static StripShift ShiftOf(const AdjustResult& r, int strip) { for (const StripShift& s : r.shifts) if (s.strip == strip) return s; return StripShift{}; }
+
+static void strip_offsets_removed_and_output_written() {
+  const Scene sc = MakeScene("als_adj_off", Hills(), 0.0, 0, 120.0, 99, {Vec3{0, 0, 0}, Vec3{0.3, -0.2, 0.15}, Vec3{-0.1, 0.25, -0.10}});
+  const std::vector<StripQc> before = AlsStripCheck(sc.raw, 2.0);
+  const AdjustResult r = Run(sc); assert(r.ok && r.shifts.size() == 3);
+  const StripShift s0 = ShiftOf(r, 0), s1 = ShiftOf(r, 1), s2 = ShiftOf(r, 2);
+  assert(s0.detH && s0.detEN && s1.detH && s1.detEN && s2.detH && s2.detEN);                 // teren z nachyleniem: wyznaczalne takze przesuniecia poziome
+  assert(near(s1.dH - s0.dH, -0.15, 0.02) && near(s1.dE - s0.dE, -0.30, 0.08) && near(s1.dN - s0.dN, 0.20, 0.08));   // przesuniecia wzgledne = minus wstrzykniete
+  assert(near(s2.dH - s0.dH, 0.10, 0.02) && near(s2.dE - s0.dE, 0.10, 0.08) && near(s2.dN - s0.dN, -0.25, 0.08));
+  assert(near(s0.dH + s1.dH + s2.dH, 0.0, 0.02) && near(s0.dE + s1.dE + s2.dE, 0.0, 0.05));   // bez osnowy: srednie przesuniecie = 0
+  assert(r.rmsAfter < 0.25 * r.rmsCalibrated || r.rmsAfter < 0.01);
+  const std::string out = sc.raw + ".out";                                                    // wynik: te same punkty, poprawione wspolrzedne
+  assert(std::filesystem::file_size(out) == std::filesystem::file_size(sc.raw));
+  const std::vector<StripQc> after = AlsStripCheck(out, 2.0); assert(before.size() == 2 && after.size() == 2);
+  for (size_t k = 0; k < 2; k++) assert(before[k].rmsDzM > 0.08 && after[k].rmsDzM < 0.3 * before[k].rmsDzM);
+  std::ifstream a(sc.raw, std::ios::binary), b(out, std::ios::binary); AlsPoint pa{}, pb{}; assert(alsdetail::ReadRec(a, pa) && alsdetail::ReadRec(b, pb));
+  assert(pa.gps == pb.gps && pa.strip == pb.strip && pa.theta == pb.theta && pa.range == pb.range && pa.r == pb.r && pa.i == pb.i);
+}
+
+static void control_fixes_absolute_height_flat() {
+  const Scene sc = MakeScene("als_adj_ctrl", Flat(), 0.0, 0, 120.0, 99, {Vec3{0, 0, 0.10}, Vec3{0, 0, 0.20}, Vec3{0, 0, 0.30}});
+  ControlPoint cp; cp.id = "G1"; cp.n = N0 + 60; cp.e = E0 + 60; cp.h = 100.0;
+  const AdjustResult r = Run(sc, {cp}); assert(r.ok);
+  assert(r.ctrlBefore.size() == 1 && r.ctrlBefore[0].pts > 20 && r.ctrlBefore[0].dhM > 0.08);          // chmura wisi nad osnowa
+  assert(r.ctrlAfter.size() == 1 && std::fabs(r.ctrlAfter[0].dhM) < 0.02);                              // po wyrownaniu wysokosc bezwzgledna z osnowy
+  const StripShift s0 = ShiftOf(r, 0);
+  assert(s0.detH && !s0.detEN && s0.dE == 0.0 && s0.dN == 0.0);                                         // plaski teren: poziomo nieokreslone, zostaje 0
+  assert(r.shifts[0].dH + r.shifts[1].dH + r.shifts[2].dH < -0.3);                                      // srednie przesuniecie nie jest zerem: osnowa ustala poziom
+}
+
 static void rejects_bad_input() {
   const Scene one = MakeScene("als_adj_one", Hills(), 0.2, 0, 120.0, 1);                       // tylko szereg 0
   const AdjustResult r = Run(one); assert(!r.ok && !r.msg.empty());
@@ -111,6 +144,6 @@ static void rejects_bad_input() {
 }
 
 int main() {
-  trajectory_interpolation(); boresight_recovered_on_hills(); cross_strips_tighten_sigma(); flat_terrain_only_roll_is_determined(); rejects_bad_input();
+  trajectory_interpolation(); boresight_recovered_on_hills(); cross_strips_tighten_sigma(); flat_terrain_only_roll_is_determined(); strip_offsets_removed_and_output_written(); control_fixes_absolute_height_flat(); rejects_bad_input();
   std::puts("test_alsadjust OK"); return 0;
 }
