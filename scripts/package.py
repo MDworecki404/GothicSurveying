@@ -45,6 +45,7 @@ STEROWANIE
 - Zapis gry w trakcie roboty zapisuje tez stan roboty i sprzetu (GothicSurveying\stan_slot<N>.txt); wczytanie zapisu wznawia robote.
 - Skaner laserowy: "Rozpocznij robote" -> "Skaner laserowy"; postaw i wypoziomuj skaner, wybierz rozdzielczosc, skanuj; wyniki (.pts, .las) w GothicSurveying\<data>_skan.
   Model skanera: wlasny (statyw, korpus, obrotowa glowica z oknem wiazki). Rejestracja skanow: min. 3 kule referencyjne na znakach osnowy (menu skanera), stanowisko i obrot wyznaczane z kul.
+- Kolory skanera: raz uruchom NARZEDZIA\make_texture_colors.py "<katalog gry>" (Python 3; ok. 20 s) - tworzy GothicSurveying\texcolors.bin z miniaturek tekstur gry. Bez niego punkty maja kolory zapasowe/szare.
 - Osnowa swiata: "Zaladuj osnowe geodezyjna swiata" (wzorcowe punkty G.. dla Khorinis, Doliny Gornickiej i Jarkendaru), "Mapa osnowy" (mapa swiata z punktami),
   "Teleport do punktu osnowy". Pomiar GNSS: wlasna baza (poprawki RTK) i pomiar statyczny.
 - Pomiar GNSS (RTK): "Rozpocznij robote" -> "Pomiar GNSS (RTK)"; tyczka z odbiornikiem, panel w lewym gornym rogu,
@@ -79,6 +80,8 @@ def main():
         import make_models
         sys.argv = ["make_models.py", str(stage)]
         make_models.main()                                     # modele i tekstury -> stage/_work/Data
+        tools = stage / "NARZEDZIA"; tools.mkdir()
+        shutil.copy(ROOT / "assets" / "make_texture_colors.py", tools / "make_texture_colors.py")     # kolory tekstur skanera: generowane u uzytkownika z jego plikow gry
         (stage / "INSTALACJA.txt").write_text(README.format(version=VERSION), encoding="utf-8-sig")
         out = ROOT / "release" / f"GothicSurveying-v{VERSION}-G2A.zip"
         out.parent.mkdir(exist_ok=True)

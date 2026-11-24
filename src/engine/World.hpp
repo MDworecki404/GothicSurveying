@@ -158,7 +158,60 @@ namespace GOTHIC_NAMESPACE {
     }
     // Skaner laserowy: promien z oka instrumentu; teren i voby ze swiata (bez postaci i voba skanera), zasieg 120 m.
     // --- kolor punktu skanu ---
-    static unsigned MaterialRgb( zCMaterial* m ) {                // srednia barwa tekstury (albo kolor materialu); 0 gdy brak danych
+    // Miniaturki kolorow tekstur z GothicSurveying/texcolors.bin (narzedzie assets/make_texture_colors.py): niezalezne od pamieci silnika.
+    static std::map<std::string, TexThumb>& Thumbs() {
+      static std::map<std::string, TexThumb> m; static bool tried = false;
+      if ( !tried ) {
+        tried = true;
+        std::ifstream f( "GothicSurveying/texcolors.bin", std::ios::binary );
+        const std::string d( ( std::istreambuf_iterator<char>( f ) ), std::istreambuf_iterator<char>() );
+        char t[120]; sprintf( t, "skan: miniaturki tekstur: %d wczytanych (GothicSurveying/texcolors.bin)", (int)TexColorsParse( d, m ) ); SvTrace( t );
+      }
+      return m;
+    }
+    static void TexName( zCTexture* tex, char* out, size_t n ) {   // nazwa obiektu tekstury (SEH, bez obiektow C++)
+      __try { strncpy( out, tex->GetObjectName().ToChar(), n - 1 ); out[n - 1] = 0; } __except ( EXCEPTION_EXECUTE_HANDLER ) { out[0] = 0; }
+    }
+    static const TexThumb* ThumbFor( zCTexture* tex ) {            // po wskazniku tekstury (nazwa z obiektu, raz na teksture)
+      static std::map<zCTexture*, const TexThumb*> cache;
+      if ( !tex ) return nullptr;
+      auto it = cache.find( tex );
+      if ( it != cache.end() ) return it->second;
+      char nb[256] = {}; TexName( tex, nb, sizeof nb );
+      const std::string name = nb, key = TexColorKey( name );
+      auto jt = Thumbs().find( key ); const TexThumb* th = jt == Thumbs().end() ? nullptr : &jt->second;
+      static int logged = 0; if ( logged < 10 ) { logged++; char t[200]; sprintf( t, "skan: tekstura \"%s\" (klucz %s) -> %s", name.c_str(), key.c_str(), th ? "miniaturka jest" : "BRAK miniaturki" ); SvTrace( t ); }
+      cache[tex] = th; return th;
+    }
+    // UV w miejscu trafienia wielokata swiata (interpolacja barycentryczna cech wierzcholkow); false gdy brak wielokata/tekstury.
+    static bool PolyHitUv( zCPolygon* poly, const zVEC3& p, zCTexture*& tex, float& tu, float& tv ) {
+      bool ok = false;
+      __try {
+        if ( poly && poly->material && poly->material->texture && poly->polyNumVert >= 3 && poly->vertex && poly->feature ) {
+          float bestMin = -1e9f;
+          for ( int i = 1; i + 1 < poly->polyNumVert; i++ ) {
+            const zVEC3 a = poly->vertex[0]->position, b = poly->vertex[i]->position, c = poly->vertex[i + 1]->position;
+            const float e0x = b[VX] - a[VX], e0y = b[VY] - a[VY], e0z = b[VZ] - a[VZ], e1x = c[VX] - a[VX], e1y = c[VY] - a[VY], e1z = c[VZ] - a[VZ];
+            const float e2x = p[VX] - a[VX], e2y = p[VY] - a[VY], e2z = p[VZ] - a[VZ];
+            const float d00 = e0x * e0x + e0y * e0y + e0z * e0z, d01 = e0x * e1x + e0y * e1y + e0z * e1z, d11 = e1x * e1x + e1y * e1y + e1z * e1z;
+            const float d20 = e2x * e0x + e2y * e0y + e2z * e0z, d21 = e2x * e1x + e2y * e1y + e2z * e1z, den = d00 * d11 - d01 * d01;
+            if ( fabsf( den ) < 1e-9f ) continue;
+            const float wv = ( d11 * d20 - d01 * d21 ) / den, ww = ( d00 * d21 - d01 * d20 ) / den, wu = 1.0f - wv - ww;
+            const float mn = ( std::min )( wu, ( std::min )( wv, ww ) );
+            if ( mn > bestMin ) {
+              bestMin = mn; ok = true;
+              tu = wu * poly->feature[0]->texu + wv * poly->feature[i]->texu + ww * poly->feature[i + 1]->texu;
+              tv = wu * poly->feature[0]->texv + wv * poly->feature[i]->texv + ww * poly->feature[i + 1]->texv;
+            }
+          }
+          tex = poly->material->texture;
+        }
+      } __except ( EXCEPTION_EXECUTE_HANDLER ) { ok = false; }
+      return ok && tex;
+    }
+    static unsigned MaterialRgb( zCMaterial* m ) {                // srednia barwa tekstury (miniaturka, potem info silnika albo kolor materialu); 0 gdy brak danych
+      { zCTexture* t = nullptr; __try { t = m ? m->texture : nullptr; } __except ( EXCEPTION_EXECUTE_HANDLER ) {}
+        if ( const TexThumb* th = ThumbFor( t ) ) return TexThumbAverage( *th ); }
       unsigned rgb = 0;
       __try {
         if ( m ) {
@@ -293,7 +346,11 @@ namespace GOTHIC_NAMESPACE {
         if ( rgb ) {                                                                // kolor: srednia barwa tekstury, przyciemniona katem padania (powierzchnie skosne ciemniejsze)
           unsigned c = 0; bool have = false;
           if ( r.foundPoly && !r.foundVob ) {                                        // teren i budynki ze swiata: piksel tekstury, w razie braku srednia barwa
-            have = PolyTextureRgb( r.foundPoly, r.foundIntersection, c );
+            zCTexture* tex = nullptr; float tu = 0, tv = 0;
+            if ( PolyHitUv( r.foundPoly, r.foundIntersection, tex, tu, tv ) ) {
+              if ( const TexThumb* th = ThumbFor( tex ) ) { c = TexThumbSample( *th, tu, tv ); have = true; }       // miniaturka tekstury w miejscu trafienia
+            }
+            if ( !have ) have = PolyTextureRgb( r.foundPoly, r.foundIntersection, c );                              // zapas: bufor tekstury silnika
             if ( !have && r.foundPoly->material && r.foundPoly->material->texture ) { c = TextureAverageCached( r.foundPoly->material->texture ); have = c != 0; }   // przezroczysty tekstel: srednia tekstury
             if ( !have ) { c = MaterialRgb( r.foundPoly->material ); have = c != 0; }
           } else if ( r.foundVob ) {                                                  // voby: material wielokata albo srednia z siatki

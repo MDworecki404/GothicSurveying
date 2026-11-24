@@ -220,8 +220,9 @@ Wyniki w folderze `GothicSurveying/RRRR-MM-DD_GG-MM-SS_skan/`: `skanNN.pts` (lic
 po „Zakończ robotę” panel podsumowuje stanowiska i liczby punktów. Punkty zapisywane są strumieniowo na dysk, więc chmura nie obciąża pamięci gry. **Widać, że skaner mierzy:** obrotowa głowica (osobny model) kręci się za azymutem skanowanej kolumny, a od głowicy do ostatnich ~40 trafień biegną czerwone linie (wiązki lasera), które znikają po skanie;
 HUD pokazuje procent i liczbę punktów.
 
-**Kolor RGB** (menu „Kolor RGB”, domyślnie włączony): punkty na terenie i w budynkach ze świata dostają **piksel tekstury** w miejscu trafienia (UV z interpolacji cech wierzchołków wielokąta, odczyt przez
-`zCTexture::GetRGBAAtTexel`); gdy odczyt się nie uda, bierze się średnią barwę tekstury, a dla vobów (ławki, płoty, skrzynie) średnią z materiałów ich siatki, bo nie wiadomo, która część została trafiona.
+**Kolor RGB** (menu „Kolor RGB”, domyślnie włączony): punkty na terenie i w budynkach ze świata dostają **kolor tekstury** w miejscu trafienia: UV z interpolacji cech wierzchołków wielokąta, a kolor z miniaturki
+tekstury (16×16, interpolacja dwuliniowa) z pliku `GothicSurveying/texcolors.bin`, który tworzy jednorazowo `python assets/make_texture_colors.py "<katalog gry>"` (robi to też `scripts/install.ps1`; w wydaniu jest w `NARZEDZIA`).
+Miniaturki wylicza narzędzie z archiwów VDF gry (średnia z nagłówków tekstur zgadza się z nimi w granicach ±2), bo bufory tekstur w pamięci silnika okazały się niewiarygodne. Plik jest niezależny od silnika; poniżej zapasowy odczyt z bufora, jeśli nie ma miniaturki; gdy odczyt się nie uda, bierze się średnią barwę tekstury, a dla vobów (ławki, płoty, skrzynie) średnią z materiałów ich siatki, bo nie wiadomo, która część została trafiona.
 Kolor jest przyciemniony dla powierzchni ustawionych skośnie do promienia; kule referencyjne są pomarańczowe, a bez żadnych danych punkt jest szary. Pierwsze próbki tekstur trafiają do `GothicSurveying.log`
 (uv, rozmiar tekstury, wynik). Z wyłączonym kolorem punkty są szare wg intensywności.
 
