@@ -120,6 +120,20 @@ static void params_change_plan() {
   assert(f.Lines(0) == 4);
 }
 
+static void area_rect_rotated() {                                               // prostokat obrocony: dwa narozniki + kat, szeregi wzdluz dluzszego boku
+  Fx f; const double a = 30.0 * 3.14159265358979323846 / 180.0;
+  char id[200]; std::snprintf(id, sizeof id, "area_rect:%.3f:%.3f:%.3f:%.3f:30.000", N0, E0, N0 + 100 * std::cos(a) - 60 * std::sin(a), E0 + 100 * std::sin(a) + 60 * std::cos(a));
+  f.job->OnMenu(id);
+  std::vector<double> sides; for (const MapLine& l : f.job->MapOverlay()) if (l.color == 0) sides.push_back(std::hypot(l.n2 - l.n1, l.e2 - l.e1));
+  std::sort(sides.begin(), sides.end()); assert(sides.size() == 4 && std::fabs(sides[0] - 60) < 0.01 && std::fabs(sides[1] - 60) < 0.01 && std::fabs(sides[2] - 100) < 0.01 && std::fabs(sides[3] - 100) < 0.01);
+  for (const MapLine& l : f.job->MapOverlay()) if (l.color == 1) {
+    const double d = std::hypot(l.n2 - l.n1, l.e2 - l.e1), dot = ((l.n2 - l.n1) * std::cos(a) + (l.e2 - l.e1) * std::sin(a)) / d;
+    assert(std::fabs(std::fabs(dot) - 1.0) < 1e-3); break;                                  // szeregi rownolegle do dluzszego boku (100 m)
+  }
+  f.w.said.clear(); f.job->OnMenu("area_rect:5500000.000:6500000.000:5500000.500:6500000.500:45.000");   // po obrocie 45 st. punkty leza na jednej osi: szerokosc 0 m, odmowa
+  assert(f.w.Said("za maly"));
+}
+
 static void calibration_strips_menu_and_state() {
   Fx f; f.Square(100); assert(has(f.job->Hud(), "szeregow: 3"));
   f.job->OnMenu("calib"); assert(has(f.job->Hud(), "szeregow: 6") && f.Lines(1) == 6);
@@ -336,6 +350,6 @@ int main() {
   resume_after_finished_flight_keeps_old_result(); resume_with_short_raw_uses_new_folder(); open_failure_refuses_launch(); strip_and_control_report(); route_blocked_warns_but_flies();
   adjust_after_flight_pipeline(); adjust_cancel_and_failures(); adjust_true_error_report_and_state();
   registry_and_kind(); vertices_and_plan(); launch_needs_area(); long_plan_flies_with_battery_swaps(); area_clear_and_vertex_limit();
-  area_rect_from_two_corners(); calibration_strips_menu_and_state(); ctrl_vertex_from_list(); params_change_plan(); plan_csv_written();
+  area_rect_from_two_corners(); area_rect_rotated(); calibration_strips_menu_and_state(); ctrl_vertex_from_list(); params_change_plan(); plan_csv_written();
   std::puts("test_aerial_job OK"); return 0;
 }

@@ -106,6 +106,20 @@ static void cross_strips_in_concave_area() {
   for (const Strip& s : pl.strips) assert(InPoly(p.area, (s.a.n + s.b.n) / 2, (s.a.e + s.b.e) / 2) && InPoly(p.area, s.a.n, s.a.e));
 }
 
+static void rect_from_corners() {                                               // prostokat z dwoch przeciwleglych naroznikow i kata (azymut boku "wzdluz")
+  auto sideLen = [](PlanPt a, PlanPt b) { return std::hypot(a.n - b.n, a.e - b.e); };
+  const auto r0 = RectFromCorners({N0 + 100, E0 + 100}, {N0, E0}, 0);                      // kat 0: osiowy, normalizowany SW, SE, NE, NW
+  assert(near(r0[0].n, N0) && near(r0[0].e, E0) && near(r0[1].e, E0 + 100) && near(r0[2].n, N0 + 100) && near(r0[3].e, E0));
+  const double a = 30.0 * 3.14159265358979323846 / 180.0, an = std::cos(a), ae = std::sin(a), bn = -std::sin(a), be = std::cos(a);
+  const PlanPt p1{N0, E0}, p2{N0 + 100 * an + 60 * bn, E0 + 100 * ae + 60 * be};
+  const auto r = RectFromCorners(p1, p2, 30.0);
+  assert(near(sideLen(r[0], r[1]), 100.0, 1e-6) && near(sideLen(r[1], r[2]), 60.0, 1e-6) && near(sideLen(r[2], r[3]), 100.0, 1e-6) && near(sideLen(r[3], r[0]), 60.0, 1e-6));
+  assert(near(r[2].n, p2.n, 1e-9) && near(r[2].e, p2.e, 1e-9) && near(r[0].n, p1.n, 1e-9));   // p1 i p2 to przeciwlegle narozniki
+  assert(near((r[1].n - r[0].n) * (r[3].n - r[0].n) + (r[1].e - r[0].e) * (r[3].e - r[0].e), 0.0, 1e-6));   // kat prosty
+  const auto q = RectFromCorners(p2, p1, 30.0);                                            // odwrotna kolejnosc naroznikow: ten sam prostokat (te same boki)
+  assert(near(sideLen(q[0], q[1]), 100.0, 1e-6) && near(sideLen(q[1], q[2]), 60.0, 1e-6));
+}
+
 static void csv_header_and_rows() {
   const FlightParams p = Square(); const FlightPlan pl = PlanFlight(p, {N0, E0});
   const std::string csv = PlanCsv(pl, p);
@@ -115,6 +129,6 @@ static void csv_header_and_rows() {
 }
 
 int main() {
-  square_plan_values(); degenerate_area_refused(); concave_u_shape_splits(); battery_swaps(); takeoff_is_quick(); cross_strips_perpendicular(); cross_strips_in_concave_area(); csv_header_and_rows();
+  square_plan_values(); degenerate_area_refused(); concave_u_shape_splits(); battery_swaps(); takeoff_is_quick(); cross_strips_perpendicular(); cross_strips_in_concave_area(); rect_from_corners(); csv_header_and_rows();
   std::puts("test_flight OK"); return 0;
 }

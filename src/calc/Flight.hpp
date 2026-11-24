@@ -2,6 +2,7 @@
 // Uklad: N, E w metrach siatki; azymut szeregow 0 = wzdluz N, rosnie ku wschodowi.
 #pragma once
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -16,6 +17,18 @@ inline const AlsPreset kAlsPresets[4] = {
 
 // Parametry lotu poza szeregiem (wspolne dla planu i sciezki drona): szybki start, dojazd, krotki zawis przy zakrecie, wymiana baterii w bazie.
 inline const double kClimbMps = 8.0, kTransitMps = 12.0, kTurnS = 2.0, kSwapS = 10.0;
+
+// Prostokat z dwoch przeciwleglych naroznikow p1, p2 i kata (azymut jednego z bokow, 0 = wzdluz N). Kat 0: prostokat osiowy w kolejnosci SW, SE, NE, NW;
+// inny kat: boki wzdluz i w poprzek kierunku katu, wierzcholki p1, p1 + wzdluz, p2, p1 + w poprzek.
+inline std::array<PlanPt, 4> RectFromCorners(PlanPt p1, PlanPt p2, double angleDeg) {
+  if (std::fabs(std::fmod(angleDeg, 180.0)) < 1e-9) {
+    const double nlo = (std::min)(p1.n, p2.n), nhi = (std::max)(p1.n, p2.n), elo = (std::min)(p1.e, p2.e), ehi = (std::max)(p1.e, p2.e);
+    return {{{nlo, elo}, {nlo, ehi}, {nhi, ehi}, {nhi, elo}}};
+  }
+  const double a = angleDeg * 3.14159265358979323846 / 180.0, an = std::cos(a), ae = std::sin(a), bn = -std::sin(a), be = std::cos(a);
+  const double dn = p2.n - p1.n, de = p2.e - p1.e, du = dn * an + de * ae, dv = dn * bn + de * be;
+  return {{p1, {p1.n + du * an, p1.e + du * ae}, p2, {p1.n + dv * bn, p1.e + dv * be}}};
+}
 
 struct FlightParams {
   std::vector<PlanPt> area;

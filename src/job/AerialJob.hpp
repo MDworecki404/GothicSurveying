@@ -75,12 +75,13 @@ class AerialJob : public Job {
     } else if (base == "area_ctrl") {
       for (const ControlPoint& c : w_.ControlNearHero(1e9)) if (c.id == arg) { AddVertex({c.n, c.e}); return; }
       w_.Say("Brak takiego punktu osnowy");
-    } else if (base == "area_rect") {                                       // z mapy: "N1:E1:N2:E2" (dwa przeciwlegle narozniki, dowolna kolejnosc)
-      double n1, e1, n2, e2;
-      if (std::sscanf(arg.c_str(), "%lf:%lf:%lf:%lf", &n1, &e1, &n2, &e2) != 4) return;
-      const double nlo = (std::min)(n1, n2), nhi = (std::max)(n1, n2), elo = (std::min)(e1, e2), ehi = (std::max)(e1, e2);
-      if (nhi - nlo < 1.0 || ehi - elo < 1.0) { w_.Say("Zaznaczony obszar jest za maly (min. 1 m w kazdym wymiarze)"); return; }
-      area_ = {{nlo, elo}, {nlo, ehi}, {nhi, ehi}, {nhi, elo}}; Replan();
+    } else if (base == "area_rect") {                                       // z mapy: "N1:E1:N2:E2[:kat]" (dwa przeciwlegle narozniki, dowolna kolejnosc; kat = azymut boku prostokata)
+      double n1, e1, n2, e2, ang = 0;
+      const int cnt = std::sscanf(arg.c_str(), "%lf:%lf:%lf:%lf:%lf", &n1, &e1, &n2, &e2, &ang);
+      if (cnt < 4) return;
+      const auto c = RectFromCorners({n1, e1}, {n2, e2}, cnt == 5 ? ang : 0.0);        // narozniki + opcjonalny kat (prostokat obrocony)
+      if (std::hypot(c[1].n - c[0].n, c[1].e - c[0].e) < 1.0 || std::hypot(c[3].n - c[0].n, c[3].e - c[0].e) < 1.0) { w_.Say("Zaznaczony obszar jest za maly (min. 1 m w kazdym wymiarze)"); return; }
+      area_ = {c[0], c[1], c[2], c[3]}; Replan();
     } else if (base == "area_clear") { area_.clear(); Replan();
     } else if (base == "agl") { Cycle(params_.aglM, kAgl, 5);
     } else if (base == "speed") { Cycle(params_.speedMps, kSpeed, 4);

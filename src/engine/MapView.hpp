@@ -12,9 +12,9 @@ namespace GOTHIC_NAMESPACE {
   inline std::vector<zCView*> gMapDots;
   // Tryb zaznaczania obszaru (dwa przeciwlegle narozniki): celownik strzalkami, Enter = narozniki 1 i 2; wynik w metrach ukladu mapy (E, N).
   inline bool gMapPick = false; inline int gPickStage = 0; inline size_t gPickBase = 0;
-  inline double gPickU = 0.5, gPickV = 0.5, gPickU1 = 0, gPickV1 = 0, gPickHeld[4] = { 0, 0, 0, 0 }; inline DWORD gPickLast = 0;
+  inline double gPickAngle = 0, gPickAngHeld = 0; inline double gPickU = 0.5, gPickV = 0.5, gPickU1 = 0, gPickV1 = 0, gPickHeld[4] = { 0, 0, 0, 0 }; inline DWORD gPickLast = 0;
   inline int gMapX0 = 0, gMapMy0 = 0, gMapW = 0, gMapH = 0, gMapBar = 38, gMapGap = 6; inline WorldMapView gMapMv;
-  inline std::function<void( double, double, double, double )> gPickDone;
+  inline std::function<void( double, double, double, double, double )> gPickDone;
 
   inline bool MapActive() { return gMapPanel != nullptr; }
 
@@ -41,7 +41,9 @@ namespace GOTHIC_NAMESPACE {
     double e1, n1, e2, n2; MapFromUnit( gMapMv, gPickU1, gPickV1, e1, n1 ); MapFromUnit( gMapMv, gPickU, gPickV, e2, n2 );
     if ( gPickStage == 1 ) {
       const int ax = gMapX0 + (int)( gPickU1 * gMapW ), ay = gMapMy0 + (int)( gPickV1 * gMapH );
-      const int xs[5] = { ax, cx, cx, ax, ax }, ys[5] = { ay, ay, cy, cy, ay };
+      const auto rc = RectFromCorners( { n1, e1 }, { n2, e2 }, gPickAngle );             // prostokat (obrocony o gPickAngle) w metrach mapy -> piksele
+      int xs[5], ys[5];
+      for ( int k = 0; k < 5; k++ ) { double u, v; MapUnit( gMapMv, rc[k % 4].e, rc[k % 4].n, u, v ); xs[k] = gMapX0 + (int)( u * gMapW ); ys[k] = gMapMy0 + (int)( v * gMapH ); }
       int dots = 0;
       for ( int k = 0; k < 4; k++ ) {
         const double len = hypot( (double)( xs[k + 1] - xs[k] ), (double)( ys[k + 1] - ys[k] ) ); const int steps = (int)( std::max )( 1.0, len / 6.0 );
@@ -52,8 +54,10 @@ namespace GOTHIC_NAMESPACE {
     MapDot( "LVL_DOTR.TGA", cx, cy, 14 );                                                // celownik
     char foot[220];
     if ( gPickStage == 0 ) sprintf( foot, "strzalki - celownik (Shift szybko, Ctrl wolno)   Enter - naroznik 1   Home - anuluj" );
-    else sprintf( foot, "obszar %.0f x %.0f m (%.2f ha)   strzalki - celownik   Enter - naroznik 2 i koniec   Backspace - cofnij   Home - anuluj",
-                  fabs( e2 - e1 ), fabs( n2 - n1 ), fabs( e2 - e1 ) * fabs( n2 - n1 ) / 10000.0 );
+    else {
+      const auto rc = RectFromCorners( { n1, e1 }, { n2, e2 }, gPickAngle ); const double sa = hypot( rc[1].e - rc[0].e, rc[1].n - rc[0].n ), sb = hypot( rc[3].e - rc[0].e, rc[3].n - rc[0].n );
+      sprintf( foot, "obszar %.0f x %.0f m (%.2f ha), kat %.1f st.   strzalki - celownik   PgUp/PgDn - obrot (Shift 10, Ctrl 0.1)   Enter - naroznik 2   Backspace - cofnij", sa, sb, sa * sb / 10000.0, gPickAngle );
+    }
     PanelClose( gMapBottom );
     const int bar = gMapBar, gap = gMapGap;
     gMapBottom = PanelOpen( screen->anx( gMapX0 ), screen->any( gMapMy0 + gMapH + gap ), screen->anx( gMapX0 + gMapW ), screen->any( gMapMy0 + gMapH + gap + bar ) );
@@ -67,15 +71,22 @@ namespace GOTHIC_NAMESPACE {
     if ( zinput->KeyToggled( KEY_RETURN ) ) {
       if ( gPickStage == 0 ) { gPickU1 = gPickU; gPickV1 = gPickV; gPickStage = 1; MapPickRedraw(); return; }
       double e1, n1, e2, n2; MapFromUnit( gMapMv, gPickU1, gPickV1, e1, n1 ); MapFromUnit( gMapMv, gPickU, gPickV, e2, n2 );
-      const std::function<void( double, double, double, double )> done = gPickDone;
+      const std::function<void( double, double, double, double, double )> done = gPickDone; const double ang = gPickAngle;
       MapClose();
-      if ( done ) done( e1, n1, e2, n2 );
+      if ( done ) done( e1, n1, e2, n2, ang );
       return;
     }
     const double px = zinput->KeyPressed( KEY_LCONTROL ) ? 1.0 : zinput->KeyPressed( KEY_LSHIFT ) ? 24.0 : 6.0;
     static const int keys[4] = { KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN };
     static const double dU[4] = { -1, 1, 0, 0 }, dV[4] = { 0, 0, -1, 1 };
     bool moved = false;
+    {                                                                                   // obrot prostokata: PgUp / PgDn (1 st., Shift 10, Ctrl 0,1), po przytrzymaniu powtarzanie
+      const double stepA = zinput->KeyPressed( KEY_LCONTROL ) ? 0.1 : zinput->KeyPressed( KEY_LSHIFT ) ? 10.0 : 1.0;
+      const bool up = zinput->KeyPressed( LV_KEY_ZOOM_IN ), dn = zinput->KeyPressed( LV_KEY_ZOOM_OUT );
+      bool fire = zinput->KeyToggled( LV_KEY_ZOOM_IN ) || zinput->KeyToggled( LV_KEY_ZOOM_OUT );
+      if ( up || dn ) { const double before = gPickAngHeld; gPickAngHeld += dt; if ( !fire && gPickAngHeld > 0.4 ) { const int a = (int)( ( before - 0.4 ) * 20.0 ), b = (int)( ( gPickAngHeld - 0.4 ) * 20.0 ); fire = b > a || before <= 0.4; } } else gPickAngHeld = 0;
+      if ( fire ) { gPickAngle = fmod( gPickAngle + ( up ? stepA : -stepA ) + 360.0, 180.0 ); moved = true; }
+    }
     for ( int i = 0; i < 4; i++ ) {
       bool fire = zinput->KeyToggled( keys[i] );
       if ( zinput->KeyPressed( keys[i] ) ) {
@@ -88,7 +99,7 @@ namespace GOTHIC_NAMESPACE {
     if ( moved ) MapPickRedraw();
   }
 
-  inline void MapOpen( bool pick = false, std::function<void( double, double, double, double )> done = nullptr ) {
+  inline void MapOpen( bool pick = false, std::function<void( double, double, double, double, double )> done = nullptr ) {
     if ( MapActive() ) return;
     const std::string wn = ControlWorldName(); WorldMapView mv;
     const std::string key = ControlWorldKey( wn );
@@ -134,7 +145,7 @@ namespace GOTHIC_NAMESPACE {
     gMapTop->PrintCXY( zSTRING( title ) );
     gMapBottom->PrintCXY( zSTRING( foot ) );
     if ( pick ) {                                                                       // zaznaczanie obszaru: celownik zaczyna od bohatera (w granicach mapy)
-      gMapPick = true; gPickDone = done; gPickStage = 0; gPickBase = gMapDots.size(); gPickLast = GetTickCount();
+      gMapPick = true; gPickDone = done; gPickStage = 0; gPickAngle = 0; gPickAngHeld = 0; gPickBase = gMapDots.size(); gPickLast = GetTickCount();
       gPickU = ( std::max )( 0.0, ( std::min )( 1.0, hu ) ); gPickV = ( std::max )( 0.0, ( std::min )( 1.0, hv ) );
       for ( double& h : gPickHeld ) h = 0;
       sprintf( title, "Zaznacz obszar nalotu - swiat %s%s", key.c_str(), gameMap ? " (mapa z gry, rysunek przyblizony)" : "" ); PanelClose( gMapTop );
