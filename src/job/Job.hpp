@@ -12,7 +12,7 @@
 
 enum class RodRole { Back, Fore };
 enum class MarkerKind { Reper, Turning };
-enum class JobKind { Leveling, Gnss, Tachy, Scan, Aerial };
+enum class JobKind { Leveling, Gnss, Tachy, Scan, Aerial, Photo };
 struct MapLine { double n1, e1, n2, e2; int color; };   // nakladka na mape osnowy: 0 obszar, 1 szereg, 2 dojazd
 
 struct MenuItem { std::string id, label, hint; bool enabled; };

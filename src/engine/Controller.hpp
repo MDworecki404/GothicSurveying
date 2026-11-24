@@ -155,7 +155,7 @@ namespace GOTHIC_NAMESPACE {
     if ( gJob->Kind() == JobKind::Gnss ) { CtrlFinishGnss(); return; }
     if ( gJob->Kind() == JobKind::Tachy ) { CtrlFinishTachy(); return; }
     if ( gJob->Kind() == JobKind::Scan ) { TextPanelShow( "Skaner laserowy - podsumowanie", gJob->SummaryLines(), "Pliki .pts i .las w folderze GothicSurveying" ); SvTrace( "Skaner zakonczony" ); CtrlEndJob(); return; }
-    if ( gJob->Kind() == JobKind::Aerial ) { TextPanelShow( "Skaning lotniczy - podsumowanie", gJob->SummaryLines(), "Pliki LAS, PTS, trajektoria i opis lotu w folderze GothicSurveying (..._lot)" ); SvTrace( "Skaning lotniczy zakonczony" ); CtrlEndJob(); return; }
+    if ( gJob->Kind() == JobKind::Aerial || gJob->Kind() == JobKind::Photo ) { TextPanelShow( gJob->Name() + " - podsumowanie", gJob->SummaryLines(), gJob->Kind() == JobKind::Photo ? "Zdjecia PNG, zdjecia.csv i raport wyrownania wiazki w folderze GothicSurveying (..._lot)" : "Pliki LAS, PTS, trajektoria i opis lotu w folderze GothicSurveying (..._lot)" ); SvTrace( "Robota lotnicza zakonczona" ); CtrlEndJob(); return; }
     FieldBook fb = gJob->Finish( true );
     gJobDir = MakeJobDir();                            // nazwa folderu = czas zakończenia roboty
     MoveReadingLog( gReadingLog, gJobDir );
@@ -379,7 +379,7 @@ namespace GOTHIC_NAMESPACE {
     if ( gJob->Kind() == JobKind::Leveling ) { char b[64]; sprintf( b, "Wysun laty: teraz %.0f m (zmien na %.0f m)", gRodLenCm / 100.0f, gRodLenCm >= 500.0f ? 3.0f : gRodLenCm / 100.0f + 1.0f ); v.items.push_back( { "rodlen", b, "3, 4 albo 5 m", true } ); }
     if ( gJob->GetLibella() && gJob->GetLibella()->enabled && gWorld.HasInstrument() )
       v.items.push_back( { "level", "Poziomuj instrument (libella)", "", true } );
-    if ( gJob->Kind() == JobKind::Aerial ) v.items.push_back( { "preview", "Podglad planu nalotu", "najpierw zdefiniuj obszar (min. 3 wierzcholki)", !gJob->MapOverlay().empty() } );
+    if ( gJob->Kind() == JobKind::Aerial || gJob->Kind() == JobKind::Photo ) v.items.push_back( { "preview", "Podglad planu nalotu", "najpierw zdefiniuj obszar (min. 3 wierzcholki)", !gJob->MapOverlay().empty() } );
     v.items.push_back( { "map", "Mapa osnowy", "", true } );
     v.items.push_back( { "tp", "Teleport do punktu osnowy", "", true } );
     v.items.push_back( { "abort", "Przerwij robote (bez dziennika)", "", true } );
