@@ -1,0 +1,72 @@
+// Prowadzenie w menu (bez Gothic API): sekcje, kolejnosc i powody niedostepnosci pozycji robot; linia "DALEJ"; rekomendacja projektu.
+// Menu()/OnMenu() robot zostaja bez zmian - Arrange tylko opisuje i porzadkuje to, co robota zwraca.
+#pragma once
+#include <algorithm>
+#include <string>
+#include <vector>
+#include "Job.hpp"
+
+enum class Section { Prep, Params, Measure, Results, Tools, Advanced, Exit };
+
+inline const char* SectionName(Section s) {
+  switch (s) {
+    case Section::Prep: return "Przygotowanie";
+    case Section::Params: return "Parametry";
+    case Section::Measure: return "Pomiar";
+    case Section::Results: return "Wyniki";
+    case Section::Tools: return "Narzedzia";
+    case Section::Advanced: return "Zaawansowane";
+    case Section::Exit: return "Wyjscie";
+  }
+  return "";
+}
+
+namespace wf_detail {
+struct Slot { const char* id; Section sec; };
+// Jedna wspolna tabela dla wszystkich robot: kolejnosc w tabeli = kolejnosc w sekcji; te same pozycje sa w tych samych miejscach.
+inline const std::vector<Slot>& Table() {
+  static const std::vector<Slot> t = {
+    {"reper_a", Section::Prep}, {"src", Section::Prep}, {"station", Section::Prep}, {"newst", Section::Prep}, {"free", Section::Prep},
+    {"backsight", Section::Prep}, {"unback", Section::Prep}, {"prism", Section::Prep}, {"inst", Section::Prep}, {"instrument", Section::Prep},
+    {"pole", Section::Prep}, {"fine", Section::Prep}, {"antenna", Section::Prep}, {"base", Section::Prep}, {"target", Section::Prep}, {"untarget", Section::Prep},
+    {"area_here", Section::Prep}, {"area_ctrl", Section::Prep}, {"area_map", Section::Prep}, {"area_clear", Section::Prep}, {"plan_csv", Section::Prep}, {"cam", Section::Prep},
+    {"agl", Section::Params}, {"speed", Section::Params}, {"sidelap", Section::Params}, {"preset", Section::Params}, {"res", Section::Params},
+    {"fwd", Section::Params}, {"side", Section::Params}, {"rodlen", Section::Params}, {"lvl", Section::Params},
+    {"rod_back", Section::Measure}, {"rod_fore_turn", Section::Measure}, {"rod_fore_end", Section::Measure}, {"move_next", Section::Measure},
+    {"obsadzka", Section::Measure}, {"redo_readings", Section::Measure}, {"meas", Section::Measure}, {"view", Section::Measure},
+    {"stake", Section::Measure}, {"unstake", Section::Measure}, {"start", Section::Measure}, {"store", Section::Measure}, {"control", Section::Measure},
+    {"discard", Section::Measure}, {"scan", Section::Measure}, {"launch", Section::Measure}, {"cancel", Section::Measure}, {"scope", Section::Measure},
+    {"level", Section::Measure}, {"camera", Section::Measure},
+    {"adjust", Section::Results}, {"adjust_cancel", Section::Results}, {"products", Section::Results}, {"products_cancel", Section::Results},
+    {"ortho", Section::Results}, {"ortho_cancel", Section::Results}, {"finish", Section::Results},
+    {"preview", Section::Tools}, {"map", Section::Tools}, {"tp", Section::Tools},
+    {"corr", Section::Advanced}, {"mode", Section::Advanced}, {"prismh", Section::Advanced}, {"faces", Section::Advanced}, {"rgb", Section::Advanced},
+    {"reg", Section::Advanced}, {"azimuth", Section::Advanced}, {"follow", Section::Advanced}, {"calib", Section::Advanced},
+    {"battery", Section::Advanced}, {"profile", Section::Advanced},
+    {"abort", Section::Exit},
+  };
+  return t;
+}
+inline const char* DefaultWhy(const std::string& id) {
+  if (id == "launch") return "lot juz trwa";
+  if (id == "cancel") return "nic nie trwa";
+  if (id == "finish") return "najpierw wykonaj pomiar";
+  return "niedostepne w tym kroku";
+}
+}  // namespace wf_detail
+
+// Nadaje sekcje, porzadkuje (stabilnie: sekcja, potem kolejnosc z tabeli) i uzupelnia powod dla pozycji niedostepnych (hint, a gdy pusty - tabela).
+inline std::vector<MenuItem> Arrange(JobKind kind, std::vector<MenuItem> items) {
+  (void)kind;
+  const auto& tab = wf_detail::Table();
+  auto rank = [&](const MenuItem& m) -> std::pair<int, int> {
+    for (size_t i = 0; i < tab.size(); i++) if (m.id == tab[i].id) return { (int)tab[i].sec, (int)i };
+    return { (int)Section::Advanced, (int)tab.size() };                         // nieznane id: Zaawansowane, za znanymi
+  };
+  for (MenuItem& m : items) {
+    m.section = SectionName((Section)rank(m).first);
+    if (!m.enabled) m.why = !m.hint.empty() ? m.hint : wf_detail::DefaultWhy(m.id);
+  }
+  std::stable_sort(items.begin(), items.end(), [&](const MenuItem& a, const MenuItem& b) { return rank(a) < rank(b); });
+  return items;
+}
