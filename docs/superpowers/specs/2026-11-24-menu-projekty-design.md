@@ -4,7 +4,7 @@ Data: 2026-11-24. Baza: wydanie v0.10.0, gałąź `menu-projekty`.
 
 ## Po co
 
-Menu (Home) jest dziś płaską listą. Roboty mają po 20+ pozycji (ALS, fotogrametria), użytkownik nie wie, co zrobić teraz, co jest następne, dlaczego coś jest wyszarzone i gdzie są wyniki. Cel: menu, które **prowadzi**: pokazuje, gdzie jestem, co zrobiłem, jaki jest rekomendowany następny krok i dlaczego reszta jest niedostępna. Do tego organizacja pracy w **projekty** z wieloma pomiarami i zbiorczym raportem.
+Menu (Home) jest dziś płaską listą. Roboty mają po 20+ pozycji (ALS, fotogrametria), użytkownik nie wie, co zrobić teraz, co jest następne, dlaczego coś jest wyszarzone i gdzie są wyniki. Cel: menu, które **prowadzi**: pokazuje, gdzie jestem, co zrobiłem, jaki jest rekomendowany następny krok i dlaczego reszta jest niedostępna. Do tego organizacja pracy w **projekty** z wieloma pomiarami; każda robota zachowuje własny raport, a zbiorczy raport powstaje dopiero po zamknięciu projektu.
 
 ## Cele
 
@@ -12,7 +12,7 @@ Menu (Home) jest dziś płaską listą. Roboty mają po 20+ pozycji (ALS, fotogr
 - Menu każdego pomiaru w sekcjach, w tej samej kolejności między robotami, „Przerwij" zawsze w tym samym miejscu, powód niedostępności jednym zdaniem.
 - Wiele pomiarów w projekcie, także tego samego rodzaju (np. 3 niwelacje, 2 tachimetrie), wykonywanych kolejno: po zakończeniu jednego uruchamia się następny.
 - 6 kreatorów jako gotowe zestawy ustawień plus tryb prowadzony.
-- Zbiorczy raport projektu (CSV + DOCX), lista plików wynikowych z otwarciem folderu, porównanie wysokości na wspólnych punktach osnowy.
+- Lista plików wynikowych z otwarciem folderu w trakcie pracy; zbiorczy raport (CSV + DOCX) z porównaniem wysokości na wspólnych punktach osnowy dopiero przy zamknięciu projektu (decyzja użytkownika: w trakcie wystarczą raporty robót).
 - Wygoda: spójne klawisze w `Keys.hpp`, pamięć ustawień i ostatniego projektu, pomoc kontekstowa, pasek skrótów, czytelny stan.
 
 ## Poza zakresem i antycele
@@ -53,7 +53,7 @@ Projekt to folder `GothicSurveying/projekty/<nazwa>/` z manifestem, wspólny dla
 Format: `StateKV` (klucz=wartość), bez nowego parsera. Plik `projekty/<nazwa>/projekt.txt`:
 
 - `ver`, `name`, `world` (`ControlWorldKey`), `created`, ustawienia domyślne (parametry presetów, poziomowanie instrumentów, itp.).
-- Lista pomiarów `m.<i>.*`: `id`, `type` (id z `JobTypes()`), `name`, `state` (nowy / w toku / gotowy / przerwany), `dir` (folder wyników, dotychczasowa nazwa `GothicSurveying/<data>`), `params` (zestaw parametrów), `sum` (1–2 liczby podsumowania), `points` (kompaktowa tabela id punktu → H dla porównania, plik `pomiar_<id>.csv` w folderze projektu).
+- Lista pomiarów `m.<i>.*`: `id`, `type` (id z `JobTypes()`), `name`, `state` (nowy / w toku / gotowy / przerwany; projekt ma osobno `state` open/closed), `dir` (folder wyników, dotychczasowa nazwa `GothicSurveying/<data>`), `params` (zestaw parametrów), `sum` (1–2 liczby podsumowania), `points` (kompaktowa tabela id punktu → H dla porównania, plik `pomiar_<id>.csv` w folderze projektu).
 - Pomiary sprzed projektów: domyślny projekt „Pomiary luzem" bez migracji plików, tworzony przy pierwszym uruchomieniu.
 - Czyste API: tworzenie/wczytanie/zapis, dodanie pomiaru, zmiana stanu, lista plików wynikowych, walidacja (świat, unikalność nazw).
 - `GothicSurveying/ustawienia.txt`: ostatni projekt, ostatnia pozycja kursora per ekran, ostatnie preset-y (pamięć ustawień).
@@ -67,7 +67,7 @@ Format: `StateKV` (klucz=wartość), bez nowego parsera. Plik `projekty/<nazwa>/
 
 ## Interfejs w silniku
 
-- **Ekran główny (układ A):** okruszki „GEODEZJA > Projekt", linia świata/osnowy/liczby pomiarów, wyróżnione „DALEJ", lista pomiarów (`[x]` gotowy, `[~]` w toku, `[ ]` nowy, `+ Nowy pomiar...`), „Wyniki i raporty", „Mapa osnowy / Teleport", „Ustawienia projektu", pasek skrótów u dołu.
+- **Ekran główny (układ A):** okruszki „GEODEZJA > Projekt", linia świata/osnowy/liczby pomiarów, wyróżnione „DALEJ", lista pomiarów (`[x]` gotowy, `[~]` w toku, `[ ]` nowy, `+ Nowy pomiar...`), „Wyniki i raporty" (pliki robót), „Mapa osnowy / Teleport", „Ustawienia projektu", „Zamknij projekt" (po zakończeniu pomiarów), pasek skrótów u dołu.
 - **Menu pomiaru:** nagłówek `Pomiar  Projekt > Pomiar > Sekcja`, DALEJ, sekcje rozwijane, pozycje niedostępne z powodem w podpisie, „Przerwij pomiar" zawsze ostatnie.
 - **Renderowanie (moja decyzja):** `MenuView` dostaje wiersze nagłówkowe (niewybieralne, kursor je pomija), okno przewijania (~16 wierszy z „..." gdy jest więcej, naprawia dzisiejszy brak przewijania przy ALS), zawijanie podpisu, skalowanie z `screen->nax/nay` jak w `MapView.hpp`. Znaczniki w ASCII, TGA odłożone.
 - Zmiana w `Menu.hpp`/`Controller.hpp` tylko cienka: `CtrlOpenMenu` buduje `MenuView` z `Job::Menu()` plus `Workflow`.
@@ -82,9 +82,12 @@ W jednym miejscu `Keys.hpp`: istniejące Home (menu), strzałki, Enter; dodane: 
 - Potwierdzenia tylko tam, gdzie coś ginie (przerwanie, usunięcie osnowy, nadpisanie projektu).
 - Stan czytelny w jednej linii: „trwa lot 45%", „czeka na wypoziomowanie" (z `Job::Hud()/StatusLines()`).
 
-## Zbiorczy raport i porównanie (ostatni etap)
+## Zamknięcie projektu: raport zbiorczy i porównanie (ostatni etap)
 
-- Raport projektu: CSV (lista pomiarów, stany, parametry, liczby podsumowania) i DOCX (przez `calc/Docx.hpp`): opis projektu, tabela pomiarów, wyniki kluczowe.
+- Projekt ma stan `open` / `closed` (klucz `state` w manifeście). „Zamknij projekt" wymaga braku pomiaru w toku, pyta o potwierdzenie i generuje raport; zamknięty projekt jest tylko do odczytu (bez nowych pomiarów), można go ponownie otworzyć (raport powstaje od nowa przy kolejnym zamknięciu).
+- W trakcie pracy nie ma raportu zbiorczego: użytkownik korzysta z raportów poszczególnych robót, które istnieją od dawna.
+
+- Raport projektu (tylko przy zamknięciu): CSV (lista pomiarów, stany, parametry, liczby podsumowania) i DOCX (przez `calc/Docx.hpp`): opis projektu, tabela pomiarów, wyniki kluczowe.
 - Porównanie wysokości: dla każdego punktu osnowy, który wystąpił w ≥2 pomiarach (niwelacja/GNSS/tachimetria/ALS), tabela H i różnic. Źródłem są `pomiar_<id>.csv` zapisane przy zamknięciu pomiaru.
 - Lista plików wynikowych projektu z otwarciem folderu (cienka funkcja silnika, `ShellExecute`).
 
@@ -95,7 +98,7 @@ W jednym miejscu `Keys.hpp`: istniejące Home (menu), strzałki, Enter; dodane: 
 3. **Interfejs menu (silnik):** `MenuView` z sekcjami, przewijaniem, DALEJ, okruszkami; ekran główny A; wybór/tworzenie projektu; rejestracja pomiarów przy starcie, zakończeniu i przerwaniu. Weryfikacja: build + gra.
 4. **Tryb prowadzony i kreatory:** presety 6 scenariuszy, „Pokaz wszystko", testy presetów w `Workflow`.
 5. **Wygoda:** `Keys.hpp`, pomoc (F1), pasek skrótów, pamięć ustawień (`ustawienia.txt`), wznowienie ostatniego projektu.
-6. **Wyniki i raporty:** lista plików z otwarciem folderu, raport CSV + DOCX, porównanie wysokości, testy.
+6. **Wyniki i zamknięcie projektu:** lista plików z otwarciem folderu, stan otwarty/zamknięty, raport CSV + DOCX z porównaniem wysokości generowany przy zamknięciu, testy.
 7. **Dokumentacja:** README (Sterowanie/Projekty), INSTALACJA w `scripts/package.py`. Wydanie osobno, na polecenie.
 
 Każdy etap: testy `ALL OK`, `scripts/build.ps1` → `BUILD OK`, osobny commit na gałęzi `menu-projekty` (bez linii Co-Authored-By; bez pushu, wydania i merge'a bez polecenia).
