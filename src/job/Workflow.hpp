@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include "Job.hpp"
+#include "calc/Project.hpp"
 
 enum class Section { Prep, Params, Measure, Results, Tools, Advanced, Exit };
 
@@ -79,4 +80,17 @@ inline Next NextLine(const std::vector<MenuItem>& items, const std::string& step
   for (const MenuItem& m : items) if (!stepId.empty() && m.id == stepId && m.enabled) return { m.id, "DALEJ: " + m.label };
   for (const MenuItem& m : items) if (m.id == "finish" && m.enabled) return { m.id, "DALEJ: Zakoncz pomiar" };
   return { "", "" };
+}
+
+// Rekomendacja na ekranie glownym projektu. activeJobNext: linia DALEJ aktywnej roboty (pusta, gdy nic nie trwa).
+inline Next ProjectNext(const Project& p, const Next& activeJobNext) {
+  if (p.name.empty()) return { "create", "DALEJ: Zaloz projekt" };
+  if (p.closed) return { "reopen", "DALEJ: Projekt zamkniety - otworz ponownie" };
+  if (const Measurement* r = RunningMeasurement(p)) {
+    std::string step = activeJobNext.text; const std::string pre = "DALEJ: ";
+    if (step.compare(0, pre.size(), pre) == 0) step = step.substr(pre.size());
+    return { "continue", "DALEJ: Kontynuuj " + r->name + (step.empty() ? "" : " - " + step) };
+  }
+  if (p.items.empty()) return { "new", "DALEJ: Nowy pomiar (kreator)" };
+  return { "new", "DALEJ: Nowy pomiar albo zamknij projekt" };
 }

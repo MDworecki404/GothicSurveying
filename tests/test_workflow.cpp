@@ -93,8 +93,33 @@ static void hint_becomes_reason_else_table() {
   }
 }
 
+
+static Project Proj() { Project p; p.name = "Kolonia_1"; p.world = "NEWWORLD"; return p; }
+
+static void gnss_prefix_follows_base_item() {                  // GNSS wbudowany w tachimetrie ("g_*") dziedziczy sekcje pozycji bazowej
+  std::vector<MenuItem> in = { {"g_start", "GNSS: start", "", true}, {"g_pole", "GNSS: tyczka", "", true}, {"meas", "Pomiar", "", true} };
+  const auto out = Arrange(JobKind::Tachy, in);
+  assert(out[0].id == "g_pole" && out[0].section == "Przygotowanie" && out[2].id == "g_start" && out[2].section == "Pomiar");
+}
+static void no_project_recommends_create() { assert(ProjectNext(Project{}, Next{}).id == "create"); }
+static void running_measurement_recommends_continue_with_name() {
+  Project p = Proj(); AddMeasurement(p, "tachy", "Tachimetria"); SetState(p, "m1", MeasState::Running);
+  const Next n = ProjectNext(p, Next{"station", "DALEJ: Postaw tachimetr"});
+  assert(n.id == "continue" && n.text.find("Tachimetria 1") != std::string::npos && n.text.find("Postaw tachimetr") != std::string::npos && n.text.find("DALEJ: Kontynuuj") == 0);
+  assert(n.text.find("DALEJ: Postaw") == std::string::npos);        // bez podwojnego prefiksu
+  assert(ProjectNext(p, Next{}).text.find("Tachimetria 1") != std::string::npos);
+}
+static void empty_project_recommends_new() { assert(ProjectNext(Proj(), Next{}).id == "new" && ProjectNext(Proj(), Next{}).text.find("kreator") != std::string::npos); }
+static void all_done_recommends_new_or_close() {
+  Project p = Proj(); AddMeasurement(p, "tachy", "Tachimetria"); SetState(p, "m1", MeasState::Done);
+  const Next n = ProjectNext(p, Next{}); assert(n.id == "new" && n.text.find("zamknij") != std::string::npos);
+}
+static void closed_project_recommends_reopen() { Project p = Proj(); p.closed = true; assert(ProjectNext(p, Next{}).id == "reopen"); }
+
 int main() {
   every_menu_id_has_a_section(); abort_is_last(); disabled_items_have_reason(); order_is_stable_across_kinds(); unknown_id_goes_to_advanced(); hint_becomes_reason_else_table();
+  gnss_prefix_follows_base_item(); no_project_recommends_create(); running_measurement_recommends_continue_with_name(); empty_project_recommends_new();
+  all_done_recommends_new_or_close(); closed_project_recommends_reopen();
   FakeWorld w; (void)KindOf;
   std::puts("test_workflow OK");
   return 0;
