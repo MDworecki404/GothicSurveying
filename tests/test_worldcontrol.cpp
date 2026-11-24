@@ -46,27 +46,41 @@ static void merge_is_idempotent_and_keeps_user_points() {
 static void map_covers_all_points() {
   for (const char* w : {"NEWWORLD", "ADDONWORLD", "OLDWORLD"}) {
     WorldMapView m;
-    assert(WorldMapFor(w, m) && m.side >= 200.0);
+    assert(WorldMapFor(w, m) && m.w >= 200.0 && m.w == m.h);
     for (const ControlPoint& p : WorldControlFor(w)) {
       double u, v; MapUnit(m, p.e - GNSS_E0, p.n - GNSS_N0, u, v);
       assert(u > 0.02 && u < 0.98 && v > 0.02 && v < 0.98);                    // wszystkie punkty leza na mapie, z marginesem
     }
   }
   WorldMapView m; assert(WorldMapFor("newworld.zen", m) && !WorldMapFor("DRAGONISLAND", m) && !WorldMapFor("", m));
-  WorldMapView t{100.0, 200.0, 400.0}; double u, v;
+  WorldMapView t{100.0, 200.0, 400.0, 400.0}; double u, v;
   MapUnit(t, 100.0, 200.0, u, v); assert(u == 0.0 && v == 1.0);                // lewy dolny rog mapy: u = 0, v = 1 (polnoc u gory)
   MapUnit(t, 500.0, 600.0, u, v); assert(u == 1.0 && v == 0.0);
 }
 
 static void map_unit_inverse() {                                               // klik na mapie (u, v) -> polozenie w metrach, odwrotnosc MapUnit
-  const WorldMapView t{100.0, 200.0, 400.0}; double e, n, u, v;
+  const WorldMapView t{100.0, 200.0, 400.0, 300.0}; double e, n, u, v;
   MapFromUnit(t, 0.0, 1.0, e, n); assert(e == 100.0 && n == 200.0);          // lewy dolny rog
-  MapFromUnit(t, 1.0, 0.0, e, n); assert(e == 500.0 && n == 600.0);          // prawy gorny rog
+  MapFromUnit(t, 1.0, 0.0, e, n); assert(e == 500.0 && n == 500.0);          // prawy gorny rog (mapa 400 x 300)
   MapFromUnit(t, 0.25, 0.5, e, n); MapUnit(t, e, n, u, v); assert(near(u, 0.25, 1e-12) && near(v, 0.5, 1e-12));
-  MapFromUnit(t, 0.5, 0.5, e, n); assert(near(e, 300.0, 1e-9) && near(n, 400.0, 1e-9));
+  MapFromUnit(t, 0.5, 0.5, e, n); assert(near(e, 300.0, 1e-9) && near(n, 350.0, 1e-9));
+}
+
+static void game_map_calibration() {                                            // mapa z gry: granice z Doc_SetLevelCoords, proporcja 4:3 i punkty osnowy w srodku mapy
+  for (const char* w : {"NEWWORLD", "OLDWORLD", "ADDONWORLD"}) {
+    WorldMapView m; assert(GameMapFor(w, m));
+    assert(std::fabs(m.w / m.h - 4.0 / 3.0) < 0.02);                           // tekstura ma 1024 x 768
+    for (const ControlPoint& p : WorldControlFor(w)) {
+      double u, v; MapUnit(m, p.e - GNSS_E0, p.n - GNSS_N0, u, v);
+      assert(u > 0.02 && u < 0.98 && v > 0.02 && v < 0.98);
+    }
+  }
+  WorldMapView m; assert(GameMapFor("newworld.zen", m) && !GameMapFor("DRAGONISLAND", m));
+  assert(near(m.e0, -280.0, 1e-9) && near(m.n0, -425.0, 1e-9) && near(m.w, 1235.0, 1e-9) && near(m.h, 930.0, 1e-9));
 }
 
 int main() {
+  game_map_calibration();
   map_unit_inverse();
   known_worlds_have_sets_and_unknown_do_not(); points_are_consistent(); merge_is_idempotent_and_keeps_user_points(); map_covers_all_points();
   std::puts("test_worldcontrol OK");

@@ -48,6 +48,7 @@ STEROWANIE
 - Skaning lotniczy z drona (ALS): "Rozpocznij robote" -> "Skaning lotniczy z drona (ALS)"; wierzcholki obszaru (min. 3, pod stopami albo na punktach osnowy), AGL, predkosc, zakladka,
   profil bledow GNSS/IMU, gestosc impulsow; "Podglad planu nalotu" (mapa), "Zapisz plan nalotu (CSV)", "Start lotu" (dron startuje spod stop bohatera, leci sam). Wyniki w
   GothicSurveying\<data>_lot: lot.las (LAS 1.2, RGB, czas GPS, numer szeregu), lot.pts, trajektoria.csv, plan_nalotu.csv, lot_opis.txt (kontrola szeregow i osnowy).
+- Mapa osnowy z gry: raz uruchom NARZEDZIA\make_game_maps.py "<katalog gry>" (Python 3) - wyciaga pergaminy map swiatow z archiwow gry; bez tego dziala mapa wygenerowana (kolorowa).
 - Kolory skanera: raz uruchom NARZEDZIA\make_texture_colors.py "<katalog gry>" (Python 3; ok. 20 s) - tworzy GothicSurveying\texcolors.bin z miniaturek tekstur gry. Bez niego punkty maja kolory zapasowe/szare.
 - Osnowa swiata: "Zaladuj osnowe geodezyjna swiata" (wzorcowe punkty G.. dla Khorinis, Doliny Gornickiej i Jarkendaru), "Mapa osnowy" (mapa swiata z punktami),
   "Teleport do punktu osnowy". Pomiar GNSS: wlasna baza (poprawki RTK) i pomiar statyczny.
@@ -84,7 +85,8 @@ def main():
         sys.argv = ["make_models.py", str(stage)]
         make_models.main()                                     # modele i tekstury -> stage/_work/Data
         tools = stage / "NARZEDZIA"; tools.mkdir()
-        shutil.copy(ROOT / "assets" / "make_texture_colors.py", tools / "make_texture_colors.py")     # kolory tekstur skanera: generowane u uzytkownika z jego plikow gry
+        shutil.copy(ROOT / "assets" / "make_texture_colors.py", tools / "make_texture_colors.py")
+        shutil.copy(ROOT / "assets" / "make_game_maps.py", tools / "make_game_maps.py")     # mapy z gry: wyciagane u uzytkownika z jego VDF (pliki gry nie sa w paczce)     # kolory tekstur skanera: generowane u uzytkownika z jego plikow gry
         (stage / "INSTALACJA.txt").write_text(README.format(version=VERSION), encoding="utf-8-sig")
         out = ROOT / "release" / f"GothicSurveying-v{VERSION}-G2A.zip"
         out.parent.mkdir(exist_ok=True)

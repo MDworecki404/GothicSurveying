@@ -1,6 +1,8 @@
-// Mapa osnowy: panel z mapa swiata (tekstura LVL_MAP_<swiat>.TGA wygenerowana z modelu swiata), punktami osnowy (numery) i znacznikiem bohatera.
+// Mapa osnowy: panel z mapa swiata (mapa z gry LVL_GMAP_<swiat>.TGA wyciagnieta z VDF przez assets/make_game_maps.py, a bez niej wygenerowana LVL_MAP_<swiat>.TGA),
+// punktami osnowy (numery) i znacznikiem bohatera.
 // Gra zatrzymana, Enter / klawisz menu zamyka. Dolaczane raz z Plugin.hpp po ControlNet.hpp i Panels.hpp, bez straznika include.
 #include <cmath>
+#include <filesystem>
 #include <functional>
 #include <string>
 #include <vector>
@@ -11,7 +13,7 @@ namespace GOTHIC_NAMESPACE {
   // Tryb zaznaczania obszaru (dwa przeciwlegle narozniki): celownik strzalkami, Enter = narozniki 1 i 2; wynik w metrach ukladu mapy (E, N).
   inline bool gMapPick = false; inline int gPickStage = 0; inline size_t gPickBase = 0;
   inline double gPickU = 0.5, gPickV = 0.5, gPickU1 = 0, gPickV1 = 0, gPickHeld[4] = { 0, 0, 0, 0 }; inline DWORD gPickLast = 0;
-  inline int gMapX0 = 0, gMapMy0 = 0, gMapS = 0, gMapBar = 38, gMapGap = 6; inline WorldMapView gMapMv;
+  inline int gMapX0 = 0, gMapMy0 = 0, gMapW = 0, gMapH = 0, gMapBar = 38, gMapGap = 6; inline WorldMapView gMapMv;
   inline std::function<void( double, double, double, double )> gPickDone;
 
   inline bool MapActive() { return gMapPanel != nullptr; }
@@ -35,10 +37,10 @@ namespace GOTHIC_NAMESPACE {
 
   inline void MapPickRedraw() {                                                         // celownik i prostokat: dopisywane za statycznymi kropkami mapy
     while ( gMapDots.size() > gPickBase ) { zCView* d = gMapDots.back(); d->Close(); screen->RemoveItem( d ); delete d; gMapDots.pop_back(); }
-    const int cx = gMapX0 + (int)( gPickU * gMapS ), cy = gMapMy0 + (int)( gPickV * gMapS );
+    const int cx = gMapX0 + (int)( gPickU * gMapW ), cy = gMapMy0 + (int)( gPickV * gMapH );
     double e1, n1, e2, n2; MapFromUnit( gMapMv, gPickU1, gPickV1, e1, n1 ); MapFromUnit( gMapMv, gPickU, gPickV, e2, n2 );
     if ( gPickStage == 1 ) {
-      const int ax = gMapX0 + (int)( gPickU1 * gMapS ), ay = gMapMy0 + (int)( gPickV1 * gMapS );
+      const int ax = gMapX0 + (int)( gPickU1 * gMapW ), ay = gMapMy0 + (int)( gPickV1 * gMapH );
       const int xs[5] = { ax, cx, cx, ax, ax }, ys[5] = { ay, ay, cy, cy, ay };
       int dots = 0;
       for ( int k = 0; k < 4; k++ ) {
@@ -54,7 +56,7 @@ namespace GOTHIC_NAMESPACE {
                   fabs( e2 - e1 ), fabs( n2 - n1 ), fabs( e2 - e1 ) * fabs( n2 - n1 ) / 10000.0 );
     PanelClose( gMapBottom );
     const int bar = gMapBar, gap = gMapGap;
-    gMapBottom = PanelOpen( screen->anx( gMapX0 ), screen->any( gMapMy0 + gMapS + gap ), screen->anx( gMapX0 + gMapS ), screen->any( gMapMy0 + gMapS + gap + bar ) );
+    gMapBottom = PanelOpen( screen->anx( gMapX0 ), screen->any( gMapMy0 + gMapH + gap ), screen->anx( gMapX0 + gMapW ), screen->any( gMapMy0 + gMapH + gap + bar ) );
     gMapBottom->PrintCXY( zSTRING( foot ) );
   }
 
@@ -81,7 +83,7 @@ namespace GOTHIC_NAMESPACE {
         if ( !fire && gPickHeld[i] > 0.4 ) { const int a = (int)( ( before - 0.4 ) * 25.0 ), b = (int)( ( gPickHeld[i] - 0.4 ) * 25.0 ); fire = b > a || before <= 0.4; }
       } else gPickHeld[i] = 0;
       if ( !fire ) continue;
-      gPickU = ( std::max )( 0.0, ( std::min )( 1.0, gPickU + dU[i] * px / gMapS ) ); gPickV = ( std::max )( 0.0, ( std::min )( 1.0, gPickV + dV[i] * px / gMapS ) ); moved = true;
+      gPickU = ( std::max )( 0.0, ( std::min )( 1.0, gPickU + dU[i] * px / gMapW ) ); gPickV = ( std::max )( 0.0, ( std::min )( 1.0, gPickV + dV[i] * px / gMapH ) ); moved = true;
     }
     if ( moved ) MapPickRedraw();
   }
@@ -89,17 +91,23 @@ namespace GOTHIC_NAMESPACE {
   inline void MapOpen( bool pick = false, std::function<void( double, double, double, double )> done = nullptr ) {
     if ( MapActive() ) return;
     const std::string wn = ControlWorldName(); WorldMapView mv;
-    if ( !WorldMapFor( wn, mv ) ) { HudMessage( ( "Brak mapy osnowy dla swiata " + wn ).c_str() ); return; }
+    const std::string key = ControlWorldKey( wn );
+    std::error_code fec;                                                    // mapa z gry (pergamin), gdy wyciagnieta z VDF; inaczej mapa wygenerowana z modelu swiata
+    const bool gameMap = GameMapFor( wn, mv ) && std::filesystem::exists( "_work/Data/Textures/LVL_GMAP_" + key + ".TGA", fec );
+    if ( !gameMap && !WorldMapFor( wn, mv ) ) { HudMessage( ( "Brak mapy osnowy dla swiata " + wn ).c_str() ); return; }
+    SvTrace( gameMap ? "mapa osnowy: mapa z gry" : "mapa osnowy: mapa wygenerowana (brak LVL_GMAP; uruchom assets/make_game_maps.py)" );
     ControlEnsureLoaded();
     const int sw = screen->nax( 8192 ), sh = screen->nay( 8192 );          // rozmiar ekranu w pikselach
-    const int S = (int)( sh * 0.72 ), bar = 38, gap = 6;                    // mapa kwadratowa S x S px, paski tekstu nad i pod nią
-    const int total = S + 2 * bar + 2 * gap, x0 = ( sw - S ) / 2, y0 = ( sh - total ) / 2;
+    const int bar = 38, gap = 6;                                            // paski tekstu nad i pod mapą
+    int H = (int)( sh * 0.72 ), W = (int)( H * mv.w / mv.h );               // panel w proporcjach mapy (pergamin 4:3, wygenerowana kwadratowa)
+    if ( W > (int)( sw * 0.92 ) ) { W = (int)( sw * 0.92 ); H = (int)( W * mv.h / mv.w ); }
+    const int total = H + 2 * bar + 2 * gap, x0 = ( sw - W ) / 2, y0 = ( sh - total ) / 2;
     const int my0 = y0 + bar + gap;                                         // górny brzeg mapy [px]
-    gMapX0 = x0; gMapMy0 = my0; gMapS = S; gMapMv = mv; gMapBar = bar; gMapGap = gap;
-    const std::string tex = "LVL_MAP_" + ControlWorldKey( wn ) + ".TGA";
-    gMapTop    = PanelOpen( screen->anx( x0 ), screen->any( y0 ), screen->anx( x0 + S ), screen->any( y0 + bar ) );
-    gMapPanel  = PanelOpenTex( screen->anx( x0 ), screen->any( my0 ), screen->anx( x0 + S ), screen->any( my0 + S ), tex.c_str() );
-    gMapBottom = PanelOpen( screen->anx( x0 ), screen->any( my0 + S + gap ), screen->anx( x0 + S ), screen->any( my0 + S + gap + bar ) );
+    gMapX0 = x0; gMapMy0 = my0; gMapW = W; gMapH = H; gMapMv = mv; gMapBar = bar; gMapGap = gap;
+    const std::string tex = std::string( gameMap ? "LVL_GMAP_" : "LVL_MAP_" ) + key + ".TGA";
+    gMapTop    = PanelOpen( screen->anx( x0 ), screen->any( y0 ), screen->anx( x0 + W ), screen->any( y0 + bar ) );
+    gMapPanel  = PanelOpenTex( screen->anx( x0 ), screen->any( my0 ), screen->anx( x0 + W ), screen->any( my0 + H ), tex.c_str() );
+    gMapBottom = PanelOpen( screen->anx( x0 ), screen->any( my0 + H + gap ), screen->anx( x0 + W ), screen->any( my0 + H + gap + bar ) );
     ogame->Pause();
 
     const zVEC3 hero = player ? player->GetPositionWorld() : zVEC3( 0, 0, 0 );
@@ -109,7 +117,7 @@ namespace GOTHIC_NAMESPACE {
       if ( ControlWorldKey( c.world ) != ControlWorldKey( wn ) ) continue;
       double u, v; MapUnit( mv, c.x / 100.0, c.z / 100.0, u, v );
       if ( u < 0 || u > 1 || v < 0 || v > 1 ) continue;
-      const int px = x0 + (int)( u * S ), py = my0 + (int)( v * S );
+      const int px = x0 + (int)( u * W ), py = my0 + (int)( v * H );
       MapDot( c.id[0] == 'G' ? "LVL_DOTR.TGA" : "LVL_DOTG.TGA", px, py, 12 );   // czerwone: osnowa wzorcowa, zielone: z GNSS
       gMapPanel->Print( (int)( u * 8192 ) + 130, (int)( v * 8192 ) - 330, zSTRING( c.id.substr( 1 ).c_str() ) );
       shown++;
@@ -117,7 +125,7 @@ namespace GOTHIC_NAMESPACE {
       if ( dd < nearestD ) { nearestD = dd; nearest = c.id; }
     }
     double hu, hv; MapUnit( mv, hero[VX] / 100.0, hero[VZ] / 100.0, hu, hv );
-    if ( hu >= 0 && hu <= 1 && hv >= 0 && hv <= 1 ) MapDot( "LVL_DOTY.TGA", x0 + (int)( hu * S ), my0 + (int)( hv * S ), 16 );
+    if ( hu >= 0 && hu <= 1 && hv >= 0 && hv <= 1 ) MapDot( "LVL_DOTY.TGA", x0 + (int)( hu * W ), my0 + (int)( hv * H ), 16 );
 
     char title[160], foot[200];
     sprintf( title, "Mapa osnowy - swiat %s: %d pkt", ControlWorldKey( wn ).c_str(), shown );
@@ -129,8 +137,8 @@ namespace GOTHIC_NAMESPACE {
       gMapPick = true; gPickDone = done; gPickStage = 0; gPickBase = gMapDots.size(); gPickLast = GetTickCount();
       gPickU = ( std::max )( 0.0, ( std::min )( 1.0, hu ) ); gPickV = ( std::max )( 0.0, ( std::min )( 1.0, hv ) );
       for ( double& h : gPickHeld ) h = 0;
-      sprintf( title, "Zaznacz obszar nalotu - swiat %s", ControlWorldKey( wn ).c_str() ); PanelClose( gMapTop );
-      gMapTop = PanelOpen( screen->anx( x0 ), screen->any( y0 ), screen->anx( x0 + S ), screen->any( y0 + bar ) ); gMapTop->PrintCXY( zSTRING( title ) );
+      sprintf( title, "Zaznacz obszar nalotu - swiat %s%s", key.c_str(), gameMap ? " (mapa z gry, rysunek przyblizony)" : "" ); PanelClose( gMapTop );
+      gMapTop = PanelOpen( screen->anx( x0 ), screen->any( y0 ), screen->anx( x0 + W ), screen->any( y0 + bar ) ); gMapTop->PrintCXY( zSTRING( title ) );
       MapPickRedraw();
     }
   }
