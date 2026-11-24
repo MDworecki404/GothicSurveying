@@ -39,7 +39,7 @@ class IWorld {
   virtual bool     PlacePrismOnPoint(int pointId) { (void)pointId; return false; }        // tyczka z lustrem dokladnie na znaku punktu
   virtual bool     TwoFaceByDefault() const { return false; }                       // tachimetr domyslnie w dwoch polozeniach lunety (KL+KP)
   virtual bool     InstrumentLevelingEnabled() const { return false; }               // czy instrument trzeba poziomowac (libella)
-  virtual bool     ScanRay(double azDeg, double elevDeg, double& distM, double& cosInc, bool& isVob, bool& isTarget) const { (void)azDeg; (void)elevDeg; (void)distM; (void)cosInc; (void)isVob; (void)isTarget; return false; }   // skaner: promien z oka instrumentu (az od polnocy, elev nad poziomem); false = brak trafienia w 120 m
+  virtual bool     ScanRay(double azDeg, double elevDeg, double& distM, double& cosInc, bool& isVob, bool& isTarget, unsigned* rgb = nullptr) const { (void)azDeg; (void)elevDeg; (void)distM; (void)cosInc; (void)isVob; (void)isTarget; (void)rgb; return false; }   // skaner: promien z oka instrumentu (az od polnocy, elev nad poziomem); false = brak trafienia w 120 m
   virtual bool     ScanRegistrationByDefault() const { return false; }                // skan domyslnie w ukladzie lokalnym z rejestracja na kulach
   virtual bool     PlaceScanTarget(int slot, const ControlPoint& cp) { (void)slot; (void)cp; return false; }   // kula referencyjna na znaku punktu osnowy (slot 1-6)
   virtual void     RemoveScanTarget(int slot) { (void)slot; }

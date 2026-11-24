@@ -215,9 +215,13 @@ bez stanu albo z innego świata kończy bieżącą robotę jak dotąd (zmierzone
 i daje punkt, jeśli odległość mieści się w 0,5–120 m. Szum odległości 1,5 mm + 10 ppm, intensywność 0–255 z kąta padania i odległości (powierzchnie prostopadłe są jaśniejsze, voby nieco jaśniejsze od terenu).
 Skan trwa w czasie gry (klatka po klatce w budżecie ok. 12 ms; pasek postępu z liczbą punktów), a „Przerwij skan” go anuluje. Rozdzielczości: krok 1,0° (ok. 45 tys. kierunków), 0,5°, 0,25° i 0,1° (ok. 4,5 mln kierunków; to już minuty).
 
-Wyniki w folderze `GothicSurveying/RRRR-MM-DD_GG-MM-SS_skan/`: `skanNN.pts` (liczba punktów w pierwszej linii, potem `E N H intensywnosc`; X = E, Y = N, Z = H w układzie lokalnym siatki),
-`skanNN.las` (LAS 1.2, format 0, skala 1 mm; otwiera się np. w CloudCompare) i `skanNN_opis.txt` (parametry i stanowisko). Można zrobić wiele skanów na różnych stanowiskach w jednej robocie;
-po „Zakończ robotę” panel podsumowuje stanowiska i liczby punktów. Punkty zapisywane są strumieniowo na dysk, więc chmura nie obciąża pamięci gry. **Rejestracja skanów na kulach referencyjnych** (domyślnie włączona; pozycja „Rejestracja” w menu): skan powstaje w **układzie lokalnym skanera** z losowym zerem azymutu, a stanowisko i obrót wyznacza się z kul.
+Wyniki w folderze `GothicSurveying/RRRR-MM-DD_GG-MM-SS_skan/`: `skanNN.pts` (liczba punktów w pierwszej linii, potem `E N H intensywnosc R G B`; X = E, Y = N, Z = H w układzie lokalnym siatki),
+`skanNN.las` (LAS 1.2, format 2 z kolorem RGB, skala 1 mm; otwiera się np. w CloudCompare) i `skanNN_opis.txt` (parametry i stanowisko). Można zrobić wiele skanów na różnych stanowiskach w jednej robocie;
+po „Zakończ robotę” panel podsumowuje stanowiska i liczby punktów. Punkty zapisywane są strumieniowo na dysk, więc chmura nie obciąża pamięci gry. **Kolor RGB** (menu „Kolor RGB”, domyślnie włączony): każdy punkt dostaje kolor trafionej powierzchni — średnią barwę tekstury materiału wielokąta (albo kolor materiału), przyciemnioną dla powierzchni
+ustawionych skośnie do promienia; kule referencyjne są pomarańczowe. To kolor uśredniony dla całej tekstury, nie piksel z tekstury (trawa jest zielona, skała szara, ale bez rysunku detalu),
+a powierzchnie bez danych o kolorze dostają szary. Z wyłączonym kolorem punkty są szare wg intensywności.
+
+**Rejestracja skanów na kulach referencyjnych** (domyślnie włączona; pozycja „Rejestracja” w menu): skan powstaje w **układzie lokalnym skanera** z losowym zerem azymutu, a stanowisko i obrót wyznacza się z kul.
 Dodaj co najmniej 3 (max 6) **kul referencyjnych** na znakach osnowy („Dodaj kulę referencyjną”: punkt osnowy do 150 m od ciebie; kula o średnicy 29 cm staje 0,5 m nad znakiem). Kule są retrorefleksyjne
 (intensywność 255), więc po skanie przeglądowym plugin je wykrywa, **doskanowuje gęsto** wokół każdej (pasek „doskanowanie kul”), dopasowuje do nich kulę metodą najmniejszych kwadratów (środek z dokładnością mm),
 przyporządkowuje do punktów osnowy (sprawdza wszystkie przyporządkowania, odrzuca niejednoznaczne) i dopasowuje obrót wokół pionu oraz przesunięcie (skaner jest poziomy). Komunikat i `skanNN_opis.txt` podają

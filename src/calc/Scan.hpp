@@ -40,20 +40,20 @@ inline std::uint8_t ScanIntensity(double distM, double cosInc, bool isVob) {
   return (std::uint8_t)(std::min)(250.0, (std::max)(4.0, 255.0 * base * c * (0.4 + 0.6 * f)));     // 255 zarezerwowane dla kul referencyjnych (retrorefleksja)
 }
 
-struct ScanLocal { float x, y, z; std::uint8_t i; };
+struct ScanLocal { float x, y, z; std::uint8_t i = 0, r = 128, g = 128, b = 128; };   // i = intensywnosc, r/g/b = kolor punktu
 // Odczytany kierunek i odleglosc -> punkt w ukladzie skanera.
-inline ScanLocal ScanToLocal(double azDeg, double vDeg, double rangeM, std::uint8_t intensity) {
+inline ScanLocal ScanToLocal(double azDeg, double vDeg, double rangeM, std::uint8_t intensity, unsigned rgb = 0x808080) {
   const double pi = 3.14159265358979323846, az = azDeg * pi / 180.0, v = vDeg * pi / 180.0, s = std::sin(v);
-  return {(float)(rangeM * s * std::sin(az)), (float)(rangeM * s * std::cos(az)), (float)(rangeM * std::cos(v)), intensity};
+  return {(float)(rangeM * s * std::sin(az)), (float)(rangeM * s * std::cos(az)), (float)(rangeM * std::cos(v)), intensity, (std::uint8_t)((rgb >> 16) & 255), (std::uint8_t)((rgb >> 8) & 255), (std::uint8_t)(rgb & 255)};
 }
 
-// Surowy plik tymczasowy: rekordy 13 bajtow (3 x float + uint8). Stanowisko dodaje sie przy konwersji.
+// Surowy plik tymczasowy: rekordy 16 bajtow (3 x float + intensywnosc + R, G, B). Stanowisko dodaje sie przy konwersji.
 class ScanRawWriter {
  public:
   bool Open(const std::string& path) { path_ = path; out_.open(path, std::ios::binary | std::ios::trunc); count_ = 0; return out_.good(); }
   void Append(const ScanLocal& p) {
     out_.write(reinterpret_cast<const char*>(&p.x), 4); out_.write(reinterpret_cast<const char*>(&p.y), 4); out_.write(reinterpret_cast<const char*>(&p.z), 4);
-    out_.write(reinterpret_cast<const char*>(&p.i), 1); count_++;
+    const std::uint8_t t[4] = {p.i, p.r, p.g, p.b}; out_.write(reinterpret_cast<const char*>(t), 4); count_++;
   }
   void Close() { if (out_.is_open()) out_.close(); }
   long long Count() const { return count_; }
@@ -68,12 +68,13 @@ namespace scandetail {
 inline void PutLE(std::string& s, std::uint64_t v, int bytes) { for (int i = 0; i < bytes; i++) s += (char)((v >> (8 * i)) & 0xFF); }
 inline void PutD(std::string& s, double d) { std::uint64_t u; std::memcpy(&u, &d, 8); PutLE(s, u, 8); }
 inline bool ReadRec(std::ifstream& in, ScanLocal& p) {
-  in.read(reinterpret_cast<char*>(&p.x), 4); in.read(reinterpret_cast<char*>(&p.y), 4); in.read(reinterpret_cast<char*>(&p.z), 4); in.read(reinterpret_cast<char*>(&p.i), 1);
+  in.read(reinterpret_cast<char*>(&p.x), 4); in.read(reinterpret_cast<char*>(&p.y), 4); in.read(reinterpret_cast<char*>(&p.z), 4);
+  std::uint8_t t[4]; in.read(reinterpret_cast<char*>(t), 4); p.i = t[0]; p.r = t[1]; p.g = t[2]; p.b = t[3];
   return in.good();
 }
 }  // namespace scandetail
 
-// Konwersja surowego pliku do .pts (x y z intensywnosc) i .las 1.2 (format punktu 0): wspolrzedne siatki E (X), N (Y), H (Z) = stanowisko + wektor lokalny.
+// Konwersja surowego pliku do .pts (x y z intensywnosc R G B) i .las 1.2 (format punktu 2, z kolorem RGB): wspolrzedne siatki E (X), N (Y), H (Z) = stanowisko + wektor lokalny.
 // Zwraca statystyki (bounding box w ukladzie siatki). Dwa przebiegi: granice, potem zapis (bez trzymania chmury w pamieci).
 // rotDeg: obrot ukladu lokalnego skanera wzgledem siatki (po rejestracji); 0 = lokalne osie zgodne z siatka.
 inline ScanStats ScanConvert(const std::string& rawPath, double stN, double stE, double stH, double rotDeg, const std::string& ptsPath, const std::string& lasPath) {
@@ -97,7 +98,7 @@ inline ScanStats ScanConvert(const std::string& rawPath, double stN, double stE,
   { char sys[32] = {0}, sw[32] = {0}; std::snprintf(sys, sizeof sys, "GothicSurveying"); std::snprintf(sw, sizeof sw, "GothicSurveying scanner"); h.append(sys, 32); h.append(sw, 32); }
   scandetail::PutLE(h, 1, 2); scandetail::PutLE(h, 2025, 2);           // dzien i rok utworzenia (nieistotne)
   scandetail::PutLE(h, 227, 2); scandetail::PutLE(h, 227, 4); scandetail::PutLE(h, 0, 4);   // rozmiar naglowka, offset danych, liczba VLR
-  h += (char)0; scandetail::PutLE(h, 20, 2);                           // format punktu 0, dlugosc rekordu 20
+  h += (char)2; scandetail::PutLE(h, 26, 2);                           // format punktu 2 (z RGB), dlugosc rekordu 26
   scandetail::PutLE(h, (std::uint64_t)st.count, 4); for (int i = 0; i < 5; i++) scandetail::PutLE(h, i == 0 ? (std::uint64_t)st.count : 0, 4);
   for (int i = 0; i < 3; i++) scandetail::PutD(h, scale);
   scandetail::PutD(h, offX); scandetail::PutD(h, offY); scandetail::PutD(h, offZ);
@@ -106,12 +107,13 @@ inline ScanStats ScanConvert(const std::string& rawPath, double stN, double stE,
   std::ifstream in(rawPath, std::ios::binary); ScanLocal p; std::string rec; char line[96];
   while (scandetail::ReadRec(in, p)) {
     const double X = stE + p.y * sth + p.x * cth, Y = stN + p.y * cth - p.x * sth, Z = stH + p.z;
-    std::snprintf(line, sizeof line, "%.3f %.3f %.3f %d\n", X, Y, Z, (int)p.i); pts << line;
+    std::snprintf(line, sizeof line, "%.3f %.3f %.3f %d %d %d %d\n", X, Y, Z, (int)p.i, (int)p.r, (int)p.g, (int)p.b); pts << line;
     rec.clear();
     scandetail::PutLE(rec, (std::uint32_t)(std::int32_t)std::llround((X - offX) / scale), 4); scandetail::PutLE(rec, (std::uint32_t)(std::int32_t)std::llround((Y - offY) / scale), 4);
     scandetail::PutLE(rec, (std::uint32_t)(std::int32_t)std::llround((Z - offZ) / scale), 4);
     scandetail::PutLE(rec, (std::uint64_t)p.i * 257u, 2);              // intensywnosc 8 -> 16 bit
     rec += (char)0x09; rec += (char)0; rec += (char)0; rec += (char)0; scandetail::PutLE(rec, 0, 2);   // flagi (1 zwrot z 1), klasyfikacja, kat, dane uzytkownika, zrodlo
+    scandetail::PutLE(rec, (std::uint64_t)p.r * 257u, 2); scandetail::PutLE(rec, (std::uint64_t)p.g * 257u, 2); scandetail::PutLE(rec, (std::uint64_t)p.b * 257u, 2);   // RGB 8 -> 16 bit
     las.write(rec.data(), (std::streamsize)rec.size());
   }
   return st;

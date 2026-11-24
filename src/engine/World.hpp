@@ -157,7 +157,19 @@ namespace GOTHIC_NAMESPACE {
       return true;
     }
     // Skaner laserowy: promien z oka instrumentu; teren i voby ze swiata (bez postaci i voba skanera), zasieg 120 m.
-    bool ScanRay( double azDeg, double elevDeg, double& distM, double& cosInc, bool& isVob, bool& isTarget ) const override {
+    static unsigned PolyAverageRgb( zCPolygon* poly ) {            // srednia barwa tekstury materialu (albo kolor materialu); 0x808080 gdy brak danych
+      unsigned rgb = 0x808080;
+      __try {
+        if ( poly && poly->material ) {
+          zCOLOR c; c.dword = 0;
+          if ( poly->material->texture ) c = poly->material->texture->GetTextureInfo().averageColor;
+          if ( c.dword == 0 ) c = poly->material->color;
+          if ( c.dword != 0 ) rgb = ( (unsigned)c.r << 16 ) | ( (unsigned)c.g << 8 ) | (unsigned)c.b;
+        }
+      } __except ( EXCEPTION_EXECUTE_HANDLER ) {}
+      return rgb;
+    }
+    bool ScanRay( double azDeg, double elevDeg, double& distM, double& cosInc, bool& isVob, bool& isTarget, unsigned* rgb ) const override {
       zCWorld* w = ogame->GetWorld();
       if ( !w || !hasInstr_ ) return false;
       const float rad = 3.14159265f / 180.0f, az = (float)azDeg * rad, p = (float)elevDeg * rad;
@@ -170,6 +182,10 @@ namespace GOTHIC_NAMESPACE {
         zVEC3 n = r.foundPolyNormal; const float nl = n.Length();
         cosInc = nl > 0.5f ? fabs( ( n[VX] * dir[VX] + n[VY] * dir[VY] + n[VZ] * dir[VZ] ) / nl ) : 0.5;
         isVob = r.foundVob != nullptr;
+        if ( rgb ) {                                                                // kolor: srednia barwa tekstury, przyciemniona katem padania (powierzchnie skosne ciemniejsze)
+          const unsigned c = PolyAverageRgb( r.foundPoly ); const double k = 0.65 + 0.35 * cosInc;
+          *rgb = ( (unsigned)( ( ( c >> 16 ) & 255 ) * k ) << 16 ) | ( (unsigned)( ( ( c >> 8 ) & 255 ) * k ) << 8 ) | (unsigned)( ( c & 255 ) * k );
+        }
       }
       const double sphR = (double)kScanTargetRadiusM * 100.0;                       // kule referencyjne: przeciecie promienia z kula (analitycznie, bez kolizji vobow)
       for ( const ScanTgt& t : scanTgt_ ) {

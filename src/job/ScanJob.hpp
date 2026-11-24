@@ -34,6 +34,7 @@ class ScanJob : public Job {
     return {
       {"station", stationUp_ ? "Przestaw skaner (stanowisko)" : "Postaw skaner (stanowisko)", "nie w trakcie skanu", !scanning_},
       {"res", res, ph, !scanning_},
+      {"rgb", rgbOn_ ? "Kolor RGB: wlaczony, z tekstur swiata (zmien)" : "Kolor RGB: wylaczony, szare punkty (zmien)", "kolor punktu = srednia barwa tekstury trafionej powierzchni; nie w trakcie skanu", !scanning_},
       {"reg", regOn_ ? "Rejestracja: wlaczona, kule referencyjne (zmien)" : "Rejestracja: wylaczona, siatka ze stanowiska (zmien)",
        "wlaczona: skan w ukladzie lokalnym, stanowisko z kul na punktach osnowy; nie w trakcie skanu", !scanning_},
       {"target", "Dodaj kule referencyjna (punkt osnowy)", "max 6; punkt osnowy do 150 m od ciebie, kula staje nad znakiem", !scanning_ && targets_.size() < 6},
@@ -67,6 +68,8 @@ class ScanJob : public Job {
       if (lib_.enabled) { const double u1 = w_.Random01(), u2 = w_.Random01(); lib_.Reset(u1, u2); }
     } else if (base == "res") {
       preset_ = (preset_ + 1) % kScanPresetCount;
+    } else if (base == "rgb") {
+      rgbOn_ = !rgbOn_;
     } else if (base == "reg") {
       regOn_ = !regOn_;
     } else if (base == "target") {
@@ -94,10 +97,13 @@ class ScanJob : public Job {
     if (phase_ == 1) {
       while (idx_ < grid_.Total()) {
         double az, v; ScanDirection(grid_, idx_++, az, v);
-        double dist = 0, cosInc = 1; bool vob = false, tgt = false;
-        if (w_.ScanRay(std::fmod(az + psi_, 360.0), 90.0 - v, dist, cosInc, vob, tgt) && dist >= kScanMinRangeM && dist <= kScanMaxRangeM) {
+        double dist = 0, cosInc = 1; bool vob = false, tgt = false; unsigned rgb = 0x808080;
+        if (w_.ScanRay(std::fmod(az + psi_, 360.0), 90.0 - v, dist, cosInc, vob, tgt, rgbOn_ ? &rgb : nullptr) && dist >= kScanMinRangeM && dist <= kScanMaxRangeM) {
           const double d = dist + ScanNoiseSigmaM(dist) * rng_.Normal();
-          const ScanLocal p = ScanToLocal(az, v, d, tgt ? (std::uint8_t)255 : ScanIntensity(dist, cosInc, vob));
+          const std::uint8_t inten = tgt ? (std::uint8_t)255 : ScanIntensity(dist, cosInc, vob);
+          if (tgt) rgb = 0xFF8000;                                                      // kula referencyjna: pomaranczowa
+          else if (!rgbOn_) rgb = (unsigned)inten * 0x010101u;                          // bez koloru: szarosc z intensywnosci
+          const ScanLocal p = ScanToLocal(az, v, d, inten, rgb);
           raw_.Append(p);
           if (tgt && brightDir_.size() < 50000) { brightDir_.push_back({az, v, dist}); brightLoc_.push_back({p.x, p.y, p.z}); }
         }
@@ -152,7 +158,7 @@ class ScanJob : public Job {
   }
 
   void SaveState(StateKV& s) const override {                          // trwajacy skan nie jest wznawiany; zapisane skany i kule zostaja
-    s.Bool("stationUp", stationUp_); s.Int("preset", preset_); s.Bool("regOn", regOn_); s.Str("outDir", outDir_); s.Num("lib.x", lib_.x); s.Num("lib.y", lib_.y);
+    s.Bool("stationUp", stationUp_); s.Int("preset", preset_); s.Bool("regOn", regOn_); s.Bool("rgbOn", rgbOn_); s.Str("outDir", outDir_); s.Num("lib.x", lib_.x); s.Num("lib.y", lib_.y);
     s.Int("targets.n", (long long)targets_.size());
     for (size_t i = 0; i < targets_.size(); i++) { const std::string p = "targets." + std::to_string(i); s.Str(p + ".id", targets_[i].id); s.Int(p + ".slot", targets_[i].slot); PutControl(s, p + ".cp", targets_[i].cp); }
     s.Int("scans.n", (long long)scans_.size());
@@ -162,7 +168,7 @@ class ScanJob : public Job {
     }
   }
   bool LoadState(const StateKV& s) override {
-    AbortScan(); stationUp_ = s.GetBool("stationUp"); preset_ = s.GetInt("preset") % kScanPresetCount; regOn_ = s.GetBool("regOn"); outDir_ = s.GetStr("outDir");
+    AbortScan(); stationUp_ = s.GetBool("stationUp"); preset_ = s.GetInt("preset") % kScanPresetCount; regOn_ = s.GetBool("regOn"); rgbOn_ = s.GetBool("rgbOn", true); outDir_ = s.GetStr("outDir");
     lib_.x = s.GetNum("lib.x"); lib_.y = s.GetNum("lib.y");
     targets_.clear(); const int nt = s.GetInt("targets.n");
     for (int i = 0; i < nt; i++) { const std::string p = "targets." + std::to_string(i); targets_.push_back({s.GetStr(p + ".id"), GetControl(s, p + ".cp"), s.GetInt(p + ".slot")}); }
@@ -243,7 +249,7 @@ class ScanJob : public Job {
     f << "Skan " << s.name << "\nPunkty: " << s.points << "\nRozdzielczosc: " << kScanPresets[preset_].name << "\nZasieg: " << kScanMinRangeM << " - " << kScanMaxRangeM
       << " m\nSzum odleglosci: 1,5 mm + 10 ppm\nStanowisko: " << s.source << "\nOs skanera " << kInstrH << " m nad gruntem\n"
       << (s.local ? "Uklad: lokalny skanera (X = wschod, Y = polnoc wg zera skanera, Z = w gore), srodek skanera w (0,0,0)\n" : "Uklad: X = E, Y = N, Z = H (m), siatka\n")
-      << "Intensywnosc 0-255 (255 = kula referencyjna)\n";
+      << "Intensywnosc 0-255 (255 = kula referencyjna); kolor RGB: " << (rgbOn_ ? "srednia barwa tekstury powierzchni" : "wylaczony (szarosc z intensywnosci)") << "\n";
   }
 
   void AbortScan() {
@@ -254,7 +260,7 @@ class ScanJob : public Job {
   }
 
   IWorld& w_; JobOptions opt_; GnssRng rng_; Libella lib_;
-  bool stationUp_ = false, scanning_ = false, regOn_ = false; int preset_ = 1, phase_ = 0;
+  bool stationUp_ = false, scanning_ = false, regOn_ = false, rgbOn_ = true; int preset_ = 1, phase_ = 0;
   ScanGrid grid_; long long idx_ = 0; ScanRawWriter raw_; std::string rawPath_, outDir_, curName_, source_; double stN_ = 0, stE_ = 0, stH_ = 0, psi_ = 0;
   std::vector<ScanBrightHit> brightDir_; std::vector<P3> brightLoc_; std::vector<ScanWindow> windows_; size_t wi_ = 0; long long wIdx_ = 0;
   std::vector<Tgt> targets_; std::vector<Scan> scans_;

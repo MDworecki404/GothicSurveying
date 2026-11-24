@@ -37,22 +37,22 @@ struct FakeScan : IWorld {
     ControlPoint c; c.id = "G1"; c.n = station.n + 0.012; c.e = station.e - 0.008; c.h = station.h + 0.02; return {c};
   }
   std::string ScanOutDir() override { std::filesystem::create_directories(dir); return dir; }
-  bool ScanRay(double az, double elev, double& dist, double& cosInc, bool& isVob, bool& isTarget) const override {
+  bool ScanRay(double az, double elev, double& dist, double& cosInc, bool& isVob, bool& isTarget, unsigned* rgb) const override {
     const double pi = 3.14159265358979323846, a = az * pi / 180.0, e = elev * pi / 180.0, h = 1.5;
-    double best = 1e9; isVob = false; isTarget = false; cosInc = 1.0;
+    double best = 1e9; isVob = false; isTarget = false; cosInc = 1.0; unsigned col = 0x64A03C;                  // podloga zielona
     if (e < -1e-6) { best = h / std::sin(-e); cosInc = std::sin(-e); }                       // podloga
     const double north = std::cos(e) * std::cos(a);
-    if (north > 1e-6) { const double t = 10.0 / north; if (t < best) { best = t; isVob = true; cosInc = north; } }   // sciana (vob)
+    if (north > 1e-6) { const double t = 10.0 / north; if (t < best) { best = t; isVob = true; cosInc = north; col = 0x9696A0; } }   // sciana (vob)
     for (const auto& sp : spheres) {                                                          // kule referencyjne: srodek 0,5 m nad znakiem
       const double ce = sp.second.e - station.e, cn = sp.second.n - station.n, cu = sp.second.h + kScanTargetUpM - (station.h + h);
       const double de = std::sin(a) * std::cos(e), dn = std::cos(a) * std::cos(e), du = std::sin(e);
       const double b = ce * de + cn * dn + cu * du, c = ce * ce + cn * cn + cu * cu - kScanTargetRadiusM * kScanTargetRadiusM, disc = b * b - c;
       if (disc < 0) continue;
       const double t = b - std::sqrt(disc);
-      if (t > 0 && t < best) { best = t; isTarget = true; isVob = false; cosInc = 1.0; }
+      if (t > 0 && t < best) { best = t; isTarget = true; isVob = false; cosInc = 1.0; col = 0xFF8000; }
     }
     if (best > 1e8) return false;
-    dist = best; return true;
+    dist = best; if (rgb) *rgb = col; return true;
   }
 };
 
@@ -86,14 +86,14 @@ static void full_scan_writes_cloud_of_floor_and_wall() {
   const std::string base = f.w.dir + "/skan01";
   std::ifstream pts(base + ".pts"); std::string first; std::getline(pts, first); const long long n = std::stoll(first);
   assert(n > 10000 && n <= 360LL * 126 && std::filesystem::exists(base + ".las") && std::filesystem::exists(base + "_opis.txt") && !std::filesystem::exists(base + ".tmp"));
-  double x, y, z; int in; long long wall = 0, floorN = 0, other = 0, k = 0;
-  while (pts >> x >> y >> z >> in) {
+  double x, y, z; int in, cr, cg, cb; long long wall = 0, floorN = 0, other = 0, k = 0, wallGrey = 0, floorGreen = 0;
+  while (pts >> x >> y >> z >> in >> cr >> cg >> cb) {
     k++;
-    if (std::fabs(y - (5500000.0 + 10.0)) < 0.02) wall++;                                   // sciana: N = 10 m od stanowiska (szum mm, zaokraglenie pts)
-    else if (std::fabs(z - 100.0) < 0.02) floorN++;                                          // podloga: H = grunt
+    if (std::fabs(y - (5500000.0 + 10.0)) < 0.02) { wall++; if (cr == 0x96 && cg == 0x96 && cb == 0xA0) wallGrey++; }                                   // sciana: N = 10 m od stanowiska (szum mm, zaokraglenie pts)
+    else if (std::fabs(z - 100.0) < 0.02) { floorN++; if (cr == 0x64 && cg == 0xA0 && cb == 0x3C) floorGreen++; }   // podloga: H = grunt
     else other++;
   }
-  assert(k == n && wall > 1000 && floorN > 1000 && other < n / 100);
+  assert(k == n && wall > 1000 && floorN > 1000 && other < n / 100 && wallGrey == wall && floorGreen == floorN);   // kolor z powierzchni (RGB wlaczone domyslnie)
   const std::vector<std::string> sum = f.job->SummaryLines();
   assert(sum.size() == 2 && has(sum[1], "skan01") && has(sum[1], "dowolne stanowisko"));
   f.job->OnMenu("station"); f.runScan();                                                    // drugi skan: osobne pliki
@@ -125,10 +125,19 @@ static ControlPoint CPoint(const std::string& id, double dn, double de, double d
   ControlPoint c; c.id = id; c.n = 5500000.0 + dn; c.e = 6500000.0 + de; c.h = 100.0 + dh; return c;
 }
 
+static void rgb_off_writes_grey_from_intensity() {
+  Fx f; f.job->OnMenu("station"); f.res(3);
+  for (auto& m : f.job->Menu()) if (m.id == "rgb") assert(has(m.label, "wlaczony"));
+  f.job->OnMenu("rgb"); f.runScan();
+  std::ifstream pts(f.w.dir + "/skan01.pts"); std::string first; std::getline(pts, first); double x, y, z; int in, cr, cg, cb; long long bad = 0, k = 0;
+  while (pts >> x >> y >> z >> in >> cr >> cg >> cb) { k++; if (cr != in || cg != in || cb != in) bad++; }
+  assert(k > 1000 && bad == 0);
+}
+
 static void registration_recovers_station_and_rotation() {
   Fx f; f.w.ctrls = {CPoint("G1", 15, 5, 0.2), CPoint("G2", -10, 20, -0.2), CPoint("G3", 5, -18, 0.5), CPoint("G4", -22, -6, 0.1)};
   f.job->OnMenu("station"); f.job->OnMenu("reg");
-  assert(has(f.job->Menu()[2].label, "wlaczona") && !f.enabled("scan") && f.job->NeedsChoice("target") && f.job->TachyChoices("target").size() == 4);
+  assert(has(f.job->Menu()[3].label, "wlaczona") && !f.enabled("scan") && f.job->NeedsChoice("target") && f.job->TachyChoices("target").size() == 4);
   f.job->OnMenu("target:G1"); f.job->OnMenu("target:G2");
   assert(!f.enabled("scan") && f.job->TachyChoices("target").size() == 2);                  // dwie kule: za malo do rejestracji
   f.job->OnMenu("target:G3"); f.job->OnMenu("target:G4"); assert(f.enabled("scan") && f.w.spheres.size() == 4);
@@ -138,8 +147,8 @@ static void registration_recovers_station_and_rotation() {
   assert(sawTargets && f.job->CanFinish());
   const std::vector<std::string> sum = f.job->SummaryLines();
   assert(has(sum[1], "rejestracja na 3 kulach") && !has(sum[1], "G1") && !has(sum[1], "lokalny") && std::filesystem::exists(f.w.dir + "/skan01.las") && !std::filesystem::exists(f.w.dir + "/skan01_lokalny.las"));
-  std::ifstream pts(f.w.dir + "/skan01.pts"); std::string first; std::getline(pts, first); double x, y, z; int in; long long wall = 0, k = 0, floorN = 0;
-  while (pts >> x >> y >> z >> in) { k++; if (std::fabs(y - 5500010.0) < 0.03) wall++; else if (std::fabs(z - 100.0) < 0.03) floorN++; }
+  std::ifstream pts(f.w.dir + "/skan01.pts"); std::string first; std::getline(pts, first); double x, y, z; int in, cr, cg, cb; long long wall = 0, k = 0, floorN = 0;
+  while (pts >> x >> y >> z >> in >> cr >> cg >> cb) { k++; if (std::fabs(y - 5500010.0) < 0.03) wall++; else if (std::fabs(z - 100.0) < 0.03) floorN++; }
   assert(wall > 3000 && floorN > 3000 && k == std::stoll(first));                           // sciana na N = 10 m od stanowiska: obrot wyznaczony z kul (G1 za sciana jest niewidoczna, wystarczaja 3) (zero skanera bylo losowe)
   f.job->OnMenu("untarget"); assert(f.w.spheres.size() == 3 && f.enabled("scan"));
 }
@@ -167,7 +176,7 @@ static void leveling_blocks_scan() {
 }
 
 int main() {
-  registry_and_menu_flow(); full_scan_writes_cloud_of_floor_and_wall(); station_on_control_point_uses_its_coordinates(); cancel_removes_temp_file_and_state_roundtrip(); leveling_blocks_scan(); registration_recovers_station_and_rotation(); registration_failure_keeps_local_cloud();
+  registry_and_menu_flow(); full_scan_writes_cloud_of_floor_and_wall(); station_on_control_point_uses_its_coordinates(); cancel_removes_temp_file_and_state_roundtrip(); leveling_blocks_scan(); rgb_off_writes_grey_from_intensity(); registration_recovers_station_and_rotation(); registration_failure_keeps_local_cloud();
   std::puts("test_scan_job OK");
   return 0;
 }
