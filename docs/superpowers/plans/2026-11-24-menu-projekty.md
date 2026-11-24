@@ -25,10 +25,10 @@
 ## Review Focus
 
 1. Zapis stanu sprzed projektów (bez kluczy `project`/`pomiar`) wczytuje się jak dotąd; pomiar trafia do „Pomiary luzem".
-2. Nazwa projektu `..`, `a/b`, pusta, z polskimi znakami albo za długa jest odrzucana (test w Task 3).
+2. Nazwa projektu `..`, `a/b`, pusta, z polskimi znakami albo za długa jest odrzucana (test w Task 4).
 3. Uszkodzony / obcięty `projekt.txt` (brak `ver`, brak pomiarów, nieznany `type`) nie wywala programu: `LoadProject` zwraca false lub pomija pozycję.
-4. Pomiar „w toku" w manifeście bez aktywnej roboty (wczytano starszy zapis) nie blokuje nowych pomiarów: `Reconcile` oznacza go jako przerwany (Task 3).
-5. Menu z 0 pozycjami, z samymi niedostępnymi i z 40 pozycjami (kursor na ostatniej) daje poprawny układ i okno przewijania (Task 6); zamknięcie projektu z pomiarem w toku jest odmówione (Task 3).
+4. Pomiar „w toku" w manifeście bez aktywnej roboty (wczytano starszy zapis) nie blokuje nowych pomiarów: `Reconcile` oznacza go jako przerwany (Task 4).
+5. Menu z 0 pozycjami, z samymi niedostępnymi i z 40 pozycjami (kursor na ostatniej) daje poprawny układ i okno przewijania (Task 6); zamknięcie projektu z pomiarem w toku jest odmówione (Task 4).
 
 ---
 
@@ -152,7 +152,7 @@ int MoveCursor(const std::vector<MenuItem>& items, int cursor, int dir);   // ku
 
 **Files:** Modify `Controller.hpp` (`CtrlStartJob`, `CtrlFinish*`, `CtrlConfirmAbort`, `CtrlSaveJobState`, `CtrlRestoreJobState`, `ControllerTick`)
 
-- [ ] **Step 1:** `CtrlStartJob(...)` dodaje pomiar (`AddMeasurement`, stan Running, zapis manifestu); koniec/przerwanie/zmiana świata → `SetState(Done|Aborted, gJobDir, summary)` + zapis; `CtrlSaveJobState` dopisuje opcjonalne klucze `project`, `pomiar` (`ver` zostaje 1); `CtrlRestoreJobState`: brak kluczy albo nieistniejący projekt → pomiar trafia do „Luzem"; po wczytaniu zapisu `Reconcile(gProject, activeId)`. Wynik ostatniego pomiaru zapisuje też `pomiar_<id>.csv` (punkty id→H dla porównania, Task 13).
+- [ ] **Step 1:** `CtrlStartJob(...)` dodaje pomiar (`AddMeasurement`, stan Running, zapis manifestu); koniec/przerwanie/zmiana świata → `SetState(Done|Aborted, gJobDir, summary)` + zapis; `CtrlSaveJobState` dopisuje opcjonalne klucze `project`, `pomiar` (`ver` zostaje 1); `CtrlRestoreJobState`: brak kluczy albo nieistniejący projekt → pomiar trafia do „Luzem"; po wczytaniu zapisu `Reconcile(gProject, activeId)`. Wynik ostatniego pomiaru zapisuje też `pomiar_<id>.csv` (punkty id→H dla porównania, Task 12).
 - [ ] **Step 2:** `tests/run.ps1` `ALL OK`; `build.ps1` `BUILD OK`. **Step 3:** w grze: pomiar → zapis gry → wczytanie → manifest zgodny; stary `stan_slot` bez kluczy wznawia się. **Step 4: Commit** `git commit -m "projekt: rejestracja pomiarow i zgodnosc zapisu stanu"`
 
 ### Task 10: Kreatory (presety) i tryb prowadzony
