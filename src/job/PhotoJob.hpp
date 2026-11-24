@@ -48,6 +48,8 @@ class PhotoJob : public AerialJob {
     return out;
   }
   bool CanFinish() const override { return AerialJob::CanFinish() && !ortho_; }
+  std::string NextStep() const override { return ortho_ ? "" : AerialJob::NextStep(); }
+  std::string PostFlightStep() const override { return CanOrtho() && oi_.w == 0 ? "ortho" : ""; }   // wyrownanie wiazki jest automatyczne; zostaje ortofotomapa
   void Tick() override { if (ortho_) { if (ortho_->Step(kBudgetMs)) FinishOrtho(false); return; } AerialJob::Tick(); }
   void OnMenu(const std::string& id) override {
     if (LidarOnly(id)) return;

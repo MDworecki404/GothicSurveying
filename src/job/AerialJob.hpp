@@ -178,6 +178,12 @@ class AerialJob : public Job {
     return b;
   }
   bool CanFinish() const override { return flights_ > 0 && !flying_ && !adj_ && !prod_; }
+  std::string NextStep() const override {
+    if (area_.size() < 3) return "area_map";
+    if (flying_ || adj_ || prod_) return "";
+    if (flights_ == 0) return "launch";
+    return PostFlightStep();
+  }
 
   std::vector<MapLine> MapOverlay() const override {
     std::vector<MapLine> out;
@@ -198,6 +204,12 @@ class AerialJob : public Job {
   FieldBook Finish(bool) override { FinishFlight(false, true); return FieldBook{}; }   // lot w toku: wynik czesciowy; lot.raw zostaje (wczytanie zapisu moze wznowic lot)
 
  protected:                                                            // haki dla robot pochodnych (fotogrametria: PhotoJob)
+  virtual std::string PostFlightStep() const {                          // ALS po locie: wyrownanie, potem produkty (kazdy raz: po wyniku w folderze lotu)
+    namespace fs = std::filesystem; std::error_code ec;
+    if (CanAdjust() && !fs::exists(outDir_ + "/lot_wyrownany.las", ec)) return "adjust";
+    if (CanProducts() && !fs::exists(outDir_ + "/produkty", ec)) return "products";
+    return "";
+  }
   virtual void ApplySensor() { params_.sensor.pulseHz = kAlsPresets[preset_].pulseHz; params_.sensor.lineHz = kAlsPresets[preset_].lineHz; }   // parametry sensora w planie (LiDAR: gestosc impulsow)
   virtual bool ShotBusy() const { return false; }                      // trwa przetwarzanie jednego "strzalu" (zdjecie): czas lotu stoi
   virtual void StepShot(std::chrono::steady_clock::time_point t0) { (void)t0; }

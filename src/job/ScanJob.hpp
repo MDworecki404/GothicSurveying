@@ -147,6 +147,13 @@ class ScanJob : public Job {
   }
 
   bool CanFinish() const override { return !scans_.empty() && !scanning_; }
+  std::string NextStep() const override {
+    if (scanning_) return "";
+    if (!stationUp_) return "station";
+    if (regOn_ && targets_.size() < 3) return "target";
+    if (!lib_.Within(kLevelBubbleArcmin)) return "level";       // pozycja dokladana przez kontroler, gdy libella wlaczona
+    return scans_.empty() ? "scan" : "";                         // po pierwszym skanie: Zakoncz albo recznie kolejne stanowisko
+  }
 
   std::vector<std::string> SummaryLines() const override {
     std::vector<std::string> out; char b[260];
