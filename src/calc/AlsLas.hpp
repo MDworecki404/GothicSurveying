@@ -94,20 +94,18 @@ inline AlsStats AlsConvert(const std::string& rawPath, double originN, double or
 }
 
 struct StripQc { int a, b, cells; double meanDzM, rmsDzM; };
-// Kolejne szeregi (wg numerow): roznica srednich H w wspolnych komorkach (b - a).
+// Pary szeregow: kolejne (wg numerow) zawsze, pozostale tylko gdy maja wspolne komorki (szeregi kalibracyjne, wklesle wielokaty); roznica srednich H w wspolnych komorkach (b - a).
 inline std::vector<StripQc> AlsStripCheck(const std::string& rawPath, double cellM = 2.0) {
   using Cell = std::pair<int, int>;
   std::map<int, std::map<Cell, std::pair<double, int>>> g; AlsPoint p; std::ifstream in(rawPath, std::ios::binary);
   while (alsdetail::ReadRec(in, p)) { auto& c = g[p.strip][{(int)std::floor(p.x / cellM), (int)std::floor(p.y / cellM)}]; c.first += p.z; c.second++; }
-  std::vector<StripQc> out; int prev = -1; bool have = false;
-  for (const auto& s : g) {
-    if (have) {
-      StripQc q{prev, s.first, 0, 0, 0}; double sum = 0, sum2 = 0;
-      for (const auto& c : s.second) { auto it = g[prev].find(c.first); if (it == g[prev].end()) continue; const double d = c.second.first / c.second.second - it->second.first / it->second.second; sum += d; sum2 += d * d; q.cells++; }
-      if (q.cells > 0) { q.meanDzM = sum / q.cells; q.rmsDzM = std::sqrt(sum2 / q.cells); }
-      out.push_back(q);
-    }
-    prev = s.first; have = true;
+  std::vector<int> ids; for (const auto& kv : g) ids.push_back(kv.first);
+  std::vector<StripQc> out;
+  for (size_t i = 0; i < ids.size(); i++) for (size_t j = i + 1; j < ids.size(); j++) {
+    const auto &A = g[ids[i]], &B = g[ids[j]]; StripQc q{ids[i], ids[j], 0, 0, 0}; double sum = 0, sum2 = 0;
+    for (const auto& c : B) { auto it = A.find(c.first); if (it == A.end()) continue; const double d = c.second.first / c.second.second - it->second.first / it->second.second; sum += d; sum2 += d * d; q.cells++; }
+    if (q.cells > 0) { q.meanDzM = sum / q.cells; q.rmsDzM = std::sqrt(sum2 / q.cells); }
+    if (j == i + 1 || q.cells > 0) out.push_back(q);
   }
   return out;
 }

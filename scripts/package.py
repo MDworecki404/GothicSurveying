@@ -47,7 +47,9 @@ STEROWANIE
   Model skanera: wlasny (statyw, korpus, obrotowa glowica z oknem wiazki). Rejestracja skanow: min. 3 kule referencyjne na znakach osnowy (menu skanera), stanowisko i obrot wyznaczane z kul.
 - Skaning lotniczy z drona (ALS): "Rozpocznij robote" -> "Skaning lotniczy z drona (ALS)"; wierzcholki obszaru (min. 3, pod stopami albo na punktach osnowy), AGL, predkosc, zakladka,
   profil bledow GNSS/IMU, gestosc impulsow; "Podglad planu nalotu" (mapa), "Zapisz plan nalotu (CSV)", "Start lotu" (dron startuje spod stop bohatera, leci sam). Wyniki w
-  GothicSurveying\<data>_lot: lot.las (LAS 1.2, RGB, czas GPS, numer szeregu), lot.pts, trajektoria.csv, plan_nalotu.csv, lot_opis.txt (kontrola szeregow i osnowy).
+  GothicSurveying\<data>_lot: lot.las (LAS 1.2, RGB, czas GPS, numer szeregu), lot.pts, trajektoria.csv, plan_nalotu.csv, lot_opis.txt (kontrola szeregow i osnowy). Po locie menu ma:
+  "Wyrownaj szeregi i skalibruj boresight" (lot_wyrownany.las, lot_wyrownanie.txt; opcja planu "Szeregi kalibracyjne" poprawia pitch/yaw) oraz "Produkty z chmury" (klasyfikacja,
+  NMT/NMPT, warstwice CSV/DXF, objetosci w podfolderze produkty). Zaznaczajac obszar na mapie obracasz prostokat klawiszami PgUp/PgDn.
 - Mapa osnowy z gry: raz uruchom NARZEDZIA\make_game_maps.py "<katalog gry>" (Python 3) - wyciaga pergaminy map swiatow z archiwow gry; bez tego dziala mapa wygenerowana (kolorowa).
 - Kolory skanera: raz uruchom NARZEDZIA\make_texture_colors.py "<katalog gry>" (Python 3; ok. 20 s) - tworzy GothicSurveying\texcolors.bin z miniaturek tekstur gry. Bez niego punkty maja kolory zapasowe/szare.
 - Osnowa swiata: "Zaladuj osnowe geodezyjna swiata" (wzorcowe punkty G.. dla Khorinis, Doliny Gornickiej i Jarkendaru), "Mapa osnowy" (mapa swiata z punktami),

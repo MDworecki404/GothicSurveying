@@ -71,6 +71,17 @@ static void strip_check_detects_offset() {
   assert(q[1].a == 1 && q[1].b == 2 && q[1].cells == 0);
 }
 
+static void strip_check_includes_nonconsecutive_overlaps() {                  // szeregi kalibracyjne i wklesle wielokaty: nakladaja sie szeregi o nienastepujacych po sobie numerach
+  const std::string raw = Tmp("als_t6.raw"); AlsRawWriter w; w.Open(raw);
+  for (float x = 0; x < 20; x += 0.5f) for (float y = 0; y < 20; y += 0.5f) { w.Append(P(x, y, 0.f, 0, 0)); w.Append(P(x, y, 0.2f, 0, 2)); }   // szeregi 0 i 2 w tym samym miejscu
+  for (float x = 500; x < 520; x += 0.5f) for (float y = 0; y < 20; y += 0.5f) w.Append(P(x, y, 0.f, 0, 1));                                      // szereg 1 daleko
+  w.Close();
+  const std::vector<StripQc> q = AlsStripCheck(raw);
+  bool has02 = false; for (const StripQc& s : q) if (s.a == 0 && s.b == 2) { has02 = true; assert(s.cells > 0 && near(s.meanDzM, 0.2, 1e-6)); }
+  assert(has02 && q.size() == 3);                                                 // (0,1) i (1,2) kolejne bez wspolnych komorek + (0,2) z nakladka
+  for (const StripQc& s : q) if (s.a != 0 || s.b != 2) assert(s.cells == 0);
+}
+
 static void control_check() {
   const std::string raw = Tmp("als_t4.raw"); AlsRawWriter w; w.Open(raw);
   for (float x = -2; x <= 2; x += 0.2f) for (float y = -2; y <= 2; y += 0.2f) if (std::hypot(x, y) <= 1.9) w.Append(P(x, y, 5.0f, 0, 0));
@@ -92,6 +103,6 @@ static void empty_raw() {
 }
 
 int main() {
-  las_header_and_record(); raw_record_is_34_bytes_with_theta_range(); pts_lines(); strip_check_detects_offset(); control_check(); empty_raw();
+  las_header_and_record(); raw_record_is_34_bytes_with_theta_range(); pts_lines(); strip_check_detects_offset(); strip_check_includes_nonconsecutive_overlaps(); control_check(); empty_raw();
   std::puts("test_alslas OK"); return 0;
 }

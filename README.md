@@ -258,6 +258,29 @@ Przy opcji prawdziwego błędu opis podaje też ukryty błąd boresightu. Punkty
 **Zapis gry w trakcie lotu:** zapisuje plan i ustawienia; po wczytaniu lot wznawia się od początku bieżącego szeregu (wcześniejsze szeregi zostają, trajektoria dojazdu po wznowieniu nie jest zapisywana; gdy plik roboczy lotu już nie pasuje do zapisu albo lot został dokończony, pozostałe szeregi trafiają do nowego folderu i nie nadpisują wyniku).
 Dron i jego śmigła to modele `LVL_DRONE.3DS` i `LVL_PROP.3DS` z `assets/make_models.py`. Plan i trajektoria są niezależne od sensora (`SensorSpec`), żeby później posłużyć fotogrametrii lotniczej.
 
+### Szeregi kalibracyjne, wyrównanie szeregów i kalibracja boresightu
+
+W menu planu „Szeregi kalibracyjne” dodaje 3 szeregi prostopadłe do głównych (w tym samym obszarze): na płaskim terenie pozwalają wyznaczyć też pitch i yaw boresightu.
+Po locie pozycja **„Wyrównaj szeregi i skalibruj boresight”** (praca w kilku klatkach, przerywalna) działa na plikach lotu (`lot_surowy.bin`, `trajektoria.csv`): w nakładkach szeregów
+(komórki 4 m, płaszczyzny na szereg, wspólny punkt porównania w komórce) estymuje **jednocześnie** trzy kąty boresightu (Gauss-Newton, odrzucanie odstających) i przesunięcia E/N/H każdego szeregu.
+Punkty osnowy w obszarze (G.., O..) ustalają wysokość i przesunięcia bezwzględne; bez nich przesunięcia mają średnią 0. Niepewność każdego kąta i przesunięcia wynika z macierzy normalnej:
+składowa z niepewnością powyżej 0,05° (kąty), 0,05 m (H) albo 0,1 m (E/N) jest oznaczona „nieokreślony” i zostaje 0 (np. pitch/yaw na płaskim terenie bez szeregów poprzecznych).
+Wyznaczana jest łączna poprawka montażu: stały bias IMU i błąd boresightu działają tak samo, więc raport przy „pokaż prawdziwy błąd” podaje oba osobno i oczekiwaną poprawkę (boresight − bias).
+Wynik: `lot_wyrownany.las/.pts` (oryginał `lot.las` bez zmian) i `lot_wyrownanie.txt` (kąty ± niepewność, rms różnic w nakładkach przed / po kalibracji / po wyrównaniu, przesunięcia szeregów,
+osnowa przed → po). Kontrola szeregów w `lot_opis.txt` porównuje teraz także szeregi o numerach nienastępujących po sobie, gdy mają wspólne komórki (szeregi kalibracyjne, wielokąty wklęsłe).
+
+### Produkty z chmury
+
+Pozycja **„Produkty z chmury”** (z wyrównanej chmury, a bez niej z surowej) tworzy w folderze lotu podfolder `produkty/`: `lot_klasyfikacja.las` (klasy ASPRS: 2 grunt, 3 roślinność niska do 1 m, 4 średnia do 5 m, 5 wysoka lub obiekty),
+`nmt.asc` i `nmpt.asc` (siatka 1 m, ESRI ASCII, układ siatki N/E), `warstwice.csv` i `warstwice.dxf` (co 1 m) oraz `produkty.txt` z liczbami punktów w klasach i **objętościami** względem poziomu odniesienia
+(średnia NMT): wykop (teren powyżej), nasyp (teren poniżej) i objętość nad minimum terenu. Powierzchnię gruntu wyznacza otwarcie morfologiczne siatki minimów (okno ok. 21 m, siatka dopełniona odbiciem punktowym
+na brzegach); budynki nie są rozpoznawane osobno (klasa 5), a gęsta roślinność bez prześwitów może zawyżać NMT.
+
+### Prostokąt obrócony, wiązki lasera
+
+Zaznaczając obszar na mapie dwoma narożnikami możesz **obrócić prostokąt** klawiszami PgUp / PgDn (1°, z Shiftem 10°, z Ctrl 0,1°): narożniki są przeciwległe, a boki biegną wzdłuż i w poprzek wybranego azymutu
+(szeregi lecą wzdłuż dłuższego boku). Podczas lotu od drona do ostatnich trafień biegną czerwone wiązki lasera (ok. 20 na sekundę, znikają po locie).
+
 ## Poziomowanie instrumentu
 
 **Domyślnie włączone** (dla niwelatora i tachimetru). Tachimetr domyślnie mierzy też w **dwóch położeniach lunety** (KL+KP) — wyłączysz to w menu roboty „Położenia lunety”.
@@ -323,7 +346,7 @@ Jeśli cyfry na łacie są w grze do góry nogami, ustaw `FLIP_V = True` w `asse
 
 - Zapis gry w trakcie roboty zapisuje też stan roboty i sprzętu (patrz „Zapis gry w trakcie roboty”). Trwający pomiar punktu GNSS (sesja) i połowa pomiaru KL bez KP nie są zapisywane; zapisy zrobione wersją bez tej funkcji nie mają stanu.
 - Roboty: ciąg niwelacyjny, pomiar GNSS (RTK), tachimetria, niwelacja trygonometryczna (jeden odcinek naraz, bez wyrównania całego ciągu), skaner laserowy naziemny i skaning lotniczy z drona.
-- ALS: bez wyrównania szeregów i kalibracji boresightu, bez omijania przeszkód i ręcznego latania; kamera za dronem jest eksperymentalna (kamera gry może ją nadpisać); fotogrametria lotnicza to osobna, późniejsza faza.
+- ALS: wyrównanie szeregów jest sztywne (przesunięcia E/N/H na szereg, bez poprawki dryfu wewnątrz szeregu i bez kalibracji ramienia dźwigni); pitch/yaw boresightu wymagają nachylonego terenu albo szeregów poprzecznych; pierwszy zwrot (bez wielokrotnych odbić); bez omijania przeszkód i ręcznego latania; trajektoria dojazdu po wznowieniu lotu nie jest zapisywana; kamera za dronem jest eksperymentalna (kamera gry może ją nadpisać); fotogrametria lotnicza to osobna, późniejsza faza.
 - Tachimetria: bez wcięcia w przód i bez wyrównania osnowy ani wspólnego wyrównania stanowisk.
 - Pomiar GNSS: poprawki z własnej bazy to model uproszczony (1 ppm + przesunięcie bazy), bez wielu baz i bez przetwarzania linii bazowych; statyka to pojedyncza sesja 120 epok.
 - Kreski dalmiercze liczone są dla pola widzenia gry; przy bardzo wąskim FOV mogą wypaść poza lunetę (wtedy są pomijane, wpis w `GothicSurveying.log`).

@@ -1,6 +1,7 @@
 # ALS: kalibracja boresightu i wyrownanie szeregow - projekt
 
-Data: 2026-11-24. Rozszerza `2026-11-24-als-dron-design.md` (v0.8.0).
+Data: 2026-11-24. Rozszerza `2026-11-24-als-dron-design.md` (v0.8.0). Status: wdrozone na galezi als-wyrownanie. Zmiana wzgledem projektu: kalibracja i przesuniecia szeregow estymowane lacznie (jedno ustawienie Gaussa-Newtona),
+bo przy duzych bledach na poziomie szeregu kalibracja sekwencyjna przypisywala je boresightowi.
 
 ## Cel i po co
 
