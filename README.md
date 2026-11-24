@@ -39,10 +39,10 @@ Jeśli `Signatures_G2A.tsv` nie powstał podczas konfiguracji, uruchom
 
 ## Sterowanie
 
-**Home** otwiera menu geodezyjne (↑/↓ wybór, Enter zatwierdza, Home zamyka; gra jest wtedy zatrzymana).
-Poza robotą menu ma pozycję „Rozpocznij robotę”: wybierasz typ roboty (na razie ciąg niwelacyjny), rodzaj ciągu
-(dowiązany, zamknięty, otwarty) i tryb liczenia dziennika (automatyczny albo samodzielny). W trakcie roboty menu zawiera
-kroki tej roboty (niedostępne są wyszarzone z podpowiedzią), „Patrz przez lunetę” i „Przerwij robotę”; u dołu ekranu widać bieżący krok.
+**Home** otwiera ekran główny projektu (↑/↓ wybór, Enter zatwierdza, ← wraca do poprzedniego ekranu, cyfry 1–9 wybierają pozycję listy,
+**F1** pokazuje pomoc kontekstowa, Home zamyka; gra jest wtedy zatrzymana). Menu prowadzi: linia **DALEJ** podpowiada następny krok (kursor staje na nim od razu),
+pozycje niedostępne są w [nawiasach], a podpis pod listą mówi, dlaczego. Szczegóły w sekcji „Projekty i pomiary” poniżej.
+W trakcie pomiaru menu zawiera kroki tej roboty pogrupowane w sekcje (Przygotowanie, Parametry, Pomiar, Wyniki, Narzędzia, Zaawansowane), „Patrz przez lunetę” i „Przerwij pomiar” (zawsze ostatnie); u dołu ekranu widać bieżący krok.
 
 Na czas roboty bohater zakłada żółty kask i kamizelkę odblaskową (modele doczepione do węzłów `ZS_HELMET` i `ZS_TORSO`, jego pancerz zostaje); zdejmuje je po **Zakończ robotę** (także po „Przerwij” i po wczytaniu zapisu).
 
@@ -54,7 +54,7 @@ na punkcie końcowym **Zakończ robotę**. Punkt końcowy: dla ciągu dowiązane
 
 | Klawisz | Akcja |
 |---|---|
-| **Home** | menu geodezyjne |
+| **Home** | ekran główny projektu / menu pomiaru; w menu: **←** wstecz, **1–9** skrót pozycji (ekran główny), **F1** pomoc |
 | **F10** | wejdź do widoku niwelatora / wyjdź z niego (gra zatrzymana, zbliżenie 20×, krzyż kresek) |
 | **←/→** | w lunecie: obrót niwelatora w poziomie (**Shift** = powoli) |
 | **Z** / **X** | w lunecie: płynny obrót na łatę wstecz / wprzód (przerywa go ręczny obrót strzałkami); po dolocie pionowa kreska leży na łacie |
@@ -62,6 +62,24 @@ na punkcie końcowym **Zakończ robotę**. Punkt końcowy: dla ciągu dowiązane
 
 Pierwszy odczyt na stanowisku może być wstecz lub wprzód (kolejność dowolna); przewyższenie to wstecz − wprzód. Wysokość punktu to wysokość stopy łaty
 (szczyt znaku reperu lub żabki).
+
+## Projekty i pomiary
+
+**Projekt** to praca na jednym świecie; w nim wykonujesz **pomiary** (ciąg niwelacyjny, GNSS, tachimetria, niwelacja trygonometryczna, skaner, nalot ALS, fotogrametria) – także kilka tego samego rodzaju, po kolei (naraz trwa jeden pomiar).
+Projekt jest niezależny od zapisu gry: leży w `GothicSurveying/projekty/<nazwa>/projekt.txt` (nazwa nadawana automatycznie jako `<świat>_<n>`) i działa w każdym zapisie tego samego świata.
+Przy pierwszym uruchomieniu powstaje projekt `Luzem_<świat>`; zapisy stanu zrobione przed wprowadzeniem projektów wznawiają się właśnie w nim.
+
+**Ekran główny** pokazuje okruszki (projekt, świat, liczba punktów osnowy i pomiarów), wyróżnioną linię **DALEJ**, listę pomiarów ze stanem (`[x]` gotowy, `[~]` w toku, `[!]` przerwany, `[ ]` nowy),
+**+ Nowy pomiar…**, **Wyniki i raporty**, **Zamknij projekt**, **Projekty** (zmiana i zakładanie) oraz **Osnowa, mapa, teleport, poziomowanie**. Home otwiera ostatnio używany projekt (pamięć w `GothicSurveying/ustawienia.txt`, tam też ostatnia pozycja kursora).
+
+**Nowy pomiar** oferuje sześć **kreatorów** (gotowe ustawienia i tryb prowadzony): Pomierz osnowę (GNSS, tryb statyczny), Niwelacja ciągu A → B, Inwentaryzacja tachimetrem, Zeskanuj budynek (rejestracja na kulach),
+Nalot z drona (LiDAR, szeregi kalibracyjne) i Zdjęcia z drona. W **trybie prowadzonym** menu pokazuje tylko następny krok, „Pokaż wszystkie pozycje” i „Przerwij”; „Pokaż wszystkie” przełącza pomiar na pełne menu.
+Zamiast kreatora można wybrać rodzaj ręcznie (pełne menu). Dawna pozycja „Rozpocznij robotę” z opisów robót poniżej to teraz „+ Nowy pomiar…” → „Ręczny wybór rodzaju pomiaru…”.
+
+**Wyniki i raporty** wypisują pliki z folderów pomiarów (`GothicSurveying/<data>`, nazwy bez zmian) i otwierają folder w Eksploratorze. Raportów robót nie zastępuje nic nowego; **raport zbiorczy** powstaje dopiero przy **zamknięciu projektu**
+(potwierdzenie, domyślnie „Nie”): `projekt_raport.docx` i `projekt_raport.csv` w folderze projektu – lista pomiarów ze stanem i podsumowaniem oraz porównanie wysokości na wspólnych punktach
+(ta sama nazwa albo położenie w promieniu 0,5 m; z pomiarów, które zapisują punkty wysokościowe: niwelacja, GNSS, tachimetria i niwelacja trygonometryczna – dla ALS i fotogrametrii porównania nie ma).
+Zamknięty projekt jest tylko do odczytu; „Otwórz projekt ponownie” przywraca możliwość dodawania pomiarów.
 
 ## Poprawianie błędów w trakcie roboty
 
@@ -351,7 +369,8 @@ Opis przy decymetrze to jego numer od podstawy łaty (`14` = 1,40 m). Nieparzyst
 - `src/calc/` – czyste obliczenia bez silnika (testowane): `LevelMath.hpp` (odczyt, dalmierz), `Traverse.hpp` (przewyższenia, fh, poprawki, wysokości),
   `FieldBook.hpp` (dziennik + CSV), `Docx.hpp` (zapis DOCX), `ManualCheck.hpp` (sprawdzanie trybu samodzielnego).
 - `src/calc/` (lotnictwo): `Flight.hpp` (plan nalotu), `Georef.hpp` (trajektoria, błędy GNSS/IMU, georeferencja), `AlsLas.hpp` (LAS 1.2 format 3, PTS, kontrole szeregów i osnowy).
-- `src/job/` – interfejs `Job`/`IWorld` i automat ciągu niwelacyjnego (bez silnika, testowany sztucznym światem); nowe roboty rejestruje się w `Jobs.hpp`.
+- `src/job/` – interfejs `Job`/`IWorld` i automat ciągu niwelacyjnego (bez silnika, testowany sztucznym światem); nowe roboty rejestruje się w `Jobs.hpp`. Prowadzenie w menu: `Workflow.hpp` (sekcje, powody niedostępności, DALEJ), `MenuLayout.hpp` (układ wierszy i przewijanie), `Wizards.hpp` (kreatory), `Help.hpp` (F1).
+- `src/calc/Project.hpp`, `ProjectReport.hpp`, `UiSettings.hpp` – model projektu (manifest), raport zbiorczy z porównaniem wysokości i pamięć ustawień; `src/engine/ProjectState.hpp`, `ProjectUi.hpp` – ekran główny i zarządzanie projektami.
 - `src/engine/` – część zależna od Gothic API: panele, stawianie, luneta, menu, adapter `EngineWorld`, kontroler, eksport, podgląd i edytor dziennika.
 - `src/Plugin.hpp` – hook `zCWorld::Render` (pętla klatki), `userapi/zCWorld.inl` – deklaracja hooka.
 - `assets/make_models.py` – modele `.3DS` (łata 3 m z 6 teksturami, niwelator na statywie, żabka, znak reperu) i tekstury `.TGA` (podziałka, krzyż, kreski, panel).

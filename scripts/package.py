@@ -29,8 +29,12 @@ INSTALACJA
 2. Uruchom Gothic2.exe, wczytaj zapis i nacisnij Home.
 
 STEROWANIE
-- Home: menu geodezyjne (Gora/Dol - wybor, Enter - zatwierdz, Home - zamknij; F12 to zrzut ekranu Steam, F11 - GD3D11). "Rozpocznij robote" ->
-  typ roboty (ciag niwelacyjny) -> rodzaj ciagu (dowiazany/zamkniety/otwarty) -> tryb liczenia dziennika.
+- Home: ekran glowny projektu (Gora/Dol - wybor, Enter - zatwierdz, Lewo - wstecz, cyfry 1-9 - skrot pozycji, F1 - pomoc, Home - zamknij; F12 to zrzut ekranu Steam, F11 - GD3D11).
+  Linia "DALEJ" podpowiada nastepny krok; pozycje w [nawiasach] sa niedostepne (podpis pod lista podaje powod).
+- Projekty: projekt = praca na jednym swiecie (folder GothicSurveying\\projekty\\<nazwa>), w nim kolejne pomiary (takze kilka tego samego rodzaju). "+ Nowy pomiar..." ->
+  jeden z 6 kreatorow (osnowa GNSS, niwelacja A-B, inwentaryzacja tachimetrem, skan budynku, nalot ALS, zdjecia z drona) albo wybor reczny rodzaju. "Wyniki i raporty" - pliki pomiarow
+  i otwarcie folderu; "Zamknij projekt" tworzy raport zbiorczy (projekt_raport.docx/.csv) z porownaniem wysokosci. Stare zapisy stanu wznawiaja sie w projekcie "Luzem_<swiat>".
+- Rodzaj roboty ("Rozpocznij robote" w starych opisach ponizej = "+ Nowy pomiar..." -> "Reczny wybor"): ciag niwelacyjny -> rodzaj ciagu (dowiazany/zamkniety/otwarty) -> tryb liczenia dziennika.
 - Sprzet staje pod stopami bohatera. Kroki: reper A, niwelator, lata wstecz, odczyt, lata wprzod, odczyt,
   "Przeloz na nastepne stanowisko", ..., punkt koncowy, "Zakoncz robote".
 - F10: widok przez lunete (strzalki - obrot, Shift - powoli, Enter - odczyt; wpisz odczyt
