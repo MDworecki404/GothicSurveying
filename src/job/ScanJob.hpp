@@ -62,7 +62,7 @@ class ScanJob : public Job {
     const std::string base = colon == std::string::npos ? id : id.substr(0, colon), arg = colon == std::string::npos ? "" : id.substr(colon + 1);
     for (const MenuItem& m : Menu()) if (m.id == base && !m.enabled) return;
     if (base == "station") {
-      if (!w_.PlaceTachymeter()) { w_.Say("Brak gruntu pod stopami"); return; }
+      if (!w_.PlaceScanner()) { w_.Say("Brak gruntu pod stopami"); return; }
       stationUp_ = true;
       if (lib_.enabled) { const double u1 = w_.Random01(), u2 = w_.Random01(); lib_.Reset(u1, u2); }
     } else if (base == "res") {

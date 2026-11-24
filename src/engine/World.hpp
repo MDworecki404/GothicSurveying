@@ -42,7 +42,7 @@ namespace GOTHIC_NAMESPACE {
       zVEC3 p;
       if ( !FeetGround( p ) ) return false;
       RemoveVobSafe( instr_ );
-      instr_ = SpawnVob( LV_VIS_INSTR, p ); instrGround_ = p; hasInstr_ = true; instrTachy_ = false;
+      instr_ = SpawnVob( LV_VIS_INSTR, p ); instrGround_ = p; hasInstr_ = true; instrKind_ = 0;
       return true;
     }
     void RemoveInstrument() override { RemoveVobSafe( instr_ ); hasInstr_ = false; }
@@ -82,6 +82,12 @@ namespace GOTHIC_NAMESPACE {
       zVEC3 p;
       if ( !FeetGround( p ) ) return false;
       PlaceTachymeterPos( p );
+      return true;
+    }
+    bool PlaceScanner() override {
+      zVEC3 p;
+      if ( !FeetGround( p ) ) return false;
+      PlaceTachymeterPos( p, 2 );
       return true;
     }
     bool PlaceTachymeterAt( const ControlPoint& cp ) override {    // na znaku punktu osnowy: dokladnie na jego pozycji
@@ -365,7 +371,7 @@ namespace GOTHIC_NAMESPACE {
       s.Num( "prismH", prismH_ ); s.Int( "pts.n", (long long)pts_.size() ); int i = 0;
       for ( const auto& kv : pts_ ) { const std::string p = "pts." + std::to_string( i++ ); s.Int( p + ".id", kv.first ); PutPos( s, p, kv.second.pos ); s.Bool( p + ".reper", kv.second.reper ); }
       s.Int( "rod0", rodPoint_[0] ); s.Int( "rod1", rodPoint_[1] );
-      s.Bool( "instr", hasInstr_ ); s.Bool( "instrTachy", instrTachy_ ); PutPos( s, "instrPos", instrGround_ );
+      s.Bool( "instr", hasInstr_ ); s.Int( "instrKind", instrKind_ ); PutPos( s, "instrPos", instrGround_ );
       s.Bool( "pole", hasPole_ ); s.Bool( "poleIsPrism", poleIsPrism_ ); PutPos( s, "polePos", poleGround_ );
       for ( int k = 0; k < 5; k++ ) { const std::string p = "back" + std::to_string( k ); s.Bool( p + ".up", back_[k].up ); s.Bool( p + ".marker", back_[k].marker != nullptr ); PutPos( s, p, back_[k].pos ); }
       s.Bool( "base", hasBase_ ); PutPos( s, "basePos", baseGround_ );
@@ -380,8 +386,9 @@ namespace GOTHIC_NAMESPACE {
       }
       if ( s.GetBool( "instr" ) ) {
         const zVEC3 ip = GetPos( s, "instrPos" );
-        if ( s.GetBool( "instrTachy" ) ) PlaceTachymeterPos( ip );
-        else { instr_ = SpawnVob( LV_VIS_INSTR, ip ); instrGround_ = ip; hasInstr_ = true; instrTachy_ = false; }
+        const int kind = s.Has( "instrKind" ) ? s.GetInt( "instrKind" ) : ( s.GetBool( "instrTachy" ) ? 1 : 0 );
+        if ( kind >= 1 ) PlaceTachymeterPos( ip, kind );
+        else { instr_ = SpawnVob( LV_VIS_INSTR, ip ); instrGround_ = ip; hasInstr_ = true; instrKind_ = 0; }
       }
       for ( int r = 0; r < 2; r++ ) { const int id = s.GetInt( r ? "rod1" : "rod0", -1 ); if ( id >= 0 ) PlaceRod( r ? RodRole::Fore : RodRole::Back, id ); }
       if ( s.GetBool( "pole" ) ) {
@@ -412,9 +419,9 @@ namespace GOTHIC_NAMESPACE {
     Back back_[5];
     bool ScanTargetsStale() const { for ( const ScanTgt& t : scanTgt_ ) if ( VobIsStale( t.vob ) ) return true; return false; }
     bool BacksightsStale() const { for ( const Back& b : back_ ) if ( VobIsStale( b.marker ) || VobIsStale( b.prism ) ) return true; return false; }
-    void PlaceTachymeterPos( const zVEC3& p ) {
+    void PlaceTachymeterPos( const zVEC3& p, int kind = 1 ) {       // kind: 1 tachimetr, 2 skaner laserowy
       RemoveVobSafe( instr_ );
-      instr_ = SpawnVob( LV_VIS_TACHY, p ); instrGround_ = p; hasInstr_ = true; instrTachy_ = true;
+      instr_ = SpawnVob( kind == 2 ? LV_VIS_SCANNER : LV_VIS_TACHY, p ); instrGround_ = p; hasInstr_ = true; instrKind_ = kind;
       if ( poleIsPrism_ ) FaceInstrument( pole_ );
       for ( Back& b : back_ ) if ( b.up ) FaceInstrument( b.prism );
     }
@@ -434,7 +441,7 @@ namespace GOTHIC_NAMESPACE {
     struct ScanTgt { zVEC3 pos; zCVob* vob = nullptr; bool up = false; };
     ScanTgt scanTgt_[6];                               // kule referencyjne skanera (srodek = pos + kScanTargetUpM nad znakiem)
     zCVob* base_ = nullptr; zVEC3 baseGround_; bool hasBase_ = false;   // stacja bazowa RTK
-    bool instrTachy_ = false;                          // instr_ to tachimetr (a nie niwelator)
+    int instrKind_ = 0;                                // rodzaj instr_: 0 niwelator, 1 tachimetr, 2 skaner laserowy
     zCVob* pole_ = nullptr; zVEC3 poleGround_; bool hasPole_ = false; double clock_ = 0;   // GNSS: tyczka i zegar gry [s]
     zCVob *helmet_ = nullptr, *vest_ = nullptr; zCModelNodeInst *helmetNode_ = nullptr, *vestNode_ = nullptr;
     zVEC3 dressPos_[2] = { zVEC3( 1e9f, 0, 0 ), zVEC3( 1e9f, 0, 0 ) }, dressAt_[2] = { zVEC3( 0, 0, 0 ), zVEC3( 0, 0, 0 ) };

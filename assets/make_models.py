@@ -155,6 +155,28 @@ def build_reper():
     return m
 
 
+def build_scanner():
+    """Naziemny skaner laserowy na statywie: cieżki statyw, spodarka, korpus (walec) z kolorowym pierscieniem, obrotowa glowica z oknem lustra, uchwyt i panel.
+    Os skanowania (srodek lustra) 150 cm nad gruntem, jak w tachimetrze."""
+    m = Mesh()
+    for ang in (90, 210, 330):                                               # statyw: 3 nogi (grubsze niz w tachimetrze)
+        a = math.radians(ang)
+        prism(m, (60 * math.cos(a), 60 * math.sin(a), 0), (4 * math.cos(a), 4 * math.sin(a), 126), 2.8, 4, block(0))
+    prism(m, (0, 0, 124), (0, 0, 131), 11, 12, block(1))                     # glowica statywu
+    prism(m, (0, 0, 131), (0, 0, 135), 9, 12, block(2))                      # spodarka
+    prism(m, (0, 0, 135), (0, 0, 141), 12, 16, block(1))                     # podstawa korpusu
+    prism(m, (0, 0, 141), (0, 0, 143), 12.5, 16, block(3))                   # pomaranczowy pierscien
+    prism(m, (0, 0, 143), (0, 0, 156), 11, 16, block(2))                     # korpus (ciemny walec)
+    box(m, 0, 11.2, 148, 9, 1.5, 6, block(3))                                # panel sterowania z przodu
+    prism(m, (0, 0, 156), (0, 0, 158), 12, 16, block(1))                     # pierscien obrotu glowicy
+    box(m, 0, 0, 165, 15, 11, 14, block(1))                                  # glowica z lustrem obrotowym
+    box(m, 0, 6.2, 165, 8, 1.5, 9, block(3))                                 # okno wyjscia wiazki (pomaranczowe)
+    prism(m, (0, 0, 172), (0, 0, 173), 5.5, 12, block(1))                    # zwienczenie
+    box(m, 0, 0, 177, 3, 12, 3, block(2))                                    # uchwyt do przenoszenia
+    box(m, 0, -9, 172, 8, 3, 3, block(2))                                    # dioda / czujnik z tylu
+    return m
+
+
 def build_sphere_target():
     """Kula referencyjna skanera (promien 14,5 cm, srodek 50 cm nad znakiem) na cienkim slupku."""
     m = Mesh()
@@ -367,7 +389,8 @@ def main():
                               ("LVL_PRISM18", build_prism_pole(180.0), one),
                               ("LVL_PRISM20", build_prism_pole(200.0), one),
                               ("LVL_REPER", build_reper(), one),
-                              ("LVL_SPHERE", build_sphere_target(), one)):
+                              ("LVL_SPHERE", build_sphere_target(), one),
+                              ("LVL_SCANNER", build_scanner(), one)):
         (meshes / f"{fname}.3DS").write_bytes(to_3ds(fname, mesh, mats))
         print(f"{fname}.3DS: {len(mesh.v)} wierzcholkow, {len(mesh.f)} trojkatow, {len(mats)} mat.")
     for f in sorted((Path(__file__).parent / "worldmaps").glob("LVL_MAP_*.TGA")):         # mapy swiatow z make_world_control.py

@@ -4,6 +4,7 @@ namespace GOTHIC_NAMESPACE {
   inline const char*  LV_VIS_ROD[3] = { "LVL_ROD.3DS", "LVL_RODL4.3DS", "LVL_RODL5.3DS" };   // łata wysunięta na 3, 4 i 5 m
   inline const char*  LV_VIS_PLATE = "LVL_PLATE.3DS";
   inline const char*  LV_VIS_REPER = "LVL_REPER.3DS";
+  inline const char*  LV_VIS_SCANNER = "LVL_SCANNER.3DS";   // skaner laserowy na statywie (os 150 cm nad gruntem)
   inline const char*  LV_VIS_SPHERE = "LVL_SPHERE.3DS";   // kula referencyjna skanera
   inline const char*  LV_VIS_TACHY = "LVL_TACHY.3DS";    // tachimetr na statywie (os lunety 150 cm nad gruntem)
   // Tyczka z lustrem: model o wysokosci srodka lustra h (1,3 / 1,5 / 1,8 / 2,0 m).
