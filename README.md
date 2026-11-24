@@ -281,6 +281,22 @@ na brzegach); budynki nie są rozpoznawane osobno (klasa 5), a gęsta roślinno�
 Zaznaczając obszar na mapie dwoma narożnikami możesz **obrócić prostokąt** klawiszami PgUp / PgDn (1°, z Shiftem 10°, z Ctrl 0,1°): narożniki są przeciwległe, a boki biegną wzdłuż i w poprzek wybranego azymutu
 (szeregi lecą wzdłuż dłuższego boku). Podczas lotu od drona do ostatnich trafień biegną czerwone wiązki lasera (ok. 20 na sekundę, znikają po locie).
 
+## Fotogrametria lotnicza
+
+„Rozpocznij robotę” → „Fotogrametria lotnicza” (pytanie o prawdziwy błąd). To osobna robota z tym samym nalotem co ALS (obszar z wierzchołków, z mapy albo prostokąt obrócony; AGL, prędkość, bateria z wymianą, profil błędów GNSS/IMU),
+ale sensorem jest **kamera** patrząca w dół. Menu: kamera (szerokokątna 84° / standardowa 63° / tele 40°, poziomy kąt widzenia), rozdzielczość zdjęć (320×240 domyślnie, 640×480, 1024×768; im większa, tym dłużej w grze),
+zakładka podłużna (70/80/90%) i poprzeczna (40/60/70%). Hud pokazuje liczbę szeregów, szacowaną liczbę zdjęć, **GSD** (dla renderowanej rozdzielczości i odpowiednik matrycy 20 MP, 5472 px) oraz czas lotu.
+
+**Zdjęcia** powstają przez rzucanie promienia przez każdy piksel z prawdziwej pozycji drona (perspektywa, przesłonięcia, kolory z tekstur gry); dron zawisa na czas renderowania w kilku klatkach. Zapis: `zdjecia/IMG_0001.png` ... (PNG bez kompresji,
+więc pliki są duże) i `zdjecia.csv` (id, plik, czas, szereg, pozycja E/N/H z GNSS i kąty roll/pitch/yaw z IMU z szumem; przy opcji prawdziwego błędu także kolumny z prawdziwymi wartościami) — da się je obrobić w zewnętrznym programie (np. Metashape, ODM).
+
+**Wyrównanie wiązki** (po locie, w grze): punkty wiążące są symulowane (znane punkty terenu rzutowane na zdjęcia z widocznością sprawdzaną promieniem i szumem 0,5 px, jak po automatycznym dopasowaniu cech), a punkty osnowy w obszarze to
+GCP (co drugi, stałe) i punkty kontrolne (pozostałe, wolne). Niewiadome: poza każdego zdjęcia i punkty 3D; obserwacje: piksele, a-priori GNSS/IMU z wagami i GCP; Gauss-Newton / Levenberg-Marquardt z dopełnieniem Schura.
+`fotogrametria_raport.txt`: GSD, zakładki, liczby zdjęć, punktów, obserwacji, rms reprojekcji przed i po, poprawka pozycji zdjęć względem GNSS, **błąd na punktach kontrolnych**, boresight kamery
+(średnia różnica IMU − wyrównanie), a przy prawdziwym błędzie także prawdziwy błąd pozycji i oczekiwana poprawka; `fotogrametria_wyrownanie.csv` — poprawione pozy zdjęć. Potrzeba co najmniej 2 punktów osnowy w obszarze, żeby były i GCP, i punkty kontrolne.
+Zapis gry w trakcie lotu fotogrametrycznego nie wznawia lotu (zapamiętuje obszar i ustawienia). Ograniczenia: punkty wiążące są symulowane (dokładności z raportu to dolna granica tego, co da prawdziwy SfM), kamera bez dystorsji i bez autokalibracji,
+bez ortofotomapy i NMPT ze zdjęć (osobny etap).
+
 ## Poziomowanie instrumentu
 
 **Domyślnie włączone** (dla niwelatora i tachimetru). Tachimetr domyślnie mierzy też w **dwóch położeniach lunety** (KL+KP) — wyłączysz to w menu roboty „Położenia lunety”.
