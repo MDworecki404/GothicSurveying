@@ -215,11 +215,17 @@ namespace GOTHIC_NAMESPACE {
             void* buf = nullptr;
             gb = tex->GetTextureBuffer( 0, buf, pitch );
             static int diagTex = 0;                                                  // diagnostyka ukladu poziomow: pitch i wskaznik dla kazdego poziomu pierwszych tekstur
-            if ( diagTex < 4 && ti.numMipMap > 0 ) {
-              diagTex++; char d[400]; int n = sprintf( d, "skan: poziomy tekstury %dx%d (ref %dx%d) mip=%d fmt=%d:", ti.sizeX, ti.sizeY, ti.refSizeX, ti.refSizeY, ti.numMipMap, fmt );
-              for ( int lv = 0; lv < ti.numMipMap && lv < 9 && n < 330; lv++ ) {
+            if ( diagTex < 6 && ti.numMipMap > 0 ) {
+              diagTex++; char d[700]; int n = sprintf( d, "skan: poziomy tekstury %dx%d (ref %dx%d) mip=%d fmt=%d:", ti.sizeX, ti.sizeY, ti.refSizeX, ti.refSizeY, ti.numMipMap, fmt );
+              for ( int lv = 0; lv < ti.numMipMap && lv < 6 && n < 600; lv++ ) {
                 void* b2 = nullptr; int p2 = 0; const int g2 = tex->GetTextureBuffer( lv, b2, p2 );
-                n += sprintf( d + n, " [%d: g=%d pitch=%d buf=%p]", lv, g2, p2, b2 );
+                int ar = -1, ag = -1, ab = -1, okc = 0;                                // srednia barwa poziomu (wszystkie piksele) - czy poziomy sa spojne
+                if ( g2 && b2 && ti.sizeX > 0 ) {
+                  const int lw = ( std::max )( 1, ti.sizeX >> lv ), lh = ( std::max )( 1, ti.sizeY >> lv ); long sr = 0, sg = 0, sb = 0;
+                  for ( int yy = 0; yy < lh; yy++ ) for ( int xx = 0; xx < lw; xx++ ) { unsigned char q[3]; if ( TexDecodeTexel( fmt, (const unsigned char*)b2, p2, lw, lh, xx, yy, q ) ) { sr += q[0]; sg += q[1]; sb += q[2]; okc++; } }
+                  if ( okc ) { ar = (int)( sr / okc ); ag = (int)( sg / okc ); ab = (int)( sb / okc ); }
+                }
+                n += sprintf( d + n, " [%d: g=%d pitch=%d avg=(%d,%d,%d) ok=%d]", lv, g2, p2, ar, ag, ab, okc );
               }
               SvTrace( d );
               gb = tex->GetTextureBuffer( 0, buf, pitch );
