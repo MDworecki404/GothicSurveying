@@ -72,6 +72,7 @@ class FlightPath {
     total_ = t;
   }
   double Duration() const { return total_; }
+  double FirstScanTime() const { for (const Seg& s : segs_) if (s.scan) return s.t0; return 0; }
   TrajSample At(double t) const {
     TrajSample r; r.t = t; const double pi2 = 2.0 * 3.14159265358979323846;
     r.rollDeg = 1.0 * std::sin(pi2 * 0.2 * t); r.pitchDeg = 1.0 * std::sin(pi2 * 0.2 * t + 1.0);

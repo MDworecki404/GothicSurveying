@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <map>
 #include <string>
@@ -18,7 +19,11 @@ struct AlsPoint { float x, y, z; double gps; std::uint16_t strip; std::uint8_t i
 
 class AlsRawWriter {
  public:
-  bool Open(const std::string& path) { out_.open(path, std::ios::binary | std::ios::trunc); count_ = 0; return out_.good(); }
+  bool Open(const std::string& path, bool append = false) {            // append: dopisuje do istniejacego pliku (wznowienie lotu)
+    long long have = 0; if (append) { std::error_code ec; const auto sz = std::filesystem::file_size(path, ec); have = ec ? 0 : (long long)(sz / 26); }
+    out_.open(path, std::ios::binary | (append ? std::ios::app : std::ios::trunc)); count_ = have; return out_.good();
+  }
+  void Flush() { if (out_.is_open()) out_.flush(); }
   void Append(const AlsPoint& p) {
     out_.write(reinterpret_cast<const char*>(&p.x), 4); out_.write(reinterpret_cast<const char*>(&p.y), 4); out_.write(reinterpret_cast<const char*>(&p.z), 4);
     out_.write(reinterpret_cast<const char*>(&p.gps), 8); out_.write(reinterpret_cast<const char*>(&p.strip), 2);

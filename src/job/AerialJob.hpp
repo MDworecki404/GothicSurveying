@@ -1,16 +1,25 @@
 // Robota "Skaning lotniczy z drona (ALS)" (bez Gothic API): plan nalotu z obszaru (wierzcholki pod stopami albo na punktach osnowy), parametry,
 // podglad planu na mapie osnowy (MapOverlay) i eksport CSV. Lot, skan i wyniki: dopisywane w kolejnych etapach (patrz Tick/StartFlight).
 #pragma once
+#include <chrono>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include "Job.hpp"
+#include "calc/AlsLas.hpp"
 #include "calc/Flight.hpp"
 #include "calc/Georef.hpp"
 
 class AerialJob : public Job {
  public:
-  AerialJob(IWorld& w, const JobOptions& o) : w_(w), opt_(o) { params_.sensor.pulseHz = kAlsPresets[preset_].pulseHz; params_.sensor.lineHz = kAlsPresets[preset_].lineHz; }
+  AerialJob(IWorld& w, const JobOptions& o) : w_(w), opt_(o), seed_((uint32_t)(w.Random01() * 4e9) + 1), rangeRng_(seed_ ^ 0x5bd1e995u) {
+    params_.sensor.pulseHz = kAlsPresets[preset_].pulseHz; params_.sensor.lineHz = kAlsPresets[preset_].lineHz;
+  }
+  ~AerialJob() override { if (flying_) { raw_.Close(); traj_.close(); w_.RemoveDrone(); } }   // bez konwersji: wyniki powstaja tylko po locie albo przerwaniu
+
+  // Haki testowe: limit impulsow na klatke (0 = budzet czasu), podmiana profilu bledow, wylaczenie szumu odleglosci.
+  void TestHooks(int pulseCap, const ErrorProfile* profile, bool rangeNoise) { pulseCap_ = pulseCap; haveOverride_ = profile != nullptr; if (profile) override_ = *profile; rangeNoise_ = rangeNoise; }
 
   std::string Name() const override { return "Skaning lotniczy z drona"; }
   JobKind Kind() const override { return JobKind::Aerial; }
@@ -34,6 +43,9 @@ class AerialJob : public Job {
       {"profile", prof, "RTK dobry / PPK / slaby", !flying_}, {"preset", pre, "wiecej impulsow = gestsza chmura, dluzej w grze", !flying_},
       {"plan_csv", "Zapisz plan nalotu (CSV)", "najpierw zdefiniuj obszar", plan_.ok && !flying_},
       {"launch", "Start lotu", "", !flying_},
+      {"abort", "Przerwij lot", "trwa lot", flying_},
+      {"camera", camFollow_ ? "Kamera: za dronem (zmien)" : "Kamera: swobodna (zmien)", "widok z tylu drona w czasie lotu", flying_},
+      {"finish", "Zakoncz robote", "najpierw wykonaj lot", flights_ > 0 && !flying_},
     };
   }
 
@@ -63,11 +75,66 @@ class AerialJob : public Job {
     } else if (base == "profile") { profile_ = (profile_ + 1) % 3;
     } else if (base == "preset") { preset_ = (preset_ + 1) % 4; params_.sensor.pulseHz = kAlsPresets[preset_].pulseHz; params_.sensor.lineHz = kAlsPresets[preset_].lineHz; Replan();
     } else if (base == "plan_csv") { SavePlanCsv();
-    } else if (base == "launch") { Launch(); }
+    } else if (base == "launch") { Launch();
+    } else if (base == "abort") { FinishFlight(false); w_.Say("Lot przerwany");
+    } else if (base == "camera") { camFollow_ = !camFollow_; w_.SetFollowCamera(camFollow_); }
+  }
+
+  // Lot w czasie gry: w kazdej klatce Tick() puszcza impulsy w budzecie czasu; czas symulacji rosnie z impulsami (gestosc nie zalezy od FPS).
+  void Tick() override {
+    if (!flying_) return;
+    const auto t0 = std::chrono::steady_clock::now();
+    auto over = [&]() { return std::chrono::steady_clock::now() - t0 > std::chrono::milliseconds(kBudgetMs); };
+    const double dtP = 1.0 / params_.sensor.pulseHz; int pulses = 0;
+    while (tSim_ < path_->Duration()) {
+      while (tSim_ >= t1_) AdvanceSample();
+      if (!(s0_.scanning && s1_.scanning)) { tSim_ = t1_; continue; }         // poza szeregiem nie ma impulsow: przeskok do nastepnej probki
+      if (s0_.strip != curStrip_) { curStrip_ = s0_.strip; raw_.Flush(); traj_.flush(); stripStartCount_ = raw_.Count(); stripStartTrajBytes_ = trajBytes_; stripStartSimT_ = tSim_ + clockOffset_; }
+      EmitPulse(); tSim_ += dtP; pulses++;
+      if ((pulseCap_ > 0 && pulses >= pulseCap_) || (pulseCap_ == 0 && (pulses & 63) == 0 && over())) break;
+    }
+    if (tSim_ >= path_->Duration()) { FinishFlight(true); return; }
+    const TrajSample tr = Lerp(s0_, s1_, (tSim_ - t0_) / kSampleDt);
+    w_.SetDronePose(GridPos{tr.pos.y, tr.pos.x, tr.pos.z}, tr.yawDeg, tr.pitchDeg, tr.rollDeg, std::fmod(tSim_ * 3000.0, 360.0));
+  }
+
+  std::vector<std::string> SummaryLines() const override {
+    std::vector<std::string> out; char b[200];
+    std::snprintf(b, sizeof b, "Lotow: %d, ostatni: %lld punktow%s", flights_, lastCount_, outDir_.empty() ? "" : (", folder: " + outDir_).c_str()); out.push_back(b);
+    return out;
+  }
+
+  bool CanSaveState() const override { return true; }
+  void SaveState(StateKV& s) const override {                          // lot w toku: wznowienie od poczatku biezacego szeregu
+    raw_.Flush(); traj_.flush();
+    s.Bool("aerial", true); s.Int("area.n", (long long)area_.size());
+    for (size_t i = 0; i < area_.size(); i++) { s.Num("area." + std::to_string(i) + ".n", area_[i].n); s.Num("area." + std::to_string(i) + ".e", area_[i].e); }
+    s.Num("agl", params_.aglM); s.Num("speed", params_.speedMps); s.Num("sidelap", params_.sidelapPct); s.Bool("follow", params_.followTerrain);
+    s.Int("azMode", azMode_); s.Int("profile", profile_); s.Int("preset", preset_); s.Int("seed", (long long)seed_); s.Int("flights", flights_); s.Int("lastCount", lastCount_); s.Str("outDir", outDir_);
+    s.Bool("flying", flying_); s.Int("resumeStrip", CurStrip()); s.Int("stripStartCount", stripStartCount_); s.Int("stripStartTrajBytes", stripStartTrajBytes_);
+    s.Num("stripStartSimT", stripStartSimT_); s.Num("home.n", home_.n); s.Num("home.e", home_.e); s.Num("home.h", homeGroundH_); s.Bool("homeSet", home_set_);
+  }
+  bool LoadState(const StateKV& s) override {
+    if (!s.GetBool("aerial")) return false;
+    if (flying_) { raw_.Close(); traj_.close(); w_.RemoveDrone(); flying_ = false; }
+    area_.clear(); const int n = s.GetInt("area.n");
+    for (int i = 0; i < n; i++) area_.push_back({s.GetNum("area." + std::to_string(i) + ".n"), s.GetNum("area." + std::to_string(i) + ".e")});
+    params_.aglM = s.GetNum("agl", 50); params_.speedMps = s.GetNum("speed", 5); params_.sidelapPct = s.GetNum("sidelap", 30); params_.followTerrain = s.GetBool("follow", true);
+    azMode_ = s.GetInt("azMode") % 5; profile_ = s.GetInt("profile") % 3; preset_ = s.GetInt("preset") % 4; seed_ = (uint32_t)s.GetNum("seed", seed_);
+    params_.sensor.pulseHz = kAlsPresets[preset_].pulseHz; params_.sensor.lineHz = kAlsPresets[preset_].lineHz;
+    flights_ = s.GetInt("flights"); lastCount_ = (long long)s.GetNum("lastCount"); outDir_ = s.GetStr("outDir");
+    home_ = {s.GetNum("home.n"), s.GetNum("home.e")}; homeGroundH_ = s.GetNum("home.h"); home_set_ = s.GetBool("homeSet"); camFollow_ = false;
+    Replan();
+    if (s.GetBool("flying")) {
+      stripStartCount_ = (long long)s.GetNum("stripStartCount"); stripStartTrajBytes_ = (long long)s.GetNum("stripStartTrajBytes"); stripStartSimT_ = s.GetNum("stripStartSimT");
+      if (!BeginFlight(s.GetInt("resumeStrip"))) w_.Say("Nie mozna wznowic lotu");
+    }
+    return true;
   }
 
   std::string Hud() const override {
     char b[220];
+    if (flying_) { std::snprintf(b, sizeof b, "Lot ALS: szereg %d/%d, %d%%, %lld punktow", CurStrip() + 1, (int)plan_.strips.size(), (int)(100.0 * tSim_ / (std::max)(1e-9, path_->Duration())), raw_.Count()); return b; }
     if (!plan_.ok) { std::snprintf(b, sizeof b, "Nalot ALS: obszar %d wierzcholkow (min. 3)", (int)area_.size()); return b; }
     std::snprintf(b, sizeof b, "Nalot ALS: szeregow: %d, pas %.0f m, odstep %.0f m, lot %.1f min, ok. %.1f pkt/m2%s",
                   (int)plan_.strips.size(), plan_.swathM, plan_.spacingM, plan_.flightTimeS / 60.0, plan_.estDensityPtsM2, plan_.batteryOk ? "" : " (ZA DLUGI)");
@@ -128,12 +195,120 @@ class AerialJob : public Job {
     GridPos g; if (!w_.HeroGround(g)) { w_.Say("Brak gruntu pod stopami (start drona)"); return; }
     home_ = {g.n, g.e}; home_set_ = true; Replan();                       // dron startuje spod stop bohatera
     if (!plan_.batteryOk) { w_.Say(plan_.msg); return; }
-    // lot, skan i wyniki: nastepny etap
+    homeGroundH_ = g.h; outDir_ = w_.AerialOutDir();
+    if (outDir_.empty()) { w_.Say("Nie mozna utworzyc folderu wynikow"); return; }
+    { std::ofstream f(outDir_ + "/plan_nalotu.csv", std::ios::binary | std::ios::trunc); f << PlanCsv(plan_, params_); }
+    stripStartCount_ = 0; stripStartTrajBytes_ = 0; stripStartSimT_ = 0; groundWarned_ = false;
+    if (BeginFlight(0)) w_.Say("Start lotu: " + std::to_string(plan_.strips.size()) + " szeregow");
   }
 
-  IWorld& w_; JobOptions opt_;
+  // Start (albo wznowienie od szeregu fromStrip) lotu: sciezka, szum, pliki robocze, dron w swiecie.
+  bool BeginFlight(int fromStrip) {
+    const bool resume = fromStrip > 0; fromStrip_ = fromStrip;
+    FlightPlan fp = plan_; fp.strips.erase(std::remove_if(fp.strips.begin(), fp.strips.end(), [&](const Strip& s) { return s.id < fromStrip; }), fp.strips.end());
+    if (fp.strips.empty()) return false;
+    const ErrorProfile prof = haveOverride_ ? override_ : kAlsProfiles[profile_];
+    profile_used_ = prof;
+    path_ = std::make_unique<FlightPath>(fp, [this](double n, double e) { double h; if (w_.GroundHeightM(n, e, h)) return h;
+        if (!groundWarned_) { groundWarned_ = true; w_.Say("Brak wysokosci terenu: uzyto wysokosci punktu startu"); } return homeGroundH_; },
+        params_.aglM, params_.speedMps, params_.followTerrain, homeGroundH_, home_);
+    noise_ = std::make_unique<TrajectoryNoise>(seed_, prof); boreTrue_ = noise_->TrueBoresight();
+    if (!w_.PlaceDrone(GridPos{home_.n, home_.e, homeGroundH_})) { w_.Say("Nie mozna postawic drona"); path_.reset(); return false; }
+    originN_ = area_[0].n; originE_ = area_[0].e; originH_ = homeGroundH_;
+    rawPath_ = outDir_ + "/lot.raw"; const std::string trajPath = outDir_ + "/trajektoria.csv";
+    bool append = resume && std::filesystem::exists(rawPath_) && std::filesystem::exists(trajPath);
+    if (resume && !append) w_.Say("Brak plikow poprzednich szeregow: wznowiony lot zapisze tylko pozostale szeregi");
+    std::error_code ec;
+    if (append) { std::filesystem::resize_file(rawPath_, (std::uintmax_t)stripStartCount_ * 26, ec); std::filesystem::resize_file(trajPath, (std::uintmax_t)stripStartTrajBytes_, ec); }
+    raw_.Open(rawPath_, append);
+    traj_.open(trajPath, std::ios::binary | (append ? std::ios::app : std::ios::trunc)); trajBytes_ = append ? stripStartTrajBytes_ : 0;
+    if (!append) { const std::string hd = "t;N_prawdziwe;E_prawdziwe;H_prawdziwe;N_gnss;E_gnss;H_gnss;roll;pitch;yaw;roll_imu;pitch_imu;yaw_imu;szereg\n"; traj_ << hd; trajBytes_ = (long long)hd.size(); }
+    resumed_ = append; clockOffset_ = append ? stripStartSimT_ - path_->FirstScanTime() : 0.0;
+    tSim_ = 0; t0_ = 0; t1_ = kSampleDt; s0_ = path_->At(0); e0_ = noise_->Estimate(s0_); s1_ = path_->At(t1_); e1_ = noise_->Estimate(s1_); LogRow(s1_, e1_);
+    curStrip_ = -1; flying_ = true; return true;
+  }
+
+  static double LerpAng(double a, double b, double f) { double d = std::fmod(b - a, 360.0); if (d > 180) d -= 360; if (d < -180) d += 360; return a + d * f; }
+  static TrajSample Lerp(const TrajSample& a, const TrajSample& b, double f) {
+    f = (std::max)(0.0, (std::min)(1.0, f)); TrajSample r = a;
+    r.pos = {a.pos.x + (b.pos.x - a.pos.x) * f, a.pos.y + (b.pos.y - a.pos.y) * f, a.pos.z + (b.pos.z - a.pos.z) * f};
+    r.rollDeg = a.rollDeg + (b.rollDeg - a.rollDeg) * f; r.pitchDeg = a.pitchDeg + (b.pitchDeg - a.pitchDeg) * f; r.yawDeg = LerpAng(a.yawDeg, b.yawDeg, f); r.t = a.t + (b.t - a.t) * f;
+    return r;
+  }
+  void AdvanceSample() { s0_ = s1_; e0_ = e1_; t0_ = t1_; t1_ = t0_ + kSampleDt; s1_ = path_->At(t1_); e1_ = noise_->Estimate(s1_); LogRow(s1_, e1_); }
+  void LogRow(const TrajSample& t, const TrajSample& e) {                // po wznowieniu zapisywane sa tylko probki na szeregach (dojazd nie)
+    if (resumed_ && !t.scanning) return;
+    char b[300]; const int n = std::snprintf(b, sizeof b, "%.2f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f;%d\n", t.t + clockOffset_, t.pos.y, t.pos.x, t.pos.z, e.pos.y, e.pos.x, e.pos.z,
+                                             t.rollDeg, t.pitchDeg, t.yawDeg, e.rollDeg, e.pitchDeg, e.yawDeg, t.scanning ? t.strip : -1);
+    traj_.write(b, n); trajBytes_ += n;
+  }
+  void EmitPulse() {
+    const double f = (tSim_ - t0_) / kSampleDt; const TrajSample truth = Lerp(s0_, s1_, f), est = Lerp(e0_, e1_, f);
+    const double theta = MirrorThetaDeg(tSim_, params_.sensor); const AlsRay r = TrueRay(truth, boreTrue_, lever_, theta);
+    const double pi = 3.14159265358979323846; double az = std::atan2(r.dir.x, r.dir.y) * 180.0 / pi; if (az < 0) az += 360.0;
+    const double el = std::asin((std::max)(-1.0, (std::min)(1.0, r.dir.z))) * 180.0 / pi;
+    double dist = 0, cosInc = 1; bool vob = false; unsigned rgb = 0x808080;
+    if (!w_.AerialRay(GridPos{r.origin.y, r.origin.x, r.origin.z}, az, el, kMaxRangeM, dist, cosInc, vob, &rgb) || dist < 1.0 || dist > kMaxRangeM) return;
+    const double range = dist + (rangeNoise_ ? rangeRng_.Normal() * ScanNoiseSigmaM(dist) : 0.0);
+    const Vec3 p = GeorefPoint(est, boreNom_, lever_, theta, range);
+    AlsPoint o{(float)(p.x - originE_), (float)(p.y - originN_), (float)(p.z - originH_), kGpsT0 + clockOffset_ + tSim_, (std::uint16_t)s0_.strip, ScanIntensity(dist, cosInc, vob),
+               (std::uint8_t)((rgb >> 16) & 255), (std::uint8_t)((rgb >> 8) & 255), (std::uint8_t)(rgb & 255)};
+    raw_.Append(o);
+  }
+  bool InArea(double n, double e) const {
+    bool in = false;
+    for (size_t i = 0, j = area_.size() - 1; i < area_.size(); j = i++)
+      if (((area_[i].n > n) != (area_[j].n > n)) && (e < (area_[j].e - area_[i].e) * (n - area_[i].n) / (area_[j].n - area_[i].n) + area_[i].e)) in = !in;
+    return in;
+  }
+  void FinishFlight(bool complete) {
+    if (!flying_) return;
+    flying_ = false; raw_.Close(); traj_.close();
+    const AlsStats st = AlsConvert(rawPath_, originN_, originE_, originH_, outDir_ + "/lot.pts", outDir_ + "/lot.las");
+    const std::vector<StripQc> qc = AlsStripCheck(rawPath_);
+    std::vector<ControlPoint> cps; for (const ControlPoint& c : w_.ControlNearHero(1e9)) if (InArea(c.n, c.e)) cps.push_back(c);
+    const std::vector<ControlQc> cq = AlsControlCheck(rawPath_, originN_, originE_, originH_, cps);
+    WriteInfo(st, qc, cq, complete);
+    std::error_code ec; std::filesystem::remove(rawPath_, ec);
+    w_.RemoveDrone(); if (camFollow_) { camFollow_ = false; w_.SetFollowCamera(false); }
+    flights_++; lastCount_ = st.count; path_.reset();
+    char b[160];
+    if (st.count == 0) w_.Say("Lot zakonczony: brak punktow (promienie nie trafily w teren)");
+    else { std::snprintf(b, sizeof b, "Lot %s: %lld punktow, wyniki w folderze lotu", complete ? "zakonczony" : "przerwany", st.count); w_.Say(b); }
+  }
+  void WriteInfo(const AlsStats& st, const std::vector<StripQc>& qc, const std::vector<ControlQc>& cq, bool complete) {
+    std::ofstream f(outDir_ + "/lot_opis.txt"); char b[260];
+    f << "Skaning lotniczy z drona (ALS)\nLot: " << (complete ? "zakonczony" : "przerwany") << (resumed_ ? " (wznowiony po zapisie gry; trajektoria dojazdu nie jest zapisana)" : "") << "\n";
+    f << "Profil bledow GNSS/IMU: " << profile_used_.name << "\nGestosc impulsow: " << kAlsPresets[preset_].name << "\n";
+    std::snprintf(b, sizeof b, "AGL: %.0f m, predkosc: %.0f m/s, zakladka: %.0f%%, kierunek szeregow: %.1f st., wysokosc: %s\n", params_.aglM, params_.speedMps, params_.sidelapPct, params_.stripAzDeg, params_.followTerrain ? "podaza za terenem" : "stala bezwzgledna");
+    f << b;
+    std::snprintf(b, sizeof b, "Szeregow: %d, pas: %.1f m, odstep: %.1f m, czas lotu (plan): %.1f min, ok. %.1f pkt/m2\n", (int)plan_.strips.size(), plan_.swathM, plan_.spacingM, plan_.flightTimeS / 60.0, plan_.estDensityPtsM2); f << b;
+    std::snprintf(b, sizeof b, "Lever arm (antena -> skaner): %.2f %.2f %.2f m; zasieg promienia: %.0f m\n", lever_.x, lever_.y, lever_.z, kMaxRangeM); f << b;
+    std::snprintf(b, sizeof b, "Punktow: %lld\n", st.count); f << b;
+    if (st.ok) { std::snprintf(b, sizeof b, "Zakres: E %.3f..%.3f, N %.3f..%.3f, H %.3f..%.3f\n", st.minE, st.maxE, st.minN, st.maxN, st.minH, st.maxH); f << b; }
+    if (opt_.showTrueError && noise_) { double r, p, y; noise_->BoresightDeg(r, p, y); std::snprintf(b, sizeof b, "Prawdziwy blad boresightu (roll, pitch, yaw): %+.3f %+.3f %+.3f st.\n", r, p, y); f << b; }
+    f << "Kontrola szeregow (roznice H w zakladkach, szereg b - szereg a):\n";
+    for (const StripQc& q : qc) { std::snprintf(b, sizeof b, "  szereg %d-%d: komorek %d, meanDz=%+.3f m, rms=%.3f m\n", q.a, q.b, q.cells, q.meanDzM, q.rmsDzM); f << b; }
+    if (qc.empty()) f << "  (jeden szereg)\n";
+    f << "Kontrola na punktach osnowy (H chmury - H punktu):\n";
+    for (const ControlQc& q : cq) { std::snprintf(b, sizeof b, "  %s: dh=%+.3f m (%d punktow)\n", q.id.c_str(), q.dhM, q.pts); f << b; }
+    if (cq.empty()) f << "  (brak punktow osnowy w obszarze)\n";
+  }
+
+  int CurStrip() const { return curStrip_ >= 0 ? curStrip_ : fromStrip_; }   // szereg w toku (przed pierwszym impulsem: ten, od ktorego start)
+  static constexpr int kBudgetMs = 12;                                   // budzet czasu lotu na klatke
+  static constexpr double kSampleDt = 0.1, kMaxRangeM = 250.0, kGpsT0 = 345600.0;
+
+  IWorld& w_; JobOptions opt_; uint32_t seed_; GnssRng rangeRng_;
   FlightParams params_; FlightPlan plan_; std::vector<PlanPt> area_;
-  int azMode_ = 0, profile_ = 0, preset_ = 1, flights_ = 0; bool flying_ = false, home_set_ = false; PlanPt home_{0, 0};
+  int azMode_ = 0, profile_ = 0, preset_ = 1, flights_ = 0; bool flying_ = false, home_set_ = false, camFollow_ = false; PlanPt home_{0, 0};
+  // lot
+  std::unique_ptr<FlightPath> path_; std::unique_ptr<TrajectoryNoise> noise_; ErrorProfile profile_used_{"", 0, 0, 0, 0, 0, 0}, override_{"", 0, 0, 0, 0, 0, 0};
+  mutable AlsRawWriter raw_; mutable std::ofstream traj_; std::string outDir_, rawPath_;
+  Vec3 lever_{0.0, 0.15, -0.30}; Rot3 boreNom_ = RotFromRpy(0, 0, 0), boreTrue_ = RotFromRpy(0, 0, 0);
+  double tSim_ = 0, t0_ = 0, t1_ = kSampleDt, clockOffset_ = 0, stripStartSimT_ = 0, homeGroundH_ = 0, originN_ = 0, originE_ = 0, originH_ = 0;
+  TrajSample s0_, s1_, e0_, e1_; int curStrip_ = -1, fromStrip_ = 0, pulseCap_ = 0;
+  long long stripStartCount_ = 0, stripStartTrajBytes_ = 0, trajBytes_ = 0, lastCount_ = 0; bool groundWarned_ = false, resumed_ = false, haveOverride_ = false, rangeNoise_ = true;
 };
 
 inline std::unique_ptr<Job> CreateAerialJob(IWorld& w, const JobOptions& o) { return std::make_unique<AerialJob>(w, o); }
