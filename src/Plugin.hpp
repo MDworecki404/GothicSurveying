@@ -2,6 +2,7 @@
 #include "job/Jobs.hpp"
 #include "job/Workflow.hpp"
 #include "job/MenuLayout.hpp"
+#include "job/Wizards.hpp"
 #include "calc/Docx.hpp"
 #include "calc/TexDecode.hpp"
 #include "calc/TexColors.hpp"

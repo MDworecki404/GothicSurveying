@@ -21,6 +21,27 @@ namespace GOTHIC_NAMESPACE {
   }
 
   inline void ProjUiOpenList();
+  inline void ProjUiOpenHome();
+
+  // Kreator: pomiar z gotowymi ustawieniami w trybie prowadzonym (kolejne kroki podpowiada linia DALEJ).
+  inline void ProjUiStartWizard( const Wizard& wz ) {
+    int idx = -1; for ( size_t i = 0; i < JobTypes().size(); i++ ) if ( JobTypes()[i].id == wz.typeId ) idx = (int)i;
+    if ( idx < 0 ) return;
+    gStartGuided = true;
+    CtrlStartJob( idx, wz.opts.kind, wz.opts.mode, wz.opts.showTrueError );
+    if ( gJob ) ApplyWizardSetup( *gJob, wz );
+    gStartGuided = false;
+  }
+
+  inline void ProjUiOpenNew() {
+    MenuView v; v.title = "Nowy pomiar"; v.crumbs = "GEODEZJA > Projekt: " + gProject.name + " > Nowy pomiar";
+    for ( const Wizard& wz : Wizards() ) { MenuItem it{ "w:" + wz.id, wz.name, wz.desc, true }; it.section = "Kreatory"; v.items.push_back( it ); }
+    { MenuItem it{ "manual", "Reczny wybor rodzaju pomiaru...", "pelne menu bez kreatora: wszystkie rodzaje i ustawienia", true }; it.section = "Inne"; v.items.push_back( it ); }
+    MenuOpen( v, []( const std::string& id ) {
+      if ( id == "manual" ) { CtrlOpenStartMenu(); return; }
+      for ( const Wizard& wz : Wizards() ) if ( "w:" + wz.id == id ) { ProjUiStartWizard( wz ); return; }
+    }, []() { ProjUiOpenHome(); } );
+  }
 
   inline void ProjUiOpenHome() {
     ProjEnsure();
@@ -44,7 +65,7 @@ namespace GOTHIC_NAMESPACE {
     for ( const MenuItem& it : v.items ) if ( it.id == nx.id ) { v.nextId = nx.id; v.nextText = nx.text; }
     if ( v.nextText.empty() ) v.nextText = nx.text;                                    // np. "create": bez pozycji, sam tekst
     MenuOpen( v, []( const std::string& id ) {
-      if ( id == "new" ) CtrlOpenStartMenu();
+      if ( id == "new" ) ProjUiOpenNew();
       else if ( id == "reopen" ) { ReopenProject( gProject ); ProjSave(); HudMessage( "Projekt otwarty ponownie" ); ProjUiOpenHome(); }
       else if ( id == "projects" ) ProjUiOpenList();
       else if ( id == "tools" ) CtrlOpenToolsMenu();

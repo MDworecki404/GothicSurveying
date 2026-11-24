@@ -409,9 +409,18 @@ namespace GOTHIC_NAMESPACE {
     v.items.push_back( { "abort", "Przerwij robote (bez dziennika)", "", true } );
     v.items = Arrange( gJob->Kind(), v.items );                   // sekcje, stala kolejnosc, powody niedostepnosci; "Przerwij" zawsze ostatnie
     const Next nx = NextLine( v.items, gJob->NextStep() );        // rekomendowany krok
-    v.nextText = nx.text; v.nextId = nx.id; v.crumbs = "GEODEZJA > Pomiar";
+    v.nextText = nx.text; v.nextId = nx.id; v.crumbs = "GEODEZJA > Projekt: " + gProject.name + " > Pomiar";
+    bool guided = false; for ( const Measurement& m : gProject.items ) if ( m.id == gJobMeasId ) guided = m.guided;
+    if ( guided && !nx.id.empty() ) {                              // tryb prowadzony: tylko nastepny krok, "Pokaz wszystko" i Przerwij
+      std::vector<MenuItem> g;
+      for ( const MenuItem& it : v.items ) if ( it.id == nx.id ) g.push_back( it );
+      { MenuItem it{ "showall", "Pokaz wszystkie pozycje (tryb zaawansowany)", "wylacza tryb prowadzony dla tego pomiaru", true }; it.section = "Pozostale"; g.push_back( it ); }
+      for ( const MenuItem& it : v.items ) if ( it.id == "abort" ) g.push_back( it );
+      v.items = g;
+    }
     MenuOpen( v, []( const std::string& id ) {
       if ( !gJob ) return;
+      if ( id == "showall" ) { for ( Measurement& m : gProject.items ) if ( m.id == gJobMeasId ) m.guided = false; ProjSave(); CtrlOpenMenu(); return; }
       if ( id == "finish" ) CtrlFinish();
       else if ( id == "scope" ) CtrlEnterScope();
       else if ( id == "fine" ) PoleFineEnter();
