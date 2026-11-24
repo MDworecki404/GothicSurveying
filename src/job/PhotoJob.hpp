@@ -3,14 +3,20 @@
 // Punkty wiazace sa symulowane (znane punkty terenu rzutowane na zdjecia z szumem 0,5 px i sprawdzana widocznoscia), osnowa daje punkty stale (GCP) i kontrolne;
 // po locie wyrownanie wiazki (calc/Bundle.hpp) i raport. Zapis stanu: tylko ustawienia i obszar (bez lotu w toku).
 #pragma once
+#include <set>
 #include "AerialJob.hpp"
 #include "calc/Bundle.hpp"
 #include "calc/Camera.hpp"
+#include "calc/Ortho.hpp"
 #include "calc/Png.hpp"
 
 struct PhotoStats {
   int photos = 0, ties = 0, obs = 0, gcp = 0, checks = 0; bool adjusted = false;
   double rmsBefore = 0, rmsAfter = 0, checkRmse3d = 0, posCorrRms = 0;      // rms reprojekcji [px]; blad 3D na punktach kontrolnych [m]; rms poprawki pozycji zdjec [m]
+};
+
+struct OrthoInfo {                                                         // wynik ortofotomapy i kontrola planimetryczna na punktach osnowy
+  int w = 0, h = 0, used = 0, gcpN = 0, checkN = 0; double gsd = 0, coverage = 0, rmseGcp = 0, rmseCheck = 0;
 };
 
 class PhotoJob : public AerialJob {
@@ -20,6 +26,7 @@ class PhotoJob : public AerialJob {
   std::string Name() const override { return "Fotogrametria lotnicza"; }
   JobKind Kind() const override { return JobKind::Photo; }
   const PhotoStats& Stats() const { return st_; }
+  const OrthoInfo& OrthoStats() const { return oi_; }
   bool CanSaveState() const override { return !flying_; }
 
   std::vector<MenuItem> Menu() const override {
@@ -33,11 +40,20 @@ class PhotoJob : public AerialJob {
         out.push_back({"fwd", fw, "70 / 80 / 90 %", !flying_}); out.push_back({"side", sd, "40 / 60 / 70 %", !flying_});
       }
       out.push_back(m);
+      if (m.id == "cancel") {
+        out.push_back({"ortho", "Ortofotomapa ze zdjec", "po wyrownaniu wiazki: PNG z plikiem .pgw (uklad siatki), NMPT z punktow, wybor zdjecia najblizej nadiru", CanOrtho()});
+        out.push_back({"ortho_cancel", "Przerwij ortofotomape", "trwa generowanie", ortho_ != nullptr});
+      }
     }
     return out;
   }
+  bool CanFinish() const override { return AerialJob::CanFinish() && !ortho_; }
+  void Tick() override { if (ortho_) { if (ortho_->Step(kBudgetMs)) FinishOrtho(false); return; } AerialJob::Tick(); }
   void OnMenu(const std::string& id) override {
     if (LidarOnly(id)) return;
+    if (id == "ortho") { StartOrtho(); return; }
+    if (id == "ortho_cancel") { FinishOrtho(true); return; }
+    if (ortho_) return;                                                     // w trakcie generowania ortofotomapy reszta menu nieaktywna
     if (id == "cam" || id == "res" || id == "fwd" || id == "side") {
       if (flying_) return;
       if (id == "cam") camIdx_ = (camIdx_ + 1) % 3; else if (id == "res") resIdx_ = (resIdx_ + 1) % 3;
@@ -48,6 +64,7 @@ class PhotoJob : public AerialJob {
   }
   std::string Hud() const override {
     char b[260];
+    if (ortho_) { std::snprintf(b, sizeof b, "Ortofotomapa: %s", ortho_->Progress().c_str()); return b; }
     if (flying_) { std::snprintf(b, sizeof b, "Fotogrametria: zdjec: %d, szereg %d/%d, %d%%", (int)photos_.size(), CurStrip() + 1, (int)plan_.strips.size(), (int)(100.0 * tSim_ / (std::max)(1e-9, path_->Duration()))); return b; }
     if (!plan_.ok) { std::snprintf(b, sizeof b, "Fotogrametria: obszar %d wierzcholkow (min. 3)", (int)area_.size()); return b; }
     int n = 0; for (const Strip& s : plan_.strips) n += (int)std::ceil(s.lengthM / (std::max)(0.1, geom_.baseM)) + 1;
@@ -64,7 +81,7 @@ class PhotoJob : public AerialJob {
   void SaveState(StateKV& s) const override { AerialJob::SaveState(s); s.Bool("photo", true); s.Int("photo.cam", camIdx_); s.Int("photo.res", resIdx_); s.Num("photo.fwd", fwd_); s.Num("photo.side", side_); }
   bool LoadState(const StateKV& s) override {
     if (!s.GetBool("photo") || !AerialJob::LoadState(s)) return false;
-    camIdx_ = s.GetInt("photo.cam") % 3; resIdx_ = s.GetInt("photo.res") % 3; fwd_ = s.GetNum("photo.fwd", 80); side_ = s.GetNum("photo.side", 60); Replan(); return true;
+    adjOk_ = false; camIdx_ = s.GetInt("photo.cam") % 3; resIdx_ = s.GetInt("photo.res") % 3; fwd_ = s.GetNum("photo.fwd", 80); side_ = s.GetNum("photo.side", 60); Replan(); return true;
   }
 
  protected:
@@ -102,7 +119,7 @@ class PhotoJob : public AerialJob {
   }
 
   void Setup() {                                                           // poczatek lotu: folder zdjec, punkty wiazace (znane punkty terenu) i punkty osnowy
-    setup_ = true; photos_.clear(); obs_.clear(); feats_.clear(); ctl_.clear(); st_ = PhotoStats{}; std::error_code ec;
+    setup_ = true; adjOk_ = false; fgeom_ = geom_; photos_.clear(); obs_.clear(); feats_.clear(); ctl_.clear(); st_ = PhotoStats{}; std::error_code ec;
     photoDir_ = outDir_ + "/zdjecia"; std::filesystem::create_directories(photoDir_, ec);
     double nmin = 1e18, nmax = -1e18, emin = 1e18, emax = -1e18; for (const PlanPt& a : area_) { nmin = (std::min)(nmin, a.n); nmax = (std::max)(nmax, a.n); emin = (std::min)(emin, a.e); emax = (std::max)(emax, a.e); }
     const double step = (std::max)(4.0, std::sqrt((nmax - nmin) * (emax - emin) / 700.0)); GnssRng fr(seed_ ^ 0xFEEDu);
@@ -186,6 +203,7 @@ class PhotoJob : public AerialJob {
     const ErrorProfile pr = profile_used_; bp.sigmaPx = 0.6; bp.sigmaPos = (std::max)(0.1, 2.0 * pr.gnssHSigmaM + 0.5 * pr.driftMPerMin); bp.sigmaAtt = 1.0;
     const BaResult r = BundleAdjust(cams, prior, pts, use, bp);
     if (!r.ok) { rep << "Wyrownanie wiazki nie powiodlo sie: " << r.msg << "\n"; return; }
+    adjOk_ = true; adjCams_ = cams; adjPts_ = pts; useObs_ = use;
     st_.adjusted = true; st_.obs = (int)use.size(); st_.rmsBefore = r.rmsBefore; st_.rmsAfter = r.rmsAfter; for (const Ctl& c : ctl_) { if (c.gcp) st_.gcp++; else st_.checks++; }
     double cs = 0; for (int i = 0; i < nc; i++) cs += std::pow(cams[i].p[0] - prior[i].p[0], 2) + std::pow(cams[i].p[1] - prior[i].p[1], 2) + std::pow(cams[i].p[2] - prior[i].p[2], 2); st_.posCorrRms = std::sqrt(cs / nc);
     double ce = 0; int cn = 0, nf = (int)feats_.size();
@@ -209,12 +227,53 @@ class PhotoJob : public AerialJob {
     for (int i = 0; i < nc; i++) { std::snprintf(b, sizeof b, "%d;IMG_%04d.png;%.3f;%.3f;%.3f;%.4f;%.4f;%.4f;%+.3f;%+.3f;%+.3f\n", i + 1, i + 1, cams[i].p[0] + originE_, cams[i].p[1] + originN_, cams[i].p[2] + originH_, cams[i].a[0], cams[i].a[1], cams[i].a[2],
                                     cams[i].p[0] - prior[i].p[0], cams[i].p[1] - prior[i].p[1], cams[i].p[2] - prior[i].p[2]); cf << b; }
   }
+  // Ortofotomapa ze zdjec: NMPT z punktow po wyrownaniu, kolor z zdjecia najblizej nadiru przez poprawiona poze; wynik PNG + .pgw w ukladzie siatki.
+  bool CanOrtho() const { return adjOk_ && !flying_ && !ortho_ && !adj_ && !prod_; }
+  void StartOrtho() {
+    if (!CanOrtho()) return;
+    OrthoParams p; p.f = fgeom_.focalPx; p.imgW = W_; p.imgH = H_; p.cx = W_ / 2.0; p.cy = H_ / 2.0; p.lever = lever_; p.Rb = RotFromRpy(0, 0, 0); p.gsd = fgeom_.gsdM; p.originE = originE_; p.originN = originN_;
+    double nmin = 1e18, nmax = -1e18, emin = 1e18, emax = -1e18;
+    for (const PlanPt& a : area_) { nmin = (std::min)(nmin, a.n - originN_); nmax = (std::max)(nmax, a.n - originN_); emin = (std::min)(emin, a.e - originE_); emax = (std::max)(emax, a.e - originE_); p.polygon.push_back({a.n - originN_, a.e - originE_}); }
+    p.minN = nmin; p.maxN = nmax; p.minE = emin; p.maxE = emax;
+    std::vector<OrthoCam> cams; for (const BaCam& c : adjCams_) { OrthoCam o; for (int k = 0; k < 3; k++) { o.p[k] = c.p[k]; o.a[k] = c.a[k]; } cams.push_back(o); }
+    std::vector<Vec3> pts; for (const BaPoint& q : adjPts_) pts.push_back(q.x);
+    const std::string dir = photoDir_;
+    ortho_ = std::make_unique<Orthorectifier>(p, cams, pts, [dir](int c, std::vector<unsigned char>& rgb) { char b[48]; std::snprintf(b, sizeof b, "/IMG_%04d.png", c + 1); int w, h; return ReadPng(dir + b, w, h, rgb); },
+                                              outDir_ + "/ortofotomapa.png", outDir_ + "/ortofotomapa.pgw");
+    orthoP_ = p; w_.Say("Ortofotomapa: start (NMPT, wybor zdjec, kolory)");
+  }
+  void FinishOrtho(bool cancelled) {
+    if (!ortho_) return;
+    const OrthoResult r = ortho_->Result(); ortho_.reset();
+    if (cancelled) { w_.Say("Ortofotomapa przerwana"); return; }
+    if (!r.ok) { w_.Say(r.msg.empty() ? "Nie udalo sie wygenerowac ortofotomapy" : r.msg); return; }
+    oi_ = OrthoInfo{}; oi_.w = r.w; oi_.h = r.h; oi_.used = r.used; oi_.gsd = r.gsd; oi_.coverage = r.coverage;
+    const int nf = (int)feats_.size(); double sg = 0, sc = 0, tg = 0, tc = 0; int ng = 0, nk = 0; std::set<int> gp, kp;                    // blad planimetryczny: promien przez zmierzony piksel znaku, poprawiona poza, plaszczyzna H znaku
+    for (const BaObs& o : useObs_) {
+      if (o.pt < nf) continue;
+      const Ctl& c = ctl_[o.pt - nf]; OrthoCam oc; for (int k = 0; k < 3; k++) { oc.p[k] = adjCams_[o.cam].p[k]; oc.a[k] = adjCams_[o.cam].a[k]; }
+      double dE, dN; if (!OrthoPointError(orthoP_, oc, o.u, o.v, c.known, dE, dN)) continue;
+      const double e2 = dE * dE + dN * dN, t2 = std::pow(dE + c.known.x - c.truth.x, 2) + std::pow(dN + c.known.y - c.truth.y, 2);
+      if (c.gcp) { sg += e2; tg += t2; ng++; gp.insert(o.pt); } else { sc += e2; tc += t2; nk++; kp.insert(o.pt); }
+    }
+    oi_.gcpN = (int)gp.size(); oi_.checkN = (int)kp.size(); oi_.rmseGcp = ng ? std::sqrt(sg / ng) : 0; oi_.rmseCheck = nk ? std::sqrt(sc / nk) : 0;
+    std::ofstream f(outDir_ + "/ortofotomapa_raport.txt"); char b[300];
+    std::snprintf(b, sizeof b, "Ortofotomapa ze zdjec\nObraz: %d x %d px, GSD %.3f m (zdjecia: %.3f m), pokrycie %.1f%% obszaru, uzytych zdjec: %d\n", r.w, r.h, r.gsd, fgeom_.gsdM, r.coverage * 100.0, r.used); f << b;
+    f << "Uklad: plik ortofotomapa.pgw (siatka N/E, srodek lewego gornego piksela), gora obrazu = polnoc.\n";
+    if (nk) { std::snprintf(b, sizeof b, "RMSE planimetryczne na punktach kontrolnych (nie uzytych jako wiezy): %.3f m (%d punktow, %d pomiarow)\n", oi_.rmseCheck, oi_.checkN, nk); f << b; }
+    if (ng) { std::snprintf(b, sizeof b, "RMSE planimetryczne na punktach stalych GCP: %.3f m (%d punktow, %d pomiarow)\n", oi_.rmseGcp, oi_.gcpN, ng); f << b; }
+    if (!nk && !ng) f << "Brak punktow osnowy w obszarze: bez kontroli planimetrycznej.\n";
+    if (opt_.showTrueError && (nk || ng)) { std::snprintf(b, sizeof b, "Wzgledem prawdziwego polozenia znakow: punkty kontrolne %.3f m, GCP %.3f m (zawiera blad wspolrzednych osnowy)\n", nk ? std::sqrt(tc / nk) : 0.0, ng ? std::sqrt(tg / ng) : 0.0); f << b; }
+    f << "NMPT z punktow wiazacych (interpolacja wazona odleglosci); budynki i drzewa wygladzone, bez wykrywania przeslonic i bez wyrownania kolorow miedzy zdjeciami.\n";
+    std::snprintf(b, sizeof b, "Ortofotomapa gotowa: %d x %d px, GSD %.2f m, pokrycie %.0f%%, blad planimetryczny na punktach kontrolnych %.3f m", r.w, r.h, r.gsd, r.coverage * 100.0, oi_.rmseCheck); w_.Say(b);
+  }
   int W0() const { return kImageRes[resIdx_].w; }
   int H0() const { return kImageRes[resIdx_].h; }
 
   using kImageRes_t = ImageRes;
   int camIdx_ = 1, resIdx_ = 0; double fwd_ = 80, side_ = 60; PhotoGeom geom_{};
   bool setup_ = false, busy_ = false; int W_ = 320, H_ = 240, row_ = 0; std::vector<unsigned char> img_; Rot3 M_{}; Vec3 org_{0, 0, 0}; Photo shot_{};
+  bool adjOk_ = false; PhotoGeom fgeom_{}; std::vector<BaCam> adjCams_; std::vector<BaPoint> adjPts_; std::vector<BaObs> useObs_; OrthoParams orthoP_; OrthoInfo oi_; std::unique_ptr<Orthorectifier> ortho_;
   std::string photoDir_; std::vector<Photo> photos_; std::vector<Vec3> feats_; std::vector<Ctl> ctl_; std::vector<BaObs> obs_; GnssRng pixRng_{777}; PhotoStats st_;
 };
 

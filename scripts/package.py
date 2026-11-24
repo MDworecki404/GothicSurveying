@@ -51,7 +51,7 @@ STEROWANIE
   "Wyrownaj szeregi i skalibruj boresight" (lot_wyrownany.las, lot_wyrownanie.txt; opcja planu "Szeregi kalibracyjne" poprawia pitch/yaw) oraz "Produkty z chmury" (klasyfikacja,
   NMT/NMPT, warstwice CSV/DXF, objetosci w podfolderze produkty). Zaznaczajac obszar na mapie obracasz prostokat klawiszami PgUp/PgDn.
 - Mapa osnowy z gry: raz uruchom NARZEDZIA\make_game_maps.py "<katalog gry>" (Python 3) - wyciaga pergaminy map swiatow z archiwow gry; bez tego dziala mapa wygenerowana (kolorowa).
-- Fotogrametria lotnicza: "Rozpocznij robote" -> "Fotogrametria lotnicza"; ten sam nalot co ALS, ale kamera: zdjecia PNG (folder zdjecia), zdjecia.csv (GNSS/IMU), wyrownanie wiazki z osnowa (fotogrametria_raport.txt).
+- Fotogrametria lotnicza: "Rozpocznij robote" -> "Fotogrametria lotnicza"; ten sam nalot co ALS, ale kamera: zdjecia PNG (folder zdjecia), zdjecia.csv (GNSS/IMU), wyrownanie wiazki z osnowa (fotogrametria_raport.txt); po locie menu "Ortofotomapa ze zdjec" (ortofotomapa.png + .pgw).
 - Kolory skanera: raz uruchom NARZEDZIA\make_texture_colors.py "<katalog gry>" (Python 3; ok. 20 s) - tworzy GothicSurveying\texcolors.bin z miniaturek tekstur gry. Bez niego punkty maja kolory zapasowe/szare.
 - Osnowa swiata: "Zaladuj osnowe geodezyjna swiata" (wzorcowe punkty G.. dla Khorinis, Doliny Gornickiej i Jarkendaru), "Mapa osnowy" (mapa swiata z punktami),
   "Teleport do punktu osnowy". Pomiar GNSS: wlasna baza (poprawki RTK) i pomiar statyczny.

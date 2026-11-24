@@ -1,6 +1,6 @@
 # Fotogrametria lotnicza - projekt i plan
 
-Status: wdrozone na galezi fotogrametria (etapy 1-6; ortofotomapa i NMPT ze zdjec poza zakresem tej wersji).
+Status: wdrozone na galezi fotogrametria (etapy 1-6) i rozszerzone o ortofotomape (calc/Ortho.hpp, menu "Ortofotomapa ze zdjec").
 
 Data: 2026-11-24. Osobna robota "Fotogrametria lotnicza" (v0.9.0 -> nastepna wersja). Zatwierdzone: syntetyczne zdjecia promieniami, punkty wiazace symulowane, wbudowane wyrownanie wiazki,
 eksport zdjec i CSV do programow zewnetrznych, presety: rozdzielczosc 320x240 / 640x480 / 1024x768 (domyslnie 320x240), kamery 84 / 63 / 40 st. (poziomy kat widzenia).

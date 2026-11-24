@@ -294,8 +294,13 @@ więc pliki są duże) i `zdjecia.csv` (id, plik, czas, szereg, pozycja E/N/H z 
 GCP (co drugi, stałe) i punkty kontrolne (pozostałe, wolne). Niewiadome: poza każdego zdjęcia i punkty 3D; obserwacje: piksele, a-priori GNSS/IMU z wagami i GCP; Gauss-Newton / Levenberg-Marquardt z dopełnieniem Schura.
 `fotogrametria_raport.txt`: GSD, zakładki, liczby zdjęć, punktów, obserwacji, rms reprojekcji przed i po, poprawka pozycji zdjęć względem GNSS, **błąd na punktach kontrolnych**, boresight kamery
 (średnia różnica IMU − wyrównanie), a przy prawdziwym błędzie także prawdziwy błąd pozycji i oczekiwana poprawka; `fotogrametria_wyrownanie.csv` — poprawione pozy zdjęć. Potrzeba co najmniej 2 punktów osnowy w obszarze, żeby były i GCP, i punkty kontrolne.
+**Ortofotomapa.** Po wyrównaniu pozycja „Ortofotomapa ze zdjęć” (praca w kilku klatkach, przerywalna) buduje NMPT z punktów wiążących po wyrównaniu (interpolacja ważona odległością), a potem dla każdego piksela
+(rozmiar = GSD zdjęć, ograniczony do ok. 6 mln pikseli) wybiera zdjęcie, na którym ten punkt jest najbliżej nadiru, i próbkuje jego kolor interpolacją dwuliniową przez poprawioną pozę; zdjęcia są czytane z dysku po jednym.
+Wynik: `ortofotomapa.png` i `ortofotomapa.pgw` (plik pozycjonujący w układzie siatki N/E, otwiera go QGIS i CloudCompare) oraz `ortofotomapa_raport.txt` z pokryciem i **błędem planimetrycznym na znakach osnowy**
+(promień przez zmierzony piksel znaku przez poprawioną pozę, przecięty z poziomem znaku; osobno punkty stałe i kontrolne, a przy prawdziwym błędzie także względem prawdziwego położenia). NMPT jest wygładzony (kilkaset punktów),
+bez wykrywania przesłonięć (budynki i drzewa mogą być „pochylone”) i bez wyrównania kolorów między zdjęciami. Dane wyrównania są w pamięci, więc po wczytaniu zapisu ortofotomapa jest niedostępna do kolejnego lotu.
 Zapis gry w trakcie lotu fotogrametrycznego nie wznawia lotu (zapamiętuje obszar i ustawienia). Ograniczenia: punkty wiążące są symulowane (dokładności z raportu to dolna granica tego, co da prawdziwy SfM), kamera bez dystorsji i bez autokalibracji,
-bez ortofotomapy i NMPT ze zdjęć (osobny etap).
+bez NMPT ze zdjęć (ortofotomapa korzysta z NMPT z punktów wiążących).
 
 ## Poziomowanie instrumentu
 

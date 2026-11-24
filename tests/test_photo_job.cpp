@@ -70,6 +70,30 @@ static void image_pixels_come_from_the_world() {                                
   const auto& st = f.P()->Stats(); assert(st.photos >= 6);
 }
 
+static void ortho_after_adjustment() {
+  Fx f; f.Controls(); f.Square(100); f.P()->TestHooks(1, nullptr, true);
+  assert(!f.enabled("ortho") && !f.enabled("ortho_cancel"));                                                                  // przed lotem brak wyrownania
+  f.job->OnMenu("launch"); f.Fly();
+  assert(f.enabled("ortho") && !f.enabled("ortho_cancel"));
+  f.job->OnMenu("ortho"); assert(f.enabled("ortho_cancel") && !f.enabled("ortho") && has(f.job->Hud(), "Ortofotomapa") && !f.job->CanFinish());
+  for (int i = 0; i < 100000 && f.enabled("ortho_cancel"); i++) f.job->Tick();
+  assert(!f.enabled("ortho_cancel") && f.w.Said("Ortofotomapa gotowa") && f.job->CanFinish());
+  for (const char* n : {"ortofotomapa.png", "ortofotomapa.pgw", "ortofotomapa_raport.txt"}) assert(std::filesystem::exists(f.w.dir + "/" + n));
+  int w = 0, h = 0; std::vector<unsigned char> rgb; assert(ReadPng(f.w.dir + "/ortofotomapa.png", w, h, rgb) && w > 100 && h > 100);
+  const OrthoInfo& oi = f.P()->OrthoStats(); assert(oi.w == w && oi.h == h && oi.coverage > 0.9 && oi.used >= 6);
+  const size_t c = ((size_t)(h / 2) * w + w / 2) * 3; assert(rgb[c] == 0x64 && rgb[c + 1] == 0xA0 && rgb[c + 2] == 0x3C);            // plaski teren: kolor z AerialRay
+  assert(oi.checkN == 2 && oi.gcpN == 2 && oi.rmseCheck < 0.6);                                                               // blad planimetryczny na punktach osnowy
+  const std::string rep = Text(f.w.dir + "/ortofotomapa_raport.txt"); for (const char* k : {"GSD", "pokrycie", "RMSE planimetryczne", "kontrolnych"}) assert(has(rep, k));
+  std::istringstream pgw(Text(f.w.dir + "/ortofotomapa.pgw")); double a, d, b, e, ex, ey; pgw >> a >> d >> b >> e >> ex >> ey; assert(a > 0 && e == -a && ex > E0 && ex < E0 + 5 && ey > N0 + 90 && ey < N0 + 101);   // lewy gorny piksel: siatka N/E
+}
+
+static void ortho_cancel_and_unavailable_after_load() {
+  Fx f; f.Controls(); f.Square(100); f.P()->TestHooks(1, nullptr, true); f.job->OnMenu("launch"); f.Fly();
+  f.job->OnMenu("ortho"); f.job->Tick(); f.job->OnMenu("ortho_cancel");
+  assert(f.enabled("ortho") && !f.enabled("ortho_cancel") && !std::filesystem::exists(f.w.dir + "/ortofotomapa.png"));
+  StateKV s; f.job->SaveState(s); Fx g; g.Controls(); assert(g.job->LoadState(s) && !g.enabled("ortho"));                      // po wczytaniu zapisu brak danych wyrownania w pamieci
+}
+
 static void cancel_midflight_and_too_few_photos() {
   Fx f; f.Square(100); f.P()->TestHooks(1, nullptr, true); f.job->OnMenu("launch");
   for (int i = 0; i < 13; i++) f.job->Tick();                                                                                // wznios + pare zdjec
@@ -80,6 +104,6 @@ static void cancel_midflight_and_too_few_photos() {
 }
 
 int main() {
-  registry_menu_and_hud(); flight_photos_csv_and_bundle(); image_pixels_come_from_the_world(); cancel_midflight_and_too_few_photos();
+  registry_menu_and_hud(); flight_photos_csv_and_bundle(); image_pixels_come_from_the_world(); ortho_after_adjustment(); ortho_cancel_and_unavailable_after_load(); cancel_midflight_and_too_few_photos();
   std::puts("test_photo_job OK"); return 0;
 }
