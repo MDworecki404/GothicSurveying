@@ -1,0 +1,84 @@
+#include <cassert>
+#include <cmath>
+#include <cstdio>
+#include "calc/Flight.hpp"
+
+static bool near(double a, double b, double eps = 1e-9) { return std::fabs(a - b) <= eps; }
+static const double N0 = 5500000.0, E0 = 6500000.0;
+
+static FlightParams Square() {
+  FlightParams p; p.aglM = 50; p.speedMps = 5; p.sidelapPct = 30; p.stripAzDeg = 0; p.sensor.fovDeg = 60;
+  p.area = {{N0, E0}, {N0, E0 + 100}, {N0 + 100, E0 + 100}, {N0 + 100, E0}};
+  return p;
+}
+
+static bool InPoly(const std::vector<PlanPt>& poly, double n, double e, double eps = 1e-6) {
+  bool in = false;
+  for (size_t i = 0, j = poly.size() - 1; i < poly.size(); j = i++) {
+    const PlanPt a = poly[i], b = poly[j];
+    // na krawedzi (z tolerancja) liczy sie jako wewnatrz
+    const double dx = b.e - a.e, dy = b.n - a.n, len2 = dx * dx + dy * dy;
+    double t = len2 > 0 ? ((e - a.e) * dx + (n - a.n) * dy) / len2 : 0; t = (std::max)(0.0, (std::min)(1.0, t));
+    if (std::hypot(a.e + t * dx - e, a.n + t * dy - n) <= eps) return true;
+    if (((a.n > n) != (b.n > n)) && (e < (b.e - a.e) * (n - a.n) / (b.n - a.n) + a.e)) in = !in;
+  }
+  return in;
+}
+
+static void square_plan_values() {
+  const FlightParams p = Square();
+  const FlightPlan pl = PlanFlight(p, {N0 - 10, E0 - 10});
+  assert(pl.ok);
+  assert(near(pl.swathM, 57.735, 1e-3));
+  assert(near(pl.spacingM, 40.414, 1e-3));
+  assert(pl.strips.size() == 3);
+  for (size_t i = 1; i < pl.strips.size(); i++) assert(near(pl.strips[i].a.e - pl.strips[i - 1].a.e, pl.spacingM, 1e-6));
+  assert(pl.strips[0].b.n > pl.strips[0].a.n);       // szereg 0 ku N
+  assert(pl.strips[1].b.n < pl.strips[1].a.n);       // szereg 1 ku S
+  assert(pl.strips[2].b.n > pl.strips[2].a.n);
+  for (const Strip& s : pl.strips) assert(near(s.lengthM, 100.0, 1e-6));
+  assert(near(pl.scanTimeS, 60.0, 1e-6));
+  assert(near(pl.estDensityPtsM2, p.sensor.pulseHz / (p.speedMps * pl.swathM), 1e-6));
+  assert(pl.flightTimeS > pl.scanTimeS);
+}
+
+static void degenerate_area_refused() {
+  FlightParams p = Square(); p.area = {{N0, E0}, {N0 + 10, E0 + 10}};
+  FlightPlan pl = PlanFlight(p, {N0, E0}); assert(!pl.ok && !pl.msg.empty() && pl.strips.empty());
+  p.area = {{N0, E0}, {N0 + 10, E0 + 10}, {N0 + 20, E0 + 20}};
+  pl = PlanFlight(p, {N0, E0}); assert(!pl.ok && !pl.msg.empty() && pl.strips.empty());
+}
+
+static void concave_u_shape_splits() {
+  FlightParams p = Square(); p.stripAzDeg = 90;   // szeregi wzdluz E przecinaja oba ramiona litery U
+  p.area = {{N0, E0}, {N0 + 100, E0}, {N0 + 100, E0 + 30}, {N0 + 30, E0 + 30}, {N0 + 30, E0 + 70}, {N0 + 100, E0 + 70}, {N0 + 100, E0 + 100}, {N0, E0 + 100}};
+  const FlightPlan pl = PlanFlight(p, {N0, E0});
+  assert(pl.ok && !pl.strips.empty());
+  double sum = 0;
+  for (const Strip& s : pl.strips) {
+    assert(InPoly(p.area, s.a.n, s.a.e) && InPoly(p.area, s.b.n, s.b.e));
+    assert(InPoly(p.area, (s.a.n + s.b.n) / 2, (s.a.e + s.b.e) / 2));
+    sum += s.lengthM;
+  }
+  assert(sum > 0);
+  assert(pl.strips.size() > PlanFlight(Square(), {N0, E0}).strips.size());   // linia przez wciecie dzieli sie na dwa odcinki
+}
+
+static void battery_flag() {
+  FlightParams p = Square(); p.batteryMin = 1;
+  FlightPlan pl = PlanFlight(p, {N0, E0}); assert(pl.ok && !pl.batteryOk && pl.msg.find("bateri") != std::string::npos);
+  p.batteryMin = 25; pl = PlanFlight(p, {N0, E0}); assert(pl.batteryOk);
+}
+
+static void csv_header_and_rows() {
+  const FlightParams p = Square(); const FlightPlan pl = PlanFlight(p, {N0, E0});
+  const std::string csv = PlanCsv(pl, p);
+  assert(csv.rfind("szereg;N_a;E_a;N_b;E_b;dlugosc_m", 0) == 0);
+  size_t lines = 0; for (char c : csv) if (c == '\n') lines++;
+  assert(lines == 1 + pl.strips.size());
+}
+
+int main() {
+  square_plan_values(); degenerate_area_refused(); concave_u_shape_splits(); battery_flag(); csv_header_and_rows();
+  std::puts("test_flight OK"); return 0;
+}
