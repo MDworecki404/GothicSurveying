@@ -2,6 +2,7 @@
 #include <memory>
 
 namespace GOTHIC_NAMESPACE {
+  inline void ProjUiOpenHome();                        // engine/ProjectUi.hpp (dolaczane po tym pliku)
   inline std::unique_ptr<Job> gJob;
   inline zCWorld*           gCtrlWorld = nullptr;
   inline zCView*            gJobHud = nullptr;       // stały panel z bieżącym krokiem roboty
@@ -367,13 +368,16 @@ namespace GOTHIC_NAMESPACE {
     } );
   }
 
+  // Narzedzia niezalezne od projektu: osnowa swiata, mapa, teleport, usuwanie osnowy, poziomowanie instrumentow. Lewo wraca na ekran glowny.
+  inline void CtrlOpenToolsMenu() {
+    MenuOpen( MenuView{ "Osnowa i narzedzia", { { "world", "Zaladuj osnowe geodezyjna swiata", "", true }, { "control", "Pokaz osnowe", "", true }, { "map", "Mapa osnowy", "", true }, { "tp", "Teleport do punktu osnowy", "", true }, { "rm", "Usun osnowe", "", true },
+                                             { "lvl", gLevelingOn ? "Poziomowanie instrumentow: wlaczone (zmien)" : "Poziomowanie instrumentow: wylaczone (zmien)", "dotyczy nastepnych stanowisk", true } }, "GEODEZJA > Narzedzia" },
+              []( const std::string& id ) { if ( id == "lvl" ) { gLevelingOn = !gLevelingOn; HudMessage( gLevelingOn ? "Poziomowanie instrumentow wlaczone" : "Poziomowanie instrumentow wylaczone" ); } else if ( id == "control" ) CtrlShowControl(); else if ( id == "world" ) CtrlLoadWorldControl(); else if ( id == "map" ) MapOpen(); else if ( id == "tp" ) CtrlOpenTeleport( 0 ); else if ( id == "rm" ) CtrlOpenRemoveMenu(); },
+              []() { ProjUiOpenHome(); } );
+  }
+
   inline void CtrlOpenMenu() {
-    if ( !gJob ) {
-      MenuOpen( MenuView{ "Menu geodezyjne", { { "start", "Rozpocznij robote", "", true }, { "world", "Zaladuj osnowe geodezyjna swiata", "", true }, { "control", "Pokaz osnowe", "", true }, { "map", "Mapa osnowy", "", true }, { "tp", "Teleport do punktu osnowy", "", true }, { "rm", "Usun osnowe", "", true },
-                                             { "lvl", gLevelingOn ? "Poziomowanie instrumentow: wlaczone (zmien)" : "Poziomowanie instrumentow: wylaczone (zmien)", "dotyczy nastepnych stanowisk", true } } },
-                []( const std::string& id ) { if ( id == "lvl" ) { gLevelingOn = !gLevelingOn; HudMessage( gLevelingOn ? "Poziomowanie instrumentow wlaczone" : "Poziomowanie instrumentow wylaczone" ); } else if ( id == "control" ) CtrlShowControl(); else if ( id == "world" ) CtrlLoadWorldControl(); else if ( id == "map" ) MapOpen(); else if ( id == "tp" ) CtrlOpenTeleport( 0 ); else if ( id == "rm" ) CtrlOpenRemoveMenu(); else CtrlOpenStartMenu(); } );
-      return;
-    }
+    if ( !gJob ) { ProjUiOpenHome(); return; }
     MenuView v{ gJob->Name(), gJob->Menu() };
     if ( gJob->Kind() == JobKind::Leveling ) v.items.push_back( { "scope", "Patrz przez lunete (" LV_KEYNAME_SCOPE ")", "najpierw niwelator i lata", gWorld.HasInstrument() && !gJob->ActiveRodPoints().empty() } );
     if ( gJob->Kind() == JobKind::Leveling ) { char b[64]; sprintf( b, "Wysun laty: teraz %.0f m (zmien na %.0f m)", gRodLenCm / 100.0f, gRodLenCm >= 500.0f ? 3.0f : gRodLenCm / 100.0f + 1.0f ); v.items.push_back( { "rodlen", b, "3, 4 albo 5 m", true } ); }
