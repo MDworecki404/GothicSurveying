@@ -24,6 +24,8 @@ int main() {
   assert(TexDecodeTexel(TEXF_RGB565, r565, 2, 1, 1, 0, 0, rgb) && rgb[2] == 255 && rgb[0] == 0);
   const unsigned char r4444[2] = {0x0F, 0xFF};                                                       // 0xFF0F: A=F R=F G=0 B=F
   assert(TexDecodeTexel(TEXF_ARGB4444, r4444, 2, 1, 1, 0, 0, rgb) && rgb[0] == 255 && rgb[1] == 0 && rgb[2] == 255);
+  const unsigned char alpha1[8] = {0x00, 0x00, 0x1F, 0x00, 0xE4, 0x00, 0x00, 0x00};                  // c0 = 0 <= c1: tryb 3-kolorowy, tekstel o indeksie 3 przezroczysty
+  assert(!TexDecodeTexel(TEXF_DXT1, alpha1, 0, 4, 4, 3, 0, rgb) && TexDecodeTexel(TEXF_DXT1, alpha1, 0, 4, 4, 1, 0, rgb));
   const unsigned char zeros[8] = {0};
   assert(!TexDecodeTexel(TEXF_DXT1, zeros, 0, 4, 4, 0, 0, rgb));                                     // zerowy blok = brak danych
   assert(!TexDecodeTexel(TEXF_PAL8, argb, 8, 2, 1, 0, 0, rgb) && !TexDecodeTexel(TEXF_DXT1, nullptr, 0, 4, 4, 0, 0, rgb));

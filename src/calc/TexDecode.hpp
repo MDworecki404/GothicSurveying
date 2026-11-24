@@ -40,6 +40,7 @@ inline bool TexDecodeTexel(int format, const unsigned char* buf, int pitch, int 
     }
     const std::uint32_t bits = (std::uint32_t)blk[4] | ((std::uint32_t)blk[5] << 8) | ((std::uint32_t)blk[6] << 16) | ((std::uint32_t)blk[7] << 24);
     const int idx = (bits >> (2 * ((y % 4) * 4 + (x % 4)))) & 3;
+    if (format == TEXF_DXT1 && c0 <= c1 && idx == 3) return false;        // przezroczysty tekstel (tryb 3-kolorowy): brak koloru powierzchni
     return set(r[idx], g[idx], b[idx]);
   }
   const int bpp = (format <= TEXF_BGRA8888) ? 4 : (format <= TEXF_BGR888) ? 3 : (format <= TEXF_RGB565) ? 2 : 0;

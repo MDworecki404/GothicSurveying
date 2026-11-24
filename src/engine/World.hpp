@@ -184,6 +184,32 @@ namespace GOTHIC_NAMESPACE {
     }
     // Piksel tekstury w miejscu trafienia: wspolrzedne UV z interpolacji (barycentrycznie) cech wierzcholkow wielokata swiata, potem odczyt z bufora tekstury
     // (Lock + GetTextureBuffer) i wlasne dekodowanie DXT/16/32 bit (zCTexture::GetRGBAAtTexel zwraca zera dla DXT). Pierwsze probki trafiaja do logu (diagnostyka).
+    // Srednia barwa tekstury z poziomu 1 (64x64 dla 128 px; poziom 0 i 1 maja spojne dane, nizsze nie): zamiennik, gdy tekstel jest przezroczysty albo brak danych.
+    static bool LevelAverageRgb( zCTexture* tex, unsigned& rgb ) {
+      bool ok = false;
+      __try {
+        if ( tex ) {
+          const zCTextureInfo ti = tex->GetTextureInfo(); const int fmt = (int)ti.texFormat;
+          if ( ti.sizeX > 1 && ti.numMipMap > 1 && tex->Lock( 1 ) ) {
+            void* buf = nullptr; int pitch = 0;
+            if ( tex->GetTextureBuffer( 1, buf, pitch ) && buf ) {
+              const int lw = ( std::max )( 1, ti.sizeX >> 1 ), lh = ( std::max )( 1, ti.sizeY >> 1 ); long sr = 0, sg = 0, sb = 0, n = 0;
+              for ( int yy = 0; yy < lh; yy++ ) for ( int xx = 0; xx < lw; xx++ ) { unsigned char q[3]; if ( TexDecodeTexel( fmt, (const unsigned char*)buf, pitch, lw, lh, xx, yy, q ) ) { sr += q[0]; sg += q[1]; sb += q[2]; n++; } }
+              if ( n ) { rgb = ( (unsigned)( sr / n ) << 16 ) | ( (unsigned)( sg / n ) << 8 ) | (unsigned)( sb / n ); ok = true; }
+            }
+            tex->Unlock();
+          }
+        }
+      } __except ( EXCEPTION_EXECUTE_HANDLER ) { ok = false; }
+      return ok;
+    }
+    static unsigned TextureAverageCached( zCTexture* tex ) {       // 0 gdy brak; cache po wskazniku tekstury (liczone raz)
+      static std::map<zCTexture*, unsigned> cache;
+      auto it = cache.find( tex );
+      if ( it != cache.end() ) return it->second;
+      unsigned rgb = 0; if ( !LevelAverageRgb( tex, rgb ) ) rgb = 0;
+      cache[tex] = rgb; return rgb;
+    }
     static bool PolyTextureRgb( zCPolygon* poly, const zVEC3& p, unsigned& rgb ) {
       static int fails = 0, logged = 0;
       if ( fails > 20 ) return false;
@@ -268,6 +294,7 @@ namespace GOTHIC_NAMESPACE {
           unsigned c = 0; bool have = false;
           if ( r.foundPoly && !r.foundVob ) {                                        // teren i budynki ze swiata: piksel tekstury, w razie braku srednia barwa
             have = PolyTextureRgb( r.foundPoly, r.foundIntersection, c );
+            if ( !have && r.foundPoly->material && r.foundPoly->material->texture ) { c = TextureAverageCached( r.foundPoly->material->texture ); have = c != 0; }   // przezroczysty tekstel: srednia tekstury
             if ( !have ) { c = MaterialRgb( r.foundPoly->material ); have = c != 0; }
           } else if ( r.foundVob ) {                                                  // voby: material wielokata albo srednia z siatki
             if ( r.foundPoly ) c = MaterialRgb( r.foundPoly->material );
