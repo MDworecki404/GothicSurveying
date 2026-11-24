@@ -42,6 +42,15 @@ static void las_header_and_record() {
   assert(U(b, r0 + 34 + 18, 2) == 3);
 }
 
+static void raw_record_is_34_bytes_with_theta_range() {
+  const std::string raw = Tmp("als_t0.raw"); AlsRawWriter w; w.Open(raw);
+  AlsPoint p = P(1.f, 2.f, 3.f, 12.5, 4); p.theta = 12.5f; p.range = 77.25f; w.Append(p); w.Close();
+  assert(kAlsRawBytes == 34 && std::filesystem::file_size(raw) == 34);
+  std::ifstream in(raw, std::ios::binary); AlsPoint q{}; assert(alsdetail::ReadRec(in, q));
+  assert(q.theta == 12.5f && q.range == 77.25f && q.strip == 4 && q.gps == 12.5 && q.z == 3.f);
+  AlsRawWriter a; assert(a.Open(raw, true) && a.Count() == 1);                    // dopisywanie liczy rekordy po 34 B
+}
+
 static void pts_lines() {
   const std::string raw = Tmp("als_t2.raw"), pts = Tmp("als_t2.pts"), las = Tmp("als_t2.las");
   AlsRawWriter w; w.Open(raw); w.Append(P(1, 2, 3, 0, 0)); w.Append(P(4, 5, 6, 0, 1)); w.Close();
@@ -83,6 +92,6 @@ static void empty_raw() {
 }
 
 int main() {
-  las_header_and_record(); pts_lines(); strip_check_detects_offset(); control_check(); empty_raw();
+  las_header_and_record(); raw_record_is_34_bytes_with_theta_range(); pts_lines(); strip_check_detects_offset(); control_check(); empty_raw();
   std::puts("test_alslas OK"); return 0;
 }

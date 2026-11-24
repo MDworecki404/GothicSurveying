@@ -1,5 +1,6 @@
 // Zapis chmury ALS (bez Gothic API): surowy plik tymczasowy -> .pts i LAS 1.2 (format punktu 3: RGB + czas GPS), kontrola szeregow i osnowy.
-// Rekord surowy 26 B: x, y, z (float, E/N/H wzgledem punktu odniesienia), czas GPS (double), numer szeregu (u16), intensywnosc, R, G, B.
+// Rekord surowy 34 B: x, y, z (float, E/N/H wzgledem punktu odniesienia), czas GPS (double), numer szeregu (u16), intensywnosc, R, G, B,
+// kat lustra theta [st.] i zmierzona odleglosc [m] (potrzebne do ponownego georeferowania przy kalibracji boresightu).
 #pragma once
 #include <algorithm>
 #include <cmath>
@@ -15,19 +16,21 @@
 #include "calc/Control.hpp"
 #include "calc/Scan.hpp"   // scandetail::PutLE / PutD
 
-struct AlsPoint { float x, y, z; double gps; std::uint16_t strip; std::uint8_t i, r, g, b; };
+inline const int kAlsRawBytes = 34;
+struct AlsPoint { float x, y, z; double gps; std::uint16_t strip; std::uint8_t i, r, g, b; float theta = 0, range = 0; };
 
 class AlsRawWriter {
  public:
   bool Open(const std::string& path, bool append = false) {            // append: dopisuje do istniejacego pliku (wznowienie lotu)
-    long long have = 0; if (append) { std::error_code ec; const auto sz = std::filesystem::file_size(path, ec); have = ec ? 0 : (long long)(sz / 26); }
+    long long have = 0; if (append) { std::error_code ec; const auto sz = std::filesystem::file_size(path, ec); have = ec ? 0 : (long long)(sz / kAlsRawBytes); }
     out_.open(path, std::ios::binary | (append ? std::ios::app : std::ios::trunc)); count_ = have; return out_.good();
   }
   void Flush() { if (out_.is_open()) out_.flush(); }
   void Append(const AlsPoint& p) {
     out_.write(reinterpret_cast<const char*>(&p.x), 4); out_.write(reinterpret_cast<const char*>(&p.y), 4); out_.write(reinterpret_cast<const char*>(&p.z), 4);
     out_.write(reinterpret_cast<const char*>(&p.gps), 8); out_.write(reinterpret_cast<const char*>(&p.strip), 2);
-    const std::uint8_t t[4] = {p.i, p.r, p.g, p.b}; out_.write(reinterpret_cast<const char*>(t), 4); count_++;
+    const std::uint8_t t[4] = {p.i, p.r, p.g, p.b}; out_.write(reinterpret_cast<const char*>(t), 4);
+    out_.write(reinterpret_cast<const char*>(&p.theta), 4); out_.write(reinterpret_cast<const char*>(&p.range), 4); count_++;
   }
   void Close() { if (out_.is_open()) out_.close(); }
   long long Count() const { return count_; }
@@ -42,6 +45,7 @@ inline bool ReadRec(std::ifstream& in, AlsPoint& p) {
   in.read(reinterpret_cast<char*>(&p.x), 4); in.read(reinterpret_cast<char*>(&p.y), 4); in.read(reinterpret_cast<char*>(&p.z), 4);
   in.read(reinterpret_cast<char*>(&p.gps), 8); in.read(reinterpret_cast<char*>(&p.strip), 2);
   std::uint8_t t[4]; in.read(reinterpret_cast<char*>(t), 4); p.i = t[0]; p.r = t[1]; p.g = t[2]; p.b = t[3];
+  in.read(reinterpret_cast<char*>(&p.theta), 4); in.read(reinterpret_cast<char*>(&p.range), 4);
   return in.good();
 }
 }  // namespace alsdetail

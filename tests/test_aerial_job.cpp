@@ -146,6 +146,9 @@ static void flight_runs_to_end() {
   Fly(f);
   assert(f.w.removed == 1 && f.w.poses > 0 && f.job->CanFinish());
   for (const char* n : {"lot.las", "lot.pts", "trajektoria.csv", "lot_opis.txt"}) assert(std::filesystem::exists(f.w.dir + "/" + n));
+  assert(std::filesystem::exists(f.w.dir + "/lot_surowy.bin") && !std::filesystem::exists(f.w.dir + "/lot.raw"));   // surowe dane zostaja do wyrownania
+  { std::ifstream in(f.w.dir + "/lot_surowy.bin", std::ios::binary); AlsPoint q{}; assert(alsdetail::ReadRec(in, q));
+    assert(q.range > 49.0f && q.range < 60.0f && std::fabs(q.theta) <= 30.0f + 1e-3f); }                            // AGL 50 m, FOV 60 st.
   const long long c = LasCount(f.w.dir); assert(c > 100000);
   std::ifstream pts(f.w.dir + "/lot.pts"); long long n = 0; pts >> n; assert(n == c);
   assert(!f.job->SummaryLines().empty());
@@ -196,7 +199,7 @@ static void abort_midflight_writes_partial() {
   f.job->OnMenu("cancel");
   assert(!f.enabled("cancel") && f.w.removed == 1);
   const long long c = LasCount(f.w.dir); assert(c > 0 && c < 100000);
-  assert(has(Text(f.w.dir + "/lot_opis.txt"), "przerwany") && !std::filesystem::exists(f.w.dir + "/lot.raw"));
+  assert(has(Text(f.w.dir + "/lot_opis.txt"), "przerwany") && !std::filesystem::exists(f.w.dir + "/lot.raw") && std::filesystem::exists(f.w.dir + "/lot_surowy.bin"));
 }
 
 static void idle_phases_are_flown() {                                           // wznios i dolot trwaja w czasie lotu, dron nie przeskakuje na szereg

@@ -241,7 +241,7 @@ class AerialJob : public Job {
     bool append = resume;
     if (resume) {                                                          // dopisujemy tylko do plikow zgodnych ze stanem (nie krotszych, nie po zakonczonym locie)
       const auto rs = std::filesystem::file_size(rawPath_, ec); const bool r1 = !ec; const auto ts = std::filesystem::file_size(trajPath, ec); const bool r2 = !ec;
-      append = r1 && r2 && rs >= (std::uintmax_t)stripStartCount_ * 26 && ts >= (std::uintmax_t)stripStartTrajBytes_;
+      append = r1 && r2 && rs >= (std::uintmax_t)stripStartCount_ * kAlsRawBytes && ts >= (std::uintmax_t)stripStartTrajBytes_;
       if (!append) {
         const std::string nd = w_.AerialOutDir();
         if (nd.empty()) { w_.Say("Nie mozna utworzyc folderu wynikow"); path_.reset(); return false; }
@@ -249,7 +249,7 @@ class AerialJob : public Job {
         w_.Say("Wznowienie: poprzedni plik roboczy nie pasuje do zapisu (albo lot juz zakonczony); pozostale szeregi trafia do nowego folderu");
       }
     }
-    if (append) { std::filesystem::resize_file(rawPath_, (std::uintmax_t)stripStartCount_ * 26, ec); std::filesystem::resize_file(trajPath, (std::uintmax_t)stripStartTrajBytes_, ec); }
+    if (append) { std::filesystem::resize_file(rawPath_, (std::uintmax_t)stripStartCount_ * kAlsRawBytes, ec); std::filesystem::resize_file(trajPath, (std::uintmax_t)stripStartTrajBytes_, ec); }
     if (!raw_.Open(rawPath_, append)) { w_.Say("Nie mozna otworzyc plikow lotu"); path_.reset(); return false; }
     traj_.open(trajPath, std::ios::binary | (append ? std::ios::app : std::ios::trunc)); trajBytes_ = append ? stripStartTrajBytes_ : 0;
     if (!traj_.good()) { raw_.Close(); w_.Say("Nie mozna otworzyc plikow lotu"); path_.reset(); return false; }
@@ -284,7 +284,7 @@ class AerialJob : public Job {
     const double range = dist + (rangeNoise_ ? rangeRng_.Normal() * ScanNoiseSigmaM(dist) : 0.0);
     const Vec3 p = GeorefPoint(est, boreNom_, lever_, theta, range);
     AlsPoint o{(float)(p.x - originE_), (float)(p.y - originN_), (float)(p.z - originH_), kGpsT0 + clockOffset_ + tSim_, (std::uint16_t)s0_.strip, ScanIntensity(dist, cosInc, vob),
-               (std::uint8_t)((rgb >> 16) & 255), (std::uint8_t)((rgb >> 8) & 255), (std::uint8_t)(rgb & 255)};
+               (std::uint8_t)((rgb >> 16) & 255), (std::uint8_t)((rgb >> 8) & 255), (std::uint8_t)(rgb & 255), (float)theta, (float)range};
     raw_.Append(o);
   }
   bool InArea(double n, double e) const {
@@ -301,7 +301,9 @@ class AerialJob : public Job {
     std::vector<ControlPoint> cps; for (const ControlPoint& c : w_.ControlNearHero(1e9)) if (InArea(c.n, c.e)) cps.push_back(c);
     const std::vector<ControlQc> cq = AlsControlCheck(rawPath_, originN_, originE_, originH_, cps);
     WriteInfo(st, qc, cq, complete);
-    if (!keepRaw) { std::error_code ec; std::filesystem::remove(rawPath_, ec); }
+    if (!keepRaw) {                                                        // surowe dane zostaja jako lot_surowy.bin (wejscie do wyrownania), lot.raw nie sluzy juz do wznowienia
+      std::error_code ec; const std::string kept = outDir_ + "/lot_surowy.bin"; std::filesystem::remove(kept, ec); std::filesystem::rename(rawPath_, kept, ec);
+    }
     w_.RemoveDrone(); if (camFollow_) { camFollow_ = false; w_.SetFollowCamera(false); }
     flights_++; lastCount_ = st.count; path_.reset();
     char b[160];
