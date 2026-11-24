@@ -45,6 +45,9 @@ STEROWANIE
 - Zapis gry w trakcie roboty zapisuje tez stan roboty i sprzetu (GothicSurveying\stan_slot<N>.txt); wczytanie zapisu wznawia robote.
 - Skaner laserowy: "Rozpocznij robote" -> "Skaner laserowy"; postaw i wypoziomuj skaner, wybierz rozdzielczosc, skanuj; wyniki (.pts, .las) w GothicSurveying\<data>_skan.
   Model skanera: wlasny (statyw, korpus, obrotowa glowica z oknem wiazki). Rejestracja skanow: min. 3 kule referencyjne na znakach osnowy (menu skanera), stanowisko i obrot wyznaczane z kul.
+- Skaning lotniczy z drona (ALS): "Rozpocznij robote" -> "Skaning lotniczy z drona (ALS)"; wierzcholki obszaru (min. 3, pod stopami albo na punktach osnowy), AGL, predkosc, zakladka,
+  profil bledow GNSS/IMU, gestosc impulsow; "Podglad planu nalotu" (mapa), "Zapisz plan nalotu (CSV)", "Start lotu" (dron startuje spod stop bohatera, leci sam). Wyniki w
+  GothicSurveying\<data>_lot: lot.las (LAS 1.2, RGB, czas GPS, numer szeregu), lot.pts, trajektoria.csv, plan_nalotu.csv, lot_opis.txt (kontrola szeregow i osnowy).
 - Kolory skanera: raz uruchom NARZEDZIAmake_texture_colors.py "<katalog gry>" (Python 3; ok. 20 s) - tworzy GothicSurveying	excolors.bin z miniaturek tekstur gry. Bez niego punkty maja kolory zapasowe/szare.
 - Osnowa swiata: "Zaladuj osnowe geodezyjna swiata" (wzorcowe punkty G.. dla Khorinis, Doliny Gornickiej i Jarkendaru), "Mapa osnowy" (mapa swiata z punktami),
   "Teleport do punktu osnowy". Pomiar GNSS: wlasna baza (poprawki RTK) i pomiar statyczny.

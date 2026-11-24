@@ -234,6 +234,31 @@ liczbę kul, rms dopasowania, współrzędne stanowiska (N, E, H osi skanera) i 
 voby nie są wykrywane (wystarczą 3 widoczne); gdy rejestracja się nie uda (za mało kul, niezgodność współrzędnych), skan zostaje w układzie lokalnym jako `skanNN_lokalny.pts/.las`.
 Przy zbyt grubej rozdzielczości mała kula może wypaść między promieniami skanu przeglądowego — wtedy wybierz drobniejszy krok.
 
+## Skaning lotniczy z drona (ALS)
+
+„Rozpocznij robotę” → „Skaning lotniczy z drona (ALS)” (pytanie, czy pokazać prawdziwy błąd, czyli ukryty błąd boresightu w opisie lotu). Cel: zaplanować nalot i zobaczyć, jak błędy trajektorii GNSS/IMU,
+boresightu i ramienia dźwigni (lever arm) przenoszą się na chmurę punktów. Dron startuje spod stóp bohatera i leci sam; skaner liniowy (obracające się lustro, FOV 60°, linie skanu prostopadle do kierunku lotu)
+puszcza promienie jak skaner naziemny (zasięg do 250 m, szum 1,5 mm + 10 ppm).
+
+**Plan nalotu.** Obszar to 3–12 wierzchołków: „Dodaj wierzchołek obszaru (pod stopami)” albo „(punkt osnowy)” z listy. Parametry (menu): AGL 30/50/80/100/150 m, prędkość 3/5/6/8 m/s,
+zakładka boczna 20/30/40%, kierunek szeregów (domyślnie wzdłuż najdłuższego boku albo 0/45/90/135°), wysokość „podąża za terenem” (stałe AGL, wygładzone) albo stała bezwzględna, profil błędów
+(RTK dobry ok. 2 cm / PPK / słaby z dryfem) i gęstość impulsów (2/5/10/20 kHz). Plan to szeregi z naprzemiennym kierunkiem (wielokąty wklęsłe dzielą się na odcinki). Hud i „Podgląd planu nalotu”
+(powiększony kadr: obszar żółty, szeregi zielone, dojazd czerwony, punkty osnowy w kadrze) pokazują liczbę szeregów, pas, odstęp, czas lotu, szacowaną gęstość i zapas baterii (25 min, zapas 25%);
+za długi plan nie wystartuje. „Zapisz plan nalotu (CSV)” zapisuje `plan_nalotu.csv`. Przed startem plugin ostrzega o szeregach przecinających teren lub obiekty (bez omijania).
+
+**Lot.** „Start lotu”: dron (korpus, cztery obracające się śmigła, głowica LiDAR) wznosi się, dolatuje do pierwszego szeregu, skanuje po kolei i wraca. Czas symulacji rośnie z impulsami, więc gęstość
+nie zależy od FPS; w każdej klatce plugin zużywa ok. 12 ms. „Przerwij lot” kończy z częściowym wynikiem, „Kamera za dronem” (eksperymentalna) ustawia kamerę 12 m za nim.
+Georeferencja jest bezpośrednia: `P = X_gnss + R(imu)·(R_boresight·r + lever)`; wiązka biegnie z prawdziwej pozycji i z prawdziwym (ukrytym) montażem skanera, a punkt jest liczony
+z estymaty trajektorii (GNSS: szum + dryf, IMU: szum + bias, boresight nominalny), więc błąd trajektorii widać w chmurze tak jak w prawdziwym ALS.
+
+**Wyniki** (folder `GothicSurveying/RRRR-MM-DD_GG-MM-SS_lot/`): `lot.las` (LAS 1.2, format 3: RGB, intensywność, czas GPS = 345600 s + czas lotu, numer szeregu jako „point source id”, skala 1 mm z offsetem),
+`lot.pts`, `trajektoria.csv` (co 0,1 s: prawdziwa pozycja i kąty oraz estymata GNSS/IMU), `plan_nalotu.csv` i `lot_opis.txt`. Opis zawiera parametry, profil błędów, zakres chmury, **kontrolę szeregów**
+(różnica wysokości w zakładkach, `meanDz` i rms dla par kolejnych szeregów; bez wyrównania) oraz **kontrolę na punktach osnowy** w obszarze (mediana dolnej ćwiartki H chmury w promieniu 2 m minus H punktu osnowy).
+Przy opcji prawdziwego błędu opis podaje też ukryty błąd boresightu. Punkty zapisują się strumieniowo.
+
+**Zapis gry w trakcie lotu:** zapisuje plan i ustawienia; po wczytaniu lot wznawia się od początku bieżącego szeregu (wcześniejsze szeregi zostają, trajektoria dojazdu po wznowieniu nie jest zapisywana).
+Dron i jego śmigła to modele `LVL_DRONE.3DS` i `LVL_PROP.3DS` z `assets/make_models.py`. Plan i trajektoria są niezależne od sensora (`SensorSpec`), żeby później posłużyć fotogrametrii lotniczej.
+
 ## Poziomowanie instrumentu
 
 **Domyślnie włączone** (dla niwelatora i tachimetru). Tachimetr domyślnie mierzy też w **dwóch położeniach lunety** (KL+KP) — wyłączysz to w menu roboty „Położenia lunety”.
@@ -282,6 +307,7 @@ Opis przy decymetrze to jego numer od podstawy łaty (`14` = 1,40 m). Nieparzyst
 
 - `src/calc/` – czyste obliczenia bez silnika (testowane): `LevelMath.hpp` (odczyt, dalmierz), `Traverse.hpp` (przewyższenia, fh, poprawki, wysokości),
   `FieldBook.hpp` (dziennik + CSV), `Docx.hpp` (zapis DOCX), `ManualCheck.hpp` (sprawdzanie trybu samodzielnego).
+- `src/calc/` (lotnictwo): `Flight.hpp` (plan nalotu), `Georef.hpp` (trajektoria, błędy GNSS/IMU, georeferencja), `AlsLas.hpp` (LAS 1.2 format 3, PTS, kontrole szeregów i osnowy).
 - `src/job/` – interfejs `Job`/`IWorld` i automat ciągu niwelacyjnego (bez silnika, testowany sztucznym światem); nowe roboty rejestruje się w `Jobs.hpp`.
 - `src/engine/` – część zależna od Gothic API: panele, stawianie, luneta, menu, adapter `EngineWorld`, kontroler, eksport, podgląd i edytor dziennika.
 - `src/Plugin.hpp` – hook `zCWorld::Render` (pętla klatki), `userapi/zCWorld.inl` – deklaracja hooka.
@@ -297,7 +323,8 @@ Jeśli cyfry na łacie są w grze do góry nogami, ustaw `FLIP_V = True` w `asse
 ## Znane ograniczenia
 
 - Zapis gry w trakcie roboty zapisuje też stan roboty i sprzętu (patrz „Zapis gry w trakcie roboty”). Trwający pomiar punktu GNSS (sesja) i połowa pomiaru KL bez KP nie są zapisywane; zapisy zrobione wersją bez tej funkcji nie mają stanu.
-- Cztery roboty: ciąg niwelacyjny, pomiar GNSS (RTK), tachimetria i niwelacja trygonometryczna (jeden odcinek naraz, bez wyrównania całego ciągu).
+- Roboty: ciąg niwelacyjny, pomiar GNSS (RTK), tachimetria, niwelacja trygonometryczna (jeden odcinek naraz, bez wyrównania całego ciągu), skaner laserowy naziemny i skaning lotniczy z drona.
+- ALS: bez wyrównania szeregów i kalibracji boresightu, bez omijania przeszkód i ręcznego latania; kamera za dronem jest eksperymentalna (kamera gry może ją nadpisać); fotogrametria lotnicza to osobna, późniejsza faza.
 - Tachimetria: bez wcięcia w przód i bez wyrównania osnowy ani wspólnego wyrównania stanowisk.
 - Pomiar GNSS: poprawki z własnej bazy to model uproszczony (1 ppm + przesunięcie bazy), bez wielu baz i bez przetwarzania linii bazowych; statyka to pojedyncza sesja 120 epok.
 - Kreski dalmiercze liczone są dla pola widzenia gry; przy bardzo wąskim FOV mogą wypaść poza lunetę (wtedy są pomijane, wpis w `GothicSurveying.log`).

@@ -1,6 +1,6 @@
 # Skaning lotniczy z drona (ALS) - projekt
 
-Data: 2026-11-24. Stan wyjsciowy: main, v0.7.0.
+Data: 2026-11-24. Stan wyjsciowy: main, v0.7.0. Status: wdrozone na galezi als-dron (lokalnie, bez wydania).
 
 ## Cel i po co
 
