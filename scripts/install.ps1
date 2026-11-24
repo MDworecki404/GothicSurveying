@@ -30,7 +30,7 @@ python (Join-Path $root "assets\make_models.py") $Game
 if ($LASTEXITCODE -ne 0) { throw "Generowanie modeli nie powiodlo sie (potrzebny Python 3)." }
 
 # kolory tekstur do skanera laserowego: miniaturki z archiwow VDF gry (raz; ok. 20 s)
-if (-not (Test-Path (Join-Path $Game "GothicSurveying	excolors.bin"))) {
+if (-not (Test-Path (Join-Path $Game "GothicSurveying\texcolors.bin"))) {
     python -X utf8 (Join-Path $root "assets\make_texture_colors.py") $Game
     if ($LASTEXITCODE -ne 0) { Write-Warning "Nie udalo sie wygenerowac texcolors.bin - skaner uzyje zapasowych kolorow." }
 }
