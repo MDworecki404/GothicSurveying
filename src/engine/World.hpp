@@ -214,6 +214,16 @@ namespace GOTHIC_NAMESPACE {
           if ( lk ) {
             void* buf = nullptr;
             gb = tex->GetTextureBuffer( 0, buf, pitch );
+            static int diagTex = 0;                                                  // diagnostyka ukladu poziomow: pitch i wskaznik dla kazdego poziomu pierwszych tekstur
+            if ( diagTex < 4 && ti.numMipMap > 0 ) {
+              diagTex++; char d[400]; int n = sprintf( d, "skan: poziomy tekstury %dx%d (ref %dx%d) mip=%d fmt=%d:", ti.sizeX, ti.sizeY, ti.refSizeX, ti.refSizeY, ti.numMipMap, fmt );
+              for ( int lv = 0; lv < ti.numMipMap && lv < 9 && n < 330; lv++ ) {
+                void* b2 = nullptr; int p2 = 0; const int g2 = tex->GetTextureBuffer( lv, b2, p2 );
+                n += sprintf( d + n, " [%d: g=%d pitch=%d buf=%p]", lv, g2, p2, b2 );
+              }
+              SvTrace( d );
+              gb = tex->GetTextureBuffer( 0, buf, pitch );
+            }
             if ( gb && buf ) {
               memcpy( head, buf, 8 );
               unsigned char c3[3];
