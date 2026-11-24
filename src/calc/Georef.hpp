@@ -124,6 +124,7 @@ class TrajectoryNoise {
   }
   Rot3 TrueBoresight() const { return RotFromRpy(bore_[0], bore_[1], bore_[2]); }
   void BoresightDeg(double& r, double& p, double& y) const { r = bore_[0]; p = bore_[1]; y = bore_[2]; }
+  void BiasDeg(double& r, double& p, double& y) const { r = bias_[0]; p = bias_[1]; y = bias_[2]; }   // staly bias IMU (nierozroznialny od boresightu)
  private:
   GnssRng rng_; ErrorProfile p_; double bias_[3], bore_[3], drift_[3] = {0, 0, 0}, last_ = 0; bool first_ = true;
 };
