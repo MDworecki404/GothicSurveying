@@ -21,12 +21,14 @@ struct FlightParams {
   std::vector<PlanPt> area;
   double stripAzDeg = 0, aglM = 50, speedMps = 5, sidelapPct = 30, batteryMin = 25, reservePct = 25;
   bool followTerrain = true;
+  int crossStrips = 0;                                             // szeregi kalibracyjne: tyle szeregow prostopadlych do glownych (0 = brak); daja obserwowalnosc pitch/yaw boresightu
   SensorSpec sensor;
 };
 struct Strip { int id; PlanPt a, b; double lengthM; int sortie = 0; };   // a->b = kierunek lotu; sortie = numer lotu na jednej baterii
 struct FlightPlan {
   std::vector<Strip> strips;
   double swathM = 0, spacingM = 0, scanTimeS = 0, flightTimeS = 0, estDensityPtsM2 = 0;
+  int crossCount = 0;                                              // ile ostatnich szeregow to szeregi kalibracyjne
   int sorties = 1;                                                 // liczba lotow (baterii): po wyczerpaniu dron wraca do bazy, wymienia baterie i leci dalej
   bool ok = false; std::string msg;
 };
@@ -34,34 +36,47 @@ struct FlightPlan {
 inline FlightPlan PlanFlight(const FlightParams& p, PlanPt home) {
   FlightPlan pl; const double pi = 3.14159265358979323846;
   if (p.area.size() < 3) { pl.msg = "obszar wymaga co najmniej 3 wierzcholkow"; return pl; }
-  const double az = p.stripAzDeg * pi / 180.0, ca = std::cos(az), sa = std::sin(az), n0 = p.area[0].n, e0 = p.area[0].e;
-  struct UV { double u, v; };
-  std::vector<UV> q;                                              // u wzdluz szeregow, v w poprzek (v = wschod dla azymutu 0)
-  for (const PlanPt& a : p.area) q.push_back({(a.n - n0) * ca + (a.e - e0) * sa, -(a.n - n0) * sa + (a.e - e0) * ca});
-  double area2 = 0, vmin = q[0].v, vmax = q[0].v;
-  for (size_t i = 0, j = q.size() - 1; i < q.size(); j = i++) { area2 += q[j].u * q[i].v - q[i].u * q[j].v; vmin = (std::min)(vmin, q[i].v); vmax = (std::max)(vmax, q[i].v); }
+  double area2 = 0;
+  for (size_t i = 0, j = p.area.size() - 1; i < p.area.size(); j = i++) area2 += p.area[j].e * p.area[i].n - p.area[i].e * p.area[j].n;
   if (std::fabs(area2) / 2.0 < 1.0) { pl.msg = "pole obszaru zbyt male (mniej niz 1 m2)"; return pl; }
   pl.swathM = 2.0 * p.aglM * std::tan(p.sensor.fovDeg * pi / 360.0);
   pl.spacingM = pl.swathM * (1.0 - p.sidelapPct / 100.0);
   if (pl.spacingM < 0.5) { pl.msg = "odstep szeregow zbyt maly (zakladka lub AGL)"; return pl; }
-  const double width = vmax - vmin;
-  const int nLines = (std::max)(1, (int)std::ceil(width / pl.spacingM - 1e-9));
-  const double v0 = vmin + (width - (nLines - 1) * pl.spacingM) / 2.0;
-  for (int li = 0; li < nLines; li++) {
-    const double c = v0 + li * pl.spacingM; std::vector<double> xs;
-    for (size_t i = 0, j = q.size() - 1; i < q.size(); j = i++)    // polotwarta regula: wierzcholek na linii liczy sie raz
-      if ((q[j].v <= c) != (q[i].v <= c)) xs.push_back(q[j].u + (c - q[j].v) / (q[i].v - q[j].v) * (q[i].u - q[j].u));
-    std::sort(xs.begin(), xs.end());
-    std::vector<Strip> row;
-    for (size_t k = 0; k + 1 < xs.size(); k += 2) {
-      if (xs[k + 1] - xs[k] < 1e-6) continue;
-      const double u1 = xs[k], u2 = xs[k + 1];
-      const PlanPt a{n0 + u1 * ca - c * sa, e0 + u1 * sa + c * ca}, b{n0 + u2 * ca - c * sa, e0 + u2 * sa + c * ca};
-      row.push_back({0, a, b, u2 - u1});
+  // Szeregi o azymucie azDeg (0 = wzdluz N). count > 0: tyle linii rownomiernie w poprzek obszaru; count <= 0: linie co spacing, wysrodkowane.
+  auto build = [&](double azDeg, int count, double spacing) {
+    const double az = azDeg * pi / 180.0, ca = std::cos(az), sa = std::sin(az), n0 = p.area[0].n, e0 = p.area[0].e;
+    struct UV { double u, v; };
+    std::vector<UV> q;                                              // u wzdluz szeregow, v w poprzek (v = wschod dla azymutu 0)
+    for (const PlanPt& a : p.area) q.push_back({(a.n - n0) * ca + (a.e - e0) * sa, -(a.n - n0) * sa + (a.e - e0) * ca});
+    double vmin = q[0].v, vmax = q[0].v;
+    for (const UV& t : q) { vmin = (std::min)(vmin, t.v); vmax = (std::max)(vmax, t.v); }
+    const double width = vmax - vmin;
+    const int nLines = count > 0 ? count : (std::max)(1, (int)std::ceil(width / spacing - 1e-9));
+    const double step = count > 0 ? width / nLines : spacing, v0 = count > 0 ? vmin + step / 2.0 : vmin + (width - (nLines - 1) * step) / 2.0;
+    std::vector<Strip> out;
+    for (int li = 0; li < nLines; li++) {
+      const double c = v0 + li * step; std::vector<double> xs;
+      for (size_t i = 0, j = q.size() - 1; i < q.size(); j = i++)    // polotwarta regula: wierzcholek na linii liczy sie raz
+        if ((q[j].v <= c) != (q[i].v <= c)) xs.push_back(q[j].u + (c - q[j].v) / (q[i].v - q[j].v) * (q[i].u - q[j].u));
+      std::sort(xs.begin(), xs.end());
+      std::vector<Strip> row;
+      for (size_t k = 0; k + 1 < xs.size(); k += 2) {
+        if (xs[k + 1] - xs[k] < 1e-6) continue;
+        const double u1 = xs[k], u2 = xs[k + 1];
+        const PlanPt a{n0 + u1 * ca - c * sa, e0 + u1 * sa + c * ca}, b{n0 + u2 * ca - c * sa, e0 + u2 * sa + c * ca};
+        row.push_back({0, a, b, u2 - u1});
+      }
+      if (li % 2 == 1) { std::reverse(row.begin(), row.end()); for (Strip& s : row) std::swap(s.a, s.b); }   // naprzemienny kierunek
+      for (Strip& s : row) out.push_back(s);
     }
-    if (li % 2 == 1) { std::reverse(row.begin(), row.end()); for (Strip& s : row) std::swap(s.a, s.b); }   // naprzemienny kierunek
-    for (Strip& s : row) { s.id = (int)pl.strips.size(); pl.strips.push_back(s); }
+    return out;
+  };
+  pl.strips = build(p.stripAzDeg, 0, pl.spacingM);
+  if (p.crossStrips > 0 && !pl.strips.empty()) {                    // szeregi kalibracyjne: prostopadle, na koncu planu
+    const std::vector<Strip> cross = build(p.stripAzDeg + 90.0, p.crossStrips, 0);
+    pl.strips.insert(pl.strips.end(), cross.begin(), cross.end()); pl.crossCount = (int)cross.size();
   }
+  for (size_t i = 0; i < pl.strips.size(); i++) pl.strips[i].id = (int)i;
   if (pl.strips.empty()) { pl.msg = "brak szeregow w obszarze"; return pl; }
   auto leg = [&](PlanPt a, PlanPt b) { return std::hypot(a.n - b.n, a.e - b.e) / kTransitMps; };
   const double vert = p.aglM / kClimbMps, usable = p.batteryMin * 60.0 * (1.0 - p.reservePct / 100.0);   // wznios albo ladowanie; czas lotu na jednej baterii

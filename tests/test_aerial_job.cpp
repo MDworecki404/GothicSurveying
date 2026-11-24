@@ -120,6 +120,15 @@ static void params_change_plan() {
   assert(f.Lines(0) == 4);
 }
 
+static void calibration_strips_menu_and_state() {
+  Fx f; f.Square(100); assert(has(f.job->Hud(), "szeregow: 3"));
+  f.job->OnMenu("calib"); assert(has(f.job->Hud(), "szeregow: 6") && f.Lines(1) == 6);
+  StateKV s; f.job->SaveState(s);
+  std::unique_ptr<Job> j2 = CreateAerialJob(f.w, JobOptions{TraverseKind::Open, CalcMode::Auto}); assert(j2->LoadState(s));
+  assert(has(j2->Hud(), "szeregow: 6"));
+  f.job->OnMenu("calib"); assert(has(f.job->Hud(), "szeregow: 3"));              // przelacznik wraca
+}
+
 static void plan_csv_written() {
   Fx f; f.Square(100); f.job->OnMenu("plan_csv");
   std::ifstream in(f.w.dir + "/plan_nalotu.csv"); std::string line; std::getline(in, line);
@@ -294,6 +303,6 @@ int main() {
   abort_midflight_writes_partial(); idle_phases_are_flown(); finish_false_midflight_converts_and_keeps_raw(); state_roundtrip();
   resume_after_finished_flight_keeps_old_result(); resume_with_short_raw_uses_new_folder(); open_failure_refuses_launch(); strip_and_control_report(); route_blocked_warns_but_flies();
   registry_and_kind(); vertices_and_plan(); launch_needs_area(); long_plan_flies_with_battery_swaps(); area_clear_and_vertex_limit();
-  area_rect_from_two_corners(); ctrl_vertex_from_list(); params_change_plan(); plan_csv_written();
+  area_rect_from_two_corners(); calibration_strips_menu_and_state(); ctrl_vertex_from_list(); params_change_plan(); plan_csv_written();
   std::puts("test_aerial_job OK"); return 0;
 }

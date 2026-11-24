@@ -83,6 +83,29 @@ static void takeoff_is_quick() {                                               /
   assert(pl.flightTimeS < 150.0);
 }
 
+static void cross_strips_perpendicular() {                                      // szeregi kalibracyjne: prostopadle do glownych, wewnatrz obszaru
+  FlightParams p = Square(); const FlightPlan base = PlanFlight(p, {N0, E0});
+  assert(base.crossCount == 0 && base.strips.size() == 3);                       // domyslnie wylaczone
+  p.crossStrips = 3; const FlightPlan pl = PlanFlight(p, {N0, E0});
+  assert(pl.ok && pl.crossCount == 3 && pl.strips.size() == 6 && pl.flightTimeS > base.flightTimeS);
+  auto dir = [](const Strip& s) { const double d = std::hypot(s.b.n - s.a.n, s.b.e - s.a.e); return PlanPt{(s.b.n - s.a.n) / d, (s.b.e - s.a.e) / d}; };
+  const PlanPt d0 = dir(pl.strips[0]);
+  for (size_t k = 3; k < 6; k++) {
+    const PlanPt d = dir(pl.strips[k]); assert(near(d0.n * d.n + d0.e * d.e, 0.0, 1e-9));
+    assert(InPoly(p.area, pl.strips[k].a.n, pl.strips[k].a.e) && InPoly(p.area, pl.strips[k].b.n, pl.strips[k].b.e) && near(pl.strips[k].lengthM, 100.0, 1e-6));
+    assert(pl.strips[k].id == (int)k);
+  }
+  assert(near(pl.strips[3].a.n, N0 + 100.0 - 100.0 / 6.0, 1e-6) && near(pl.strips[4].a.n, N0 + 50.0, 1e-6) && near(pl.strips[5].a.n, N0 + 100.0 / 6.0, 1e-6));   // rownomiernie w poprzek (od polnocy ku poludniu dla azymutu 90)
+  for (int k : {3, 4}) assert(pl.strips[k].a.e != pl.strips[k + 1].a.e);          // kierunki naprzemienne
+}
+
+static void cross_strips_in_concave_area() {
+  FlightParams p = Square(); p.stripAzDeg = 90; p.crossStrips = 3;
+  p.area = {{N0, E0}, {N0 + 100, E0}, {N0 + 100, E0 + 30}, {N0 + 30, E0 + 30}, {N0 + 30, E0 + 70}, {N0 + 100, E0 + 70}, {N0 + 100, E0 + 100}, {N0, E0 + 100}};
+  const FlightPlan pl = PlanFlight(p, {N0, E0}); assert(pl.ok && pl.crossCount >= 3);
+  for (const Strip& s : pl.strips) assert(InPoly(p.area, (s.a.n + s.b.n) / 2, (s.a.e + s.b.e) / 2) && InPoly(p.area, s.a.n, s.a.e));
+}
+
 static void csv_header_and_rows() {
   const FlightParams p = Square(); const FlightPlan pl = PlanFlight(p, {N0, E0});
   const std::string csv = PlanCsv(pl, p);
@@ -92,6 +115,6 @@ static void csv_header_and_rows() {
 }
 
 int main() {
-  square_plan_values(); degenerate_area_refused(); concave_u_shape_splits(); battery_swaps(); takeoff_is_quick(); csv_header_and_rows();
+  square_plan_values(); degenerate_area_refused(); concave_u_shape_splits(); battery_swaps(); takeoff_is_quick(); cross_strips_perpendicular(); cross_strips_in_concave_area(); csv_header_and_rows();
   std::puts("test_flight OK"); return 0;
 }

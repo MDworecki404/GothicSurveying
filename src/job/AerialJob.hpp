@@ -26,12 +26,13 @@ class AerialJob : public Job {
   bool NeedsChoice(const std::string& menuId) const override { return menuId == "area_ctrl"; }
 
   std::vector<MenuItem> Menu() const override {
-    char agl[96], spd[96], sid[96], az[96], fol[120], prof[120], pre[120], bat[120];
+    char agl[96], spd[96], sid[96], az[96], fol[120], prof[120], pre[120], bat[120], calib[120];
     std::snprintf(agl, sizeof agl, "Wysokosc nad terenem (AGL): %.0f m (zmien)", params_.aglM);
     std::snprintf(spd, sizeof spd, "Predkosc: %.0f m/s (zmien)", params_.speedMps);
     std::snprintf(sid, sizeof sid, "Zakladka boczna: %.0f%% (zmien)", params_.sidelapPct);
     if (azMode_ == 0) std::snprintf(az, sizeof az, "Kierunek szeregow: wzdluz najdluzszego boku (zmien)"); else std::snprintf(az, sizeof az, "Kierunek szeregow: %.0f st. (zmien)", kAzChoices[azMode_]);
     std::snprintf(fol, sizeof fol, "%s", params_.followTerrain ? "Wysokosc: podaza za terenem (zmien)" : "Wysokosc: stala bezwzgledna (zmien)");
+    std::snprintf(calib, sizeof calib, "%s", params_.crossStrips > 0 ? "Szeregi kalibracyjne: 3 poprzeczne (zmien)" : "Szeregi kalibracyjne: wylaczone (zmien)");
     std::snprintf(bat, sizeof bat, "Bateria: %.0f min lotu, zapas %.0f%% (zmien)", params_.batteryMin, params_.reservePct);
     std::snprintf(prof, sizeof prof, "Profil bledow GNSS/IMU: %s (zmien)", kAlsProfiles[profile_].name);
     std::snprintf(pre, sizeof pre, "Gestosc impulsow: %s (zmien)", kAlsPresets[preset_].name);
@@ -42,6 +43,7 @@ class AerialJob : public Job {
       {"area_clear", "Wyczysc obszar", "brak wierzcholkow", !flying_ && !area_.empty()},
       {"agl", agl, "30 / 50 / 80 / 100 / 150 m", !flying_}, {"speed", spd, "3 / 5 / 6 / 8 m/s", !flying_}, {"sidelap", sid, "20 / 30 / 40 %", !flying_},
       {"azimuth", az, "wzdluz boku albo 0 / 45 / 90 / 135 st.", !flying_}, {"follow", fol, "AGL liczone od terenu albo stala wysokosc", !flying_},
+      {"calib", calib, "dodatkowe szeregi prostopadle: pozwalaja wyznaczyc pitch i yaw boresightu takze na plaskim terenie", !flying_},
       {"battery", bat, "po wyczerpaniu dron wraca do bazy, wymienia baterie i leci dalej", !flying_},
       {"profile", prof, "RTK dobry / PPK / slaby", !flying_}, {"preset", pre, "wiecej impulsow = gestsza chmura, dluzej w grze", !flying_},
       {"plan_csv", "Zapisz plan nalotu (CSV)", "najpierw zdefiniuj obszar", plan_.ok && !flying_},
@@ -80,6 +82,7 @@ class AerialJob : public Job {
     } else if (base == "speed") { Cycle(params_.speedMps, kSpeed, 4);
     } else if (base == "sidelap") { Cycle(params_.sidelapPct, kSidelap, 3);
     } else if (base == "azimuth") { azMode_ = (azMode_ + 1) % 5; Replan();
+    } else if (base == "calib") { params_.crossStrips = params_.crossStrips > 0 ? 0 : 3; Replan();
     } else if (base == "battery") { Cycle(params_.batteryMin, kBattery, 5);
     } else if (base == "follow") { params_.followTerrain = !params_.followTerrain;
     } else if (base == "profile") { profile_ = (profile_ + 1) % 3;
@@ -125,7 +128,7 @@ class AerialJob : public Job {
     raw_.Flush(); traj_.flush();
     s.Bool("aerial", true); s.Int("area.n", (long long)area_.size());
     for (size_t i = 0; i < area_.size(); i++) { s.Num("area." + std::to_string(i) + ".n", area_[i].n); s.Num("area." + std::to_string(i) + ".e", area_[i].e); }
-    s.Num("battery", params_.batteryMin); s.Num("agl", params_.aglM); s.Num("speed", params_.speedMps); s.Num("sidelap", params_.sidelapPct); s.Bool("follow", params_.followTerrain);
+    s.Num("battery", params_.batteryMin); s.Int("calib", params_.crossStrips); s.Num("agl", params_.aglM); s.Num("speed", params_.speedMps); s.Num("sidelap", params_.sidelapPct); s.Bool("follow", params_.followTerrain);
     s.Int("azMode", azMode_); s.Int("profile", profile_); s.Int("preset", preset_); s.Int("seed", (long long)seed_); s.Int("flights", flights_); s.Int("lastCount", lastCount_); s.Str("outDir", outDir_);
     s.Bool("flying", flying_); s.Int("resumeStrip", CurStrip()); s.Int("stripStartCount", stripStartCount_); s.Int("stripStartTrajBytes", stripStartTrajBytes_);
     s.Num("stripStartSimT", stripStartSimT_); s.Num("home.n", home_.n); s.Num("home.e", home_.e); s.Num("home.h", homeGroundH_); s.Bool("homeSet", home_set_);
@@ -135,7 +138,7 @@ class AerialJob : public Job {
     if (flying_) { raw_.Close(); traj_.close(); w_.RemoveDrone(); flying_ = false; }
     area_.clear(); const int n = s.GetInt("area.n");
     for (int i = 0; i < n; i++) area_.push_back({s.GetNum("area." + std::to_string(i) + ".n"), s.GetNum("area." + std::to_string(i) + ".e")});
-    params_.batteryMin = s.GetNum("battery", 25); params_.aglM = s.GetNum("agl", 50); params_.speedMps = s.GetNum("speed", 5); params_.sidelapPct = s.GetNum("sidelap", 30); params_.followTerrain = s.GetBool("follow", true);
+    params_.batteryMin = s.GetNum("battery", 25); params_.crossStrips = s.GetInt("calib"); params_.aglM = s.GetNum("agl", 50); params_.speedMps = s.GetNum("speed", 5); params_.sidelapPct = s.GetNum("sidelap", 30); params_.followTerrain = s.GetBool("follow", true);
     azMode_ = s.GetInt("azMode") % 5; profile_ = s.GetInt("profile") % 3; preset_ = s.GetInt("preset") % 4; seed_ = (uint32_t)s.GetNum("seed", seed_);
     params_.sensor.pulseHz = kAlsPresets[preset_].pulseHz; params_.sensor.lineHz = kAlsPresets[preset_].lineHz;
     flights_ = s.GetInt("flights"); lastCount_ = (long long)s.GetNum("lastCount"); outDir_ = s.GetStr("outDir");
