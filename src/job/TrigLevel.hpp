@@ -107,6 +107,12 @@ class TrigLevelJob : public Job {
   }
 
   bool CanFinish() const override { return !legs_.empty() && phase_ == 0; }
+  std::string NextStep() const override {
+    if (!hasA_) return "reper_a";
+    if (!instUp_) return "inst";
+    if (!prismUp_) return "prism";
+    return "view";
+  }
 
   TachyReport FinishTachy(bool complete) override {
     TachyReport r; r.complete = complete; r.showTrueError = opt_.showTrueError; r.trig = true; r.legs = legs_; r.points = points_;

@@ -197,6 +197,13 @@ class TachyStationJob : public Job {
   }
 
   bool CanFinish() const override { return !points_.empty(); }
+  std::string NextStep() const override {
+    if (!stationUp_) return "station";
+    if (BackCount() < 1) return "backsight";
+    if (!oriented_) return "view";                     // orientacja: pomiar nawiazania w lunecie
+    if (!reflectorless_ && !prismUp_) return "prism";
+    return "view";
+  }
   void Tick() override { gnss_->Tick(); }                                 // epoki odbiornika GNSS plyna w czasie gry
   std::vector<std::string> StatusLines() const override { return gnss_->StatusLines(); }   // panel odbiornika, gdy tyczka GNSS stoi
 

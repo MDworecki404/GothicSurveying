@@ -92,6 +92,7 @@ class Job {
   virtual bool OnReading(int pointId, int midMm) = 0;             // odczyt środkowej kreski; dalmierz liczy robota sama
   virtual std::string Hud() const = 0;                            // ASCII
   virtual bool CanFinish() const = 0;
+  virtual std::string NextStep() const { return ""; }          // id kolejnej czynnosci do wykonania (pozycja Menu() albo "scope" dokladane przez kontroler); "" = brak rekomendacji
   virtual std::vector<std::string> SummaryLines() const { return {}; }   // podsumowanie roboty (skaner) do panelu po zakonczeniu
   virtual bool CanSaveState() const { return false; }              // czy robota umie zapisac stan (zapis gry w trakcie roboty)
   virtual void SaveState(StateKV& s) const { (void)s; }

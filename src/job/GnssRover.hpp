@@ -107,6 +107,11 @@ class GnssRover : public Job {
   }
 
   bool CanFinish() const override { return !points_.empty() && !measuring_; }
+  std::string NextStep() const override {
+    if (!poleUp_) return "pole";
+    if (!measuring_) return "start";
+    return CanStore() ? "store" : "";                  // w trakcie sesji czekamy na wystarczajaco epok
+  }
 
   GnssReport FinishGnss(bool complete) override {
     GnssReport r; r.complete = complete; r.showTrueError = opt_.showTrueError; r.points = points_;

@@ -60,7 +60,8 @@ inline std::vector<MenuItem> Arrange(JobKind kind, std::vector<MenuItem> items) 
   (void)kind;
   const auto& tab = wf_detail::Table();
   auto rank = [&](const MenuItem& m) -> std::pair<int, int> {
-    for (size_t i = 0; i < tab.size(); i++) if (m.id == tab[i].id) return { (int)tab[i].sec, (int)i };
+    const std::string base = m.id.compare(0, 2, "g_") == 0 ? m.id.substr(2) : m.id;      // "g_*": odbiornik GNSS w tachimetrii, jak pozycja bazowa
+    for (size_t i = 0; i < tab.size(); i++) if (base == tab[i].id) return { (int)tab[i].sec, (int)i };
     return { (int)Section::Advanced, (int)tab.size() };                         // nieznane id: Zaawansowane, za znanymi
   };
   for (MenuItem& m : items) {
@@ -69,4 +70,13 @@ inline std::vector<MenuItem> Arrange(JobKind kind, std::vector<MenuItem> items) 
   }
   std::stable_sort(items.begin(), items.end(), [&](const MenuItem& a, const MenuItem& b) { return rank(a) < rank(b); });
   return items;
+}
+
+struct Next { std::string id, text; };
+
+// Linia "DALEJ" dla aktywnej roboty: krok z Job::NextStep, a gdy go brak albo jest niedostepny - zakonczenie, jesli mozliwe.
+inline Next NextLine(const std::vector<MenuItem>& items, const std::string& stepId) {
+  for (const MenuItem& m : items) if (!stepId.empty() && m.id == stepId && m.enabled) return { m.id, "DALEJ: " + m.label };
+  for (const MenuItem& m : items) if (m.id == "finish" && m.enabled) return { m.id, "DALEJ: Zakoncz pomiar" };
+  return { "", "" };
 }

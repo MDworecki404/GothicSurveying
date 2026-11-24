@@ -114,6 +114,14 @@ class LevelingTraverse : public Job {
   }
 
   bool CanFinish() const override { return Ended(); }
+  std::string NextStep() const override {
+    if (!hasA_) return "reper_a";
+    if (!instrument_) return "instrument";
+    if (!backRod_) return "rod_back";
+    if (!foreRod_) return "rod_fore_turn";
+    if (!backRead_ || !foreRead_) return "scope";
+    return foreIsEnd_ ? "" : "move_next";
+  }
 
   FieldBook Finish(bool complete) override {
     std::vector<Stand> stands = stands_; std::vector<std::string> names = foreNames_;
