@@ -23,12 +23,53 @@ namespace GOTHIC_NAMESPACE {
   inline void ProjUiOpenList();
   inline void ProjUiOpenHome();
 
+  inline void ProjUiOpenMeasurement( const std::string& mid );
+
+  // Usuniecie pomiaru z wynikami: potwierdzenie (domyslnie "Nie"); folder wynikow i plik punktow znikaja, osnowa zostaje.
+  inline void ProjUiConfirmDelete( const std::string& mid ) {
+    const Measurement* mp = nullptr; for ( const Measurement& m : gProject.items ) if ( m.id == mid ) mp = &m;
+    if ( !mp ) { ProjUiOpenHome(); return; }
+    const std::string name = mp->name, hint = mp->dir.empty() ? "pomiar nie ma folderu wynikow; zniknie tylko z listy"
+                                                              : "folder " + mp->dir + " (" + std::to_string( ResultFiles( mp->dir ).size() ) + " plikow); punktow osnowy zalozonych przez pomiar nie usuwa";
+    MenuOpen( MenuView{ "Usunac pomiar " + name + "?", { { "no", "Nie, zostaw", "", true }, { "yes", "Tak, usun pomiar i jego wyniki (nieodwracalne)", hint, true } } },
+              [mid, name]( const std::string& id ) {
+      if ( id != "yes" ) { ProjUiOpenMeasurement( mid ); return; }
+      std::string why;
+      if ( RemoveMeasurementWithFiles( gProject, mid, ProjRoot(), why ) ) { ProjSave(); HudMessage( ( "Usunieto pomiar: " + name ).c_str() ); SvTrace( ( "pomiar usuniety: " + name ).c_str() ); }
+      else HudMessage( ( "Nie usunieto: " + why ).c_str() );
+      ProjUiOpenHome();
+    }, [mid]() { ProjUiOpenMeasurement( mid ); } );
+  }
+
   inline void ProjUiOpenFolder( const std::string& dir ) {
     if ( !SafeResultDir( dir ) ) { HudMessage( "Nie otwieram: folder poza GothicSurveying" ); return; }      // sciezka z manifestu jest nieufna
     std::error_code ec; const std::string abs = std::filesystem::absolute( dir, ec ).string();
     if ( !std::filesystem::is_directory( abs, ec ) ) { HudMessage( "Folder nie istnieje" ); return; }
     SvTrace( ( "otwieram folder: " + abs ).c_str() );
     ShellExecuteA( nullptr, "open", abs.c_str(), nullptr, nullptr, SW_SHOWNORMAL );
+  }
+
+  // Menu jednego pomiaru: szczegoly, pliki, folder, usuniecie. Lewo wraca na ekran glowny; panele wracaja tu po zamknieciu.
+  inline void ProjUiOpenMeasurement( const std::string& mid ) {
+    const Measurement* mp = nullptr; for ( const Measurement& m : gProject.items ) if ( m.id == mid ) mp = &m;
+    if ( !mp ) { ProjUiOpenHome(); return; }
+    const Measurement m = *mp;
+    MenuView v; v.title = m.name; v.crumbs = "GEODEZJA > Projekt: " + gProject.name + " > " + m.name;
+    { MenuItem it{ "info", "Szczegoly pomiaru", "stan, rodzaj, folder i podsumowanie", true }; it.section = "Pomiar"; v.items.push_back( it ); }
+    { MenuItem it{ "files", "Pliki wynikowe", m.dir, !m.dir.empty() }; it.section = "Pomiar"; it.why = "pomiar nie ma folderu wynikow"; v.items.push_back( it ); }
+    { MenuItem it{ "open", "Otworz folder wynikow", m.dir, !m.dir.empty() }; it.section = "Pomiar"; it.why = "pomiar nie ma folderu wynikow"; v.items.push_back( it ); }
+    const bool canDel = !gProject.closed && m.state != MeasState::Running;
+    { MenuItem it{ "delete", "Usun pomiar i jego wyniki", "kasuje folder wynikow i wpis w projekcie (z potwierdzeniem)", canDel }; it.section = "Usuwanie";
+      it.why = gProject.closed ? "projekt zamkniety (otworz go ponownie)" : "ten pomiar trwa"; v.items.push_back( it ); }
+    MenuOpen( v, [m, mid]( const std::string& id ) {
+      if ( id == "info" ) { gMenuAfterPanel = [mid]() { ProjUiOpenMeasurement( mid ); }; ProjUiShowMeasurement( m ); }
+      else if ( id == "files" ) {
+        std::vector<std::string> files = ResultFiles( m.dir ); if ( files.empty() ) files.push_back( "(pusty folder)" );
+        gMenuAfterPanel = [mid]() { ProjUiOpenMeasurement( mid ); }; TextPanelShow( m.name + " - pliki wynikowe", files, "Folder: " + m.dir );
+      }
+      else if ( id == "open" ) { ProjUiOpenFolder( m.dir ); ProjUiOpenMeasurement( mid ); }
+      else if ( id == "delete" ) ProjUiConfirmDelete( mid );
+    }, []() { ProjUiOpenHome(); } );
   }
 
   // Wyniki: pliki w folderach pomiarow i otwarcie folderu w Eksploratorze. Lewo wraca na ekran glowny.
@@ -49,7 +90,7 @@ namespace GOTHIC_NAMESPACE {
         if ( "o:" + m.id == id ) { ProjUiOpenFolder( m.dir ); ProjUiOpenResults(); return; }
         if ( "r:" + m.id == id ) {
           std::vector<std::string> files = ResultFiles( m.dir ); if ( files.empty() ) files.push_back( "(pusty folder)" );
-          TextPanelShow( m.name + " - pliki wynikowe", files, "Folder: " + m.dir ); return;
+          gMenuAfterPanel = []() { ProjUiOpenResults(); }; TextPanelShow( m.name + " - pliki wynikowe", files, "Folder: " + m.dir ); return;
         }
       }
     }, []() { ProjUiOpenHome(); } );
@@ -111,7 +152,7 @@ namespace GOTHIC_NAMESPACE {
     for ( const Measurement& m : gProject.items ) {
       std::string label = std::string( ProjMark( m.state ) ) + " " + m.name;
       if ( !m.summary.empty() ) label += "   " + m.summary.substr( 0, m.summary.find( '\n' ) ).substr( 0, 36 );
-      MenuItem it{ "m:" + m.id, label, std::string( ProjStateText( m.state ) ) + ( m.dir.empty() ? "" : ", folder " + m.dir ), true }; it.section = "Pomiary";
+      MenuItem it{ "m:" + m.id, label, std::string( ProjStateText( m.state ) ) + ( m.dir.empty() ? "" : ", folder " + m.dir ) + "; Enter - szczegoly, pliki, usuwanie", true }; it.section = "Pomiary";
       v.items.push_back( it );
     }
     std::string why; const bool canAdd = CanAddMeasurement( gProject, why );
@@ -132,7 +173,7 @@ namespace GOTHIC_NAMESPACE {
       else if ( id == "close" ) ProjUiConfirmClose();
       else if ( id == "projects" ) ProjUiOpenList();
       else if ( id == "tools" ) CtrlOpenToolsMenu();
-      else if ( id.compare( 0, 2, "m:" ) == 0 ) for ( const Measurement& m : gProject.items ) if ( "m:" + m.id == id ) { ProjUiShowMeasurement( m ); break; }
+      else if ( id.compare( 0, 2, "m:" ) == 0 ) ProjUiOpenMeasurement( id.substr( 2 ) );
     } );
   }
 

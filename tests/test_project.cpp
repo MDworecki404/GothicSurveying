@@ -140,10 +140,52 @@ static void settings_last_project_is_per_world() {
   assert(UiSettingsFromText("w.newworld=../zly\nw.x=Dobry\n").lastByWorld.count("newworld") == 0);               // zla nazwa odrzucona, dobra zostaje
 }
 
+static void safe_delete_dir_only_single_result_folder() {
+  assert(SafeDeleteDir("GothicSurveying/2026-11-24_10-00-00") && SafeDeleteDir("GothicSurveying/2026-11-24_10-00-00_2"));
+  assert(!SafeDeleteDir("GothicSurveying") && !SafeDeleteDir("GothicSurveying/") && !SafeDeleteDir("GothicSurveying/projekty") && !SafeDeleteDir("GothicSurveying/projekty/Kolonia_1"));
+  assert(!SafeDeleteDir("GothicSurveying/a/b") && !SafeDeleteDir("GothicSurveying/..") && !SafeDeleteDir("GothicSurveying/../system") && !SafeDeleteDir("") && !SafeDeleteDir("C:/x"));
+}
+
+static std::string Touch(const std::string& path) { std::filesystem::create_directories(std::filesystem::path(path).parent_path()); std::ofstream f(path); f << "x"; return path; }
+
+static void remove_measurement_with_files() {
+  namespace fs = std::filesystem;
+  const std::string root = (fs::temp_directory_path() / "gs_rm_test" / "GothicSurveying").string(); fs::remove_all(fs::temp_directory_path() / "gs_rm_test");
+  Project p = Fresh(); p.name = "Kolonia_1";
+  AddMeasurement(p, "tachy", "Tachimetria"); AddMeasurement(p, "tachy", "Tachimetria"); AddMeasurement(p, "gnss", "GNSS"); AddMeasurement(p, "gnss", "GNSS");
+  p.items[0].dir = "GothicSurveying/2026-11-24_10-00-00"; p.items[0].pointsFile = "pomiar_m1.csv"; p.items[0].state = MeasState::Done;
+  p.items[1].dir = "GothicSurveying/2026-11-24_11-00-00"; p.items[1].state = MeasState::Aborted;
+  p.items[2].dir = "GothicSurveying/2026-11-24_11-00-00"; p.items[2].state = MeasState::Done;       // wspolny folder z m2: nie wolno go usunac
+  p.items[3].state = MeasState::Running;
+  Touch(root + "/2026-11-24_10-00-00/dziennik.csv"); Touch(root + "/2026-11-24_10-00-00/pod/x.txt"); Touch(root + "/2026-11-24_11-00-00/a.csv");
+  Touch(root + "/projekty/Kolonia_1/pomiar_m1.csv"); Touch(root + "/projekty/Kolonia_1/projekt.txt"); Touch(root + "/osnowa.csv"); Touch(root + "/2026-11-25_09-00-00/inny.csv");
+  std::string why;
+  assert(!RemoveMeasurementWithFiles(p, "m4", root, why) && !why.empty() && p.items.size() == 4);            // trwajacy: odmowa
+  assert(!RemoveMeasurementWithFiles(p, "nie_ma", root, why) && p.items.size() == 4);
+  assert(RemoveMeasurementWithFiles(p, "m1", root, why) && p.items.size() == 3 && p.items[0].id == "m2");
+  assert(!fs::exists(root + "/2026-11-24_10-00-00") && !fs::exists(root + "/projekty/Kolonia_1/pomiar_m1.csv"));             // folder wynikow z podfolderami i plik punktow zniknely
+  assert(fs::exists(root + "/projekty/Kolonia_1/projekt.txt") && fs::exists(root + "/osnowa.csv") && fs::exists(root + "/2026-11-25_09-00-00/inny.csv"));   // reszta nietknieta
+  assert(RemoveMeasurementWithFiles(p, "m2", root, why) && p.items.size() == 2 && fs::exists(root + "/2026-11-24_11-00-00/a.csv"));   // m3 nadal wskazuje ten folder
+  assert(RemoveMeasurementWithFiles(p, "m3", root, why) && !fs::exists(root + "/2026-11-24_11-00-00"));                                  // ostatni wlasciciel: folder znika
+  p.closed = true; p.items[0].state = MeasState::Done; assert(!RemoveMeasurementWithFiles(p, "m4", root, why));                          // zamkniety projekt: tylko do odczytu
+  fs::remove_all(fs::temp_directory_path() / "gs_rm_test");
+}
+
+static void remove_ignores_unsafe_manifest_paths() {
+  namespace fs = std::filesystem;
+  const std::string base = (fs::temp_directory_path() / "gs_rm_test2").string(); fs::remove_all(base);
+  const std::string root = base + "/GothicSurveying"; Touch(base + "/system/wazne.txt"); Touch(root + "/projekty/Kolonia_1/projekt.txt");
+  Project p = Fresh(); AddMeasurement(p, "tachy", "Tachimetria"); AddMeasurement(p, "tachy", "Tachimetria");
+  p.items[0].dir = "GothicSurveying/../system"; p.items[0].pointsFile = "../../system/wazne.txt"; p.items[1].dir = "GothicSurveying/projekty"; p.items[1].pointsFile = "projekt.txt";
+  std::string why; assert(RemoveMeasurementWithFiles(p, "m1", root, why)); assert(RemoveMeasurementWithFiles(p, "m2", root, why));      // wpisy znikaja z manifestu
+  assert(fs::exists(base + "/system/wazne.txt") && fs::exists(root + "/projekty/Kolonia_1/projekt.txt"));                              // ale pliki spoza folderu wynikow zostaja
+  fs::remove_all(base);
+}
+
 int main() {
   name_validation(); add_numbers_per_type(); cannot_add_while_running_or_closed(); roundtrip_text(); corrupt_manifest_rejected();
   reconcile_marks_stale_running_aborted(); close_refused_while_running(); save_load_list_on_temp_dir();
-  settings_roundtrip(); settings_garbage_gives_defaults(); attach_restored_reuses_unfinished_but_not_done(); safe_result_dir_and_untrusted_manifest_fields(); settings_last_project_is_per_world();
+  settings_roundtrip(); settings_garbage_gives_defaults(); attach_restored_reuses_unfinished_but_not_done(); safe_result_dir_and_untrusted_manifest_fields(); settings_last_project_is_per_world(); safe_delete_dir_only_single_result_folder(); remove_measurement_with_files(); remove_ignores_unsafe_manifest_paths();
   std::puts("test_project OK");
   return 0;
 }

@@ -64,6 +64,31 @@ inline void SetState(Project& p, const std::string& id, MeasState s, const std::
   for (Measurement& m : p.items) if (m.id == id) { m.state = s; if (!dir.empty()) m.dir = dir; if (!summary.empty()) m.summary = summary; }
 }
 
+// Usuwanie wynikow pomiaru dotyka tylko folderu GothicSurveying/<jeden segment> (nigdy "projekty") i pliku pomiar_<id>.csv w folderze projektu.
+inline bool SafeDeleteDir(const std::string& d) {
+  if (!SafeResultDir(d)) return false;
+  const std::string seg = d.substr(16);
+  return seg.find('/') == std::string::npos && seg != "projekty";
+}
+
+// Usuwa pomiar z projektu razem z wynikami: folder wynikow (chyba ze inny pomiar tez na niego wskazuje) i plik punktow. root = folder GothicSurveying.
+// Odmowa: nieznany id, projekt zamkniety, pomiar w toku. Osnowa (punkty zalozone przez pomiar) nie jest ruszana: jest wspolna dla projektow.
+inline bool RemoveMeasurementWithFiles(Project& p, const std::string& id, const std::string& root, std::string& why) {
+  namespace fs = std::filesystem; std::error_code ec;
+  auto it = std::find_if(p.items.begin(), p.items.end(), [&](const Measurement& m) { return m.id == id; });
+  if (it == p.items.end()) { why = "nie ma takiego pomiaru"; return false; }
+  if (p.closed) { why = "projekt zamkniety (otworz go ponownie)"; return false; }
+  if (it->state == MeasState::Running) { why = "ten pomiar trwa"; return false; }
+  if (SafeDeleteDir(it->dir)) {
+    bool shared = false; for (const Measurement& m : p.items) if (&m != &*it && m.dir == it->dir) shared = true;
+    const std::string full = root + "/" + it->dir.substr(16);
+    if (!shared && fs::is_directory(full, ec)) fs::remove_all(full, ec);
+  }
+  if (ProjectNameOk(p.name) && it->pointsFile == "pomiar_" + it->id + ".csv") fs::remove(root + "/projekty/" + p.name + "/" + it->pointsFile, ec);
+  p.items.erase(it);
+  return true;
+}
+
 // Wznowienie roboty z zapisu gry: pomiar o tym id wraca do "w toku", chyba ze juz jest gotowy (wynik zostaje nietkniety) albo go nie ma - wtedy nowy pomiar.
 inline std::string AttachRestored(Project& p, const std::string& pid, const std::string& typeId, const std::string& typeName) {
   for (Measurement& m : p.items) if (!pid.empty() && m.id == pid && m.state != MeasState::Done) { m.state = MeasState::Running; return m.id; }

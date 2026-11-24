@@ -81,6 +81,8 @@ Zamiast kreatora można wybrać rodzaj ręcznie (pełne menu). Dawna pozycja „
 (ta sama nazwa albo położenie w promieniu 0,5 m; z pomiarów, które zapisują punkty wysokościowe: niwelacja, GNSS, tachimetria i niwelacja trygonometryczna – dla ALS i fotogrametrii porównania nie ma).
 Zamknięty projekt jest tylko do odczytu; „Otwórz projekt ponownie” przywraca możliwość dodawania pomiarów.
 
+Enter na pomiarze z listy otwiera jego menu: szczegóły, pliki wynikowe, otwarcie folderu i **Usuń pomiar i jego wyniki** (potwierdzenie, domyślnie „Nie”; dotyczy też pomiarów przerwanych). Kasuje folder wyników pomiaru (jeśli nie dzieli go inny pomiar), plik punktów w folderze projektu i wpis w projekcie; **nie usuwa punktów osnowy** założonych przez pomiar (są wspólne – służy do tego „Usuń osnowę”). Pomiaru w toku i pomiarów w zamkniętym projekcie usunąć nie można.
+
 ## Poprawianie błędów w trakcie roboty
 
 - „Powtórz odczyty na tym stanowisku” kasuje odczyty bieżącego stanowiska (np. po pomyłce przy wpisywaniu), a „Przestaw niwelator” pozwala
