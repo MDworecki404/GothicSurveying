@@ -1,6 +1,7 @@
 #include "Keys.hpp"
 #include "job/Jobs.hpp"
 #include "calc/Docx.hpp"
+#include "calc/TexDecode.hpp"
 
 // Kolejność ma znaczenie: moduły silnika nie includują siebie nawzajem (bez strażników include).
 #include "engine/Panels.hpp"

@@ -182,12 +182,12 @@ namespace GOTHIC_NAMESPACE {
       } __except ( EXCEPTION_EXECUTE_HANDLER ) { n = 0; }
       return n ? ( ( sr / n ) << 16 ) | ( ( sg / n ) << 8 ) | ( sb / n ) : 0u;
     }
-    // Piksel tekstury w miejscu trafienia: wspolrzedne UV z interpolacji (barycentrycznie) cech wierzcholkow wielokata swiata, potem zCTexture::GetRGBAAtTexel.
-    // Zakladamy UV znormalizowane (0..1) i skladowe RGBA; pierwsze probki trafiaja do logu (diagnostyka). Po wielu bledach dostepu probkowanie sie wylacza.
+    // Piksel tekstury w miejscu trafienia: wspolrzedne UV z interpolacji (barycentrycznie) cech wierzcholkow wielokata swiata, potem odczyt z bufora tekstury
+    // (Lock + GetTextureBuffer) i wlasne dekodowanie DXT/16/32 bit (zCTexture::GetRGBAAtTexel zwraca zera dla DXT). Pierwsze probki trafiaja do logu (diagnostyka).
     static bool PolyTextureRgb( zCPolygon* poly, const zVEC3& p, unsigned& rgb ) {
       static int fails = 0, logged = 0;
       if ( fails > 20 ) return false;
-      bool ok = false; float tu = 0, tv = 0, rr = 0, gg = 0, bb = 0; int sw = 0, sh = 0;
+      bool ok = false; float tu = 0, tv = 0, rr = 0, gg = 0, bb = 0; int sw = 0, sh = 0, fmt = -1, lk = 0, gb = 0, pitch = 0; unsigned char head[8] = {};
       __try {
         if ( poly && poly->material && poly->material->texture && poly->polyNumVert >= 3 && poly->vertex && poly->feature ) {
           float bestMin = -1e9f;
@@ -208,16 +208,29 @@ namespace GOTHIC_NAMESPACE {
           }
           zCTexture* tex = poly->material->texture;
           tu -= floorf( tu ); tv -= floorf( tv );
-          const zVEC4 col = tex->GetRGBAAtTexel( tu, tv );
-          rr = col.n[0]; gg = col.n[1]; bb = col.n[2]; ok = true;
-          zCTextureInfo ti = tex->GetTextureInfo(); sw = ti.sizeX; sh = ti.sizeY;
+          const zCTextureInfo ti = tex->GetTextureInfo(); sw = ti.sizeX; sh = ti.sizeY; fmt = (int)ti.texFormat;
+          tex->CacheIn( -1.0f );                                                       // dane tekstury w pamieci
+          lk = tex->Lock( 1 );
+          if ( lk ) {
+            void* buf = nullptr;
+            gb = tex->GetTextureBuffer( 0, buf, pitch );
+            if ( gb && buf ) {
+              memcpy( head, buf, 8 );
+              unsigned char c3[3];
+              if ( TexDecodeTexel( fmt, (const unsigned char*)buf, pitch, sw, sh, (int)( tu * sw ), (int)( tv * sh ), c3 ) ) { rr = c3[0]; gg = c3[1]; bb = c3[2]; ok = true; }
+            }
+            tex->Unlock();
+          }
         }
       } __except ( EXCEPTION_EXECUTE_HANDLER ) { fails++; return false; }
+      if ( logged < 16 ) {
+        logged++; char t[240];
+        sprintf( t, "skan: tekstura uv=(%.3f,%.3f) %dx%d format %d lock=%d bufor=%d pitch=%d bajty=%02X%02X%02X%02X%02X%02X%02X%02X -> %s rgb=(%.0f,%.0f,%.0f)", tu, tv, sw, sh, fmt, lk, gb, pitch,
+                 head[0], head[1], head[2], head[3], head[4], head[5], head[6], head[7], ok ? "ok" : "BRAK", rr, gg, bb );
+        SvTrace( t );
+      }
       if ( !ok ) return false;
-      if ( ( std::max )( rr, ( std::max )( gg, bb ) ) <= 1.5f ) { rr *= 255.0f; gg *= 255.0f; bb *= 255.0f; }          // 0..1 -> 0..255
-      rr = ( std::min )( 255.0f, ( std::max )( 0.0f, rr ) ); gg = ( std::min )( 255.0f, ( std::max )( 0.0f, gg ) ); bb = ( std::min )( 255.0f, ( std::max )( 0.0f, bb ) );
       rgb = ( (unsigned)rr << 16 ) | ( (unsigned)gg << 8 ) | (unsigned)bb;
-      if ( logged < 12 ) { logged++; char t[160]; sprintf( t, "skan: probka tekstury uv=(%.3f,%.3f) tekstura %dx%d -> rgb=(%.0f,%.0f,%.0f)", tu, tv, sw, sh, rr, gg, bb ); SvTrace( t ); }
       return true;
     }
     bool ScanRay( double azDeg, double elevDeg, double& distM, double& cosInc, bool& isVob, bool& isTarget, unsigned* rgb ) const override {
@@ -227,17 +240,23 @@ namespace GOTHIC_NAMESPACE {
       const zVEC3 from = instrGround_ + zVEC3( 0, LV_INSTR_H, 0 );
       const zVEC3 dir( sinf( az ) * cosf( p ), sinf( p ), cosf( az ) * cosf( p ) );
       double best = 1e18; isVob = false; isTarget = false; cosInc = 0.5;
-      if ( w->TraceRayNearestHit( from, dir * 12000.0f, instr_, zTRACERAY_VOB_IGNORE_NO_CD_DYN | zTRACERAY_VOB_IGNORE_CHARACTER | zTRACERAY_POLY_IGNORE_TRANSP ) ) {
+      if ( w->TraceRayNearestHit( from, dir * 12000.0f, instr_, zTRACERAY_VOB_IGNORE_NO_CD_DYN | zTRACERAY_VOB_IGNORE_CHARACTER | zTRACERAY_POLY_IGNORE_TRANSP | zTRACERAY_STAT_POLY | zTRACERAY_POLY_NORMAL ) ) {   // STAT_POLY + POLY_NORMAL: raport zawiera wielokat i normalna
         const zTTraceRayReport& r = w->traceRayReport;
         best = ( r.foundIntersection - from ).Length();
         zVEC3 n = r.foundPolyNormal; const float nl = n.Length();
         cosInc = nl > 0.5f ? fabs( ( n[VX] * dir[VX] + n[VY] * dir[VY] + n[VZ] * dir[VZ] ) / nl ) : 0.5;
         isVob = r.foundVob != nullptr;
         if ( rgb ) {                                                                // kolor: srednia barwa tekstury, przyciemniona katem padania (powierzchnie skosne ciemniejsze)
-          unsigned c = 0;
-          if ( r.foundPoly && !r.foundVob ) { if ( !PolyTextureRgb( r.foundPoly, r.foundIntersection, c ) ) c = MaterialRgb( r.foundPoly->material ); }   // teren i budynki ze swiata: piksel tekstury
-          else if ( r.foundVob ) { if ( r.foundPoly ) c = MaterialRgb( r.foundPoly->material ); if ( !c ) c = VobAverageRgb( r.foundVob ); }          // voby: material wielokata albo srednia z siatki
-          if ( !c ) c = 0x808080;
+          unsigned c = 0; bool have = false;
+          if ( r.foundPoly && !r.foundVob ) {                                        // teren i budynki ze swiata: piksel tekstury, w razie braku srednia barwa
+            have = PolyTextureRgb( r.foundPoly, r.foundIntersection, c );
+            if ( !have ) { c = MaterialRgb( r.foundPoly->material ); have = c != 0; }
+          } else if ( r.foundVob ) {                                                  // voby: material wielokata albo srednia z siatki
+            if ( r.foundPoly ) c = MaterialRgb( r.foundPoly->material );
+            if ( !c ) c = VobAverageRgb( r.foundVob );
+            have = c != 0;
+          }
+          if ( !have ) c = 0x808080;
           const double k = 0.65 + 0.35 * cosInc;
           *rgb = ( (unsigned)( ( ( c >> 16 ) & 255 ) * k ) << 16 ) | ( (unsigned)( ( ( c >> 8 ) & 255 ) * k ) << 8 ) | (unsigned)( ( c & 255 ) * k );
         }
