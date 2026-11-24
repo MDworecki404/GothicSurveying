@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Pomiary geodezyjne – jak wykonywać i obliczać (przewodnik krok po kroku)</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+  body { font-family: "Segoe UI", Calibri, Arial, sans-serif; font-size: 10.5pt; line-height: 1.45; color: #1c1c1c; }
+  h1 { font-family: Georgia, "Times New Roman", serif; font-size: 22pt; line-height: 1.2; margin: 0 0 4pt; }
+  h2 { font-family: Georgia, "Times New Roman", serif; font-size: 15pt; margin: 18pt 0 6pt; break-after: avoid; }
+  h3 { font-size: 11pt; margin: 12pt 0 4pt; break-after: avoid; }
+  .meta { color: #666; font-size: 9pt; margin-bottom: 10pt; }
+  .f { font-family: "Cambria Math", Cambria, "Times New Roman", serif; font-size: 11.5pt; background: #f3f3f3; border-left: 3px solid #b9a36a; padding: 6pt 10pt; margin: 6pt 0; break-inside: avoid; }
+  .f div { margin: 2pt 0; }
+  .fr { display: inline-block; vertical-align: middle; text-align: center; margin: 0 2pt; }
+  .fr > span { display: block; padding: 0 2pt; }
+  .fr > span:first-child { border-bottom: 1px solid #222; }
+  .note { background: #fff7e0; border-left: 3px solid #d9a400; padding: 6pt 10pt; margin: 8pt 0; break-inside: avoid; }
+  table { border-collapse: collapse; margin: 6pt 0 8pt; font-size: 9.5pt; break-inside: avoid; }
+  th, td { border: 1px solid #bbb; padding: 3pt 7pt; text-align: left; }
+  th { background: #efefef; }
+  td.n, th.n { text-align: right; }
+  ol, ul { margin: 3pt 0 6pt 0; padding-left: 20pt; }
+  li { margin: 1.5pt 0; }
+  i.v { font-family: "Cambria Math", Cambria, "Times New Roman", serif; }
+  a { color: #1a55b0; }
+  .small { font-size: 9pt; color: #555; }
+</style>
+</head>
+<body>
+
+<h1>Pomiary geodezyjne – jak wykonywać i obliczać (przewodnik krok po kroku)</h1>
+<div class="meta">Wersja poprawiona 24.11.2026 · Marek</div>
+
+<div class="note"><b>Oznaczenia w całym dokumencie.</b> <i class="v">i</i> – wysokość instrumentu, <i class="v">s</i> – wysokość celu (sygnału, reflektora, łaty), <i class="v">d′</i> – odległość skośna, <i class="v">d</i> – odległość pozioma, <i class="v">α</i> – kąt <b>wysokościowy</b> (0<sup>g</sup> przy lunecie poziomej, dodatni w górę), <i class="v">V</i> – kąt <b>zenitalny</b> (0<sup>g</sup> w zenit, 100<sup>g</sup> poziomo). Związek: <i class="v">α = 100<sup>g</sup> − V</i>. Wysokość celu oznaczam literą <i class="v">s</i>, a nie „l”, żeby nie mylić jej z wielką literą „I”.</div>
+
+<h2>1. Podstawy rachunkowe</h2>
+<p>Każde obliczenie w tym dokumencie opiera się na czterech rzeczach: kątach w gradach, zaokrąglaniu metodą Bradisa-Kryłowa, geodezyjnym układzie współrzędnych oraz wzorach na przyrosty i azymut.</p>
+<p><b>Grady.</b> Kąt pełny ma 400<sup>g</sup>, a 1<sup>g</sup> = 100<sup>c</sup> i 1<sup>c</sup> = 100<sup>cc</sup>. Mniejsze części kąta zapisuj zawsze dwucyfrowo: poprawnie 135<sup>g</sup>01<sup>c</sup>17.34<sup>cc</sup>, błędnie 135<sup>g</sup>1<sup>c</sup>17.34<sup>cc</sup>. Ten sam kąt bez podziału to 23<sup>g</sup>07<sup>c</sup>17<sup>cc</sup> = 23.0717<sup>g</sup>. Kąt poziomy jest zawsze dodatni, w zakresie 0<sup>g</sup>–400<sup>g</sup>. Jeśli z obliczeń wyjdzie ujemny, dodaj 400<sup>g</sup>.</p>
+<div class="f">
+  <div>α<sup>g</sup> = <span class="fr"><span>10</span><span>9</span></span> α°  &nbsp;&nbsp;&nbsp; α° = 0.9 α<sup>g</sup></div>
+</div>
+<p><b>Zaokrąglanie (Bradis-Kryłow).</b> Odrzucana cyfra mniejsza od 5: zostawiasz bez zmian. Większa od 5: zwiększasz o 1. Jeśli odrzucasz tylko samą piątkę, a pozostawiona cyfra jest parzysta, nie zmieniasz jej (4.25 → 4.2). Jeśli jest nieparzysta, zwiększasz ją o 1 (4.15 → 4.2). W wyniku zapisuj wymaganą liczbę cyfr, nawet jeśli to same zera. W obliczeniach pośrednich zostawiaj o jedną cyfrę więcej niż w wyniku końcowym.</p>
+<p><b>Układ współrzędnych.</b> Geodezyjny układ ma osie ustawione inaczej niż matematyczny: oś X biegnie na północ, oś Y na wschód. Azymut liczysz od osi X zgodnie z ruchem wskazówek zegara, w zakresie 0<sup>g</sup>–400<sup>g</sup>. Punkt zapisujesz jako P(X, Y). W Polsce obowiązuje układ PL-2000, a wysokości podajesz w PL-EVRF2007-NH.</p>
+<p><b>Przyrosty współrzędnych</b> z azymutu A i długości d:</p>
+<div class="f">
+  <div>ΔX = d · cos A &nbsp;&nbsp;&nbsp; ΔY = d · sin A</div>
+  <div>X<sub>B</sub> = X<sub>A</sub> + ΔX &nbsp;&nbsp;&nbsp; Y<sub>B</sub> = Y<sub>A</sub> + ΔY</div>
+</div>
+<p><b>Azymut i długość ze współrzędnych</b> punktów A i B. Najpierw policz kąt pomocniczy φ, a potem wybierz azymut według znaków przyrostów:</p>
+<div class="f">
+  <div>φ = arctg <span class="fr"><span>|ΔY|</span><span>|ΔX|</span></span> &nbsp;&nbsp;&nbsp; d = √(ΔX² + ΔY²)</div>
+</div>
+<table>
+  <tr><th>Ćwiartka</th><th>Znaki ΔX, ΔY</th><th>Azymut A<sub>AB</sub></th></tr>
+  <tr><td>I</td><td>+, +</td><td>φ</td></tr>
+  <tr><td>II</td><td>−, +</td><td>200<sup>g</sup> − φ</td></tr>
+  <tr><td>III</td><td>−, −</td><td>200<sup>g</sup> + φ</td></tr>
+  <tr><td>IV</td><td>+, −</td><td>400<sup>g</sup> − φ</td></tr>
+</table>
+<p>Azymut przeciwny to A + 200<sup>g</sup> (lub A − 200<sup>g</sup>, jeśli suma przekroczyła 400<sup>g</sup>).</p>
+
+<h2>2. Niwelacja geometryczna</h2>
+<p>Niwelacja geometryczna daje różnicę wysokości Δh = t − p z odczytów na łatach przy poziomej osi celowej. Ciąg niwelacyjny między dwoma reperami pozwala policzyć odchyłkę i rozdzielić ją na wszystkie punkty.</p>
+<h3>Pomiar „z środka”, stanowisko po stanowisku</h3>
+<ol>
+  <li>Ustaw niwelator możliwie w jednakowej odległości od obu łat i spoziomuj go. Równe odległości eliminują wpływ krzywizny Ziemi i refrakcji.</li>
+  <li>Odczytaj łatę na punkcie tyłem (t), a potem na punkcie przodem (p).</li>
+  <li>Wpisz oba odczyty do dziennika i od razu policz Δh.</li>
+  <li>Przenieś niwelator. Punkt, na którym był odczyt „w przód”, staje się punktem „wstecz” na następnym stanowisku. Powtarzaj aż do reperu końcowego.</li>
+</ol>
+<div class="f">
+  <div>Δh = t − p &nbsp;&nbsp;&nbsp; H<sub>B</sub> = H<sub>A</sub> + Δh</div>
+</div>
+<p>Przy niwelacji w przód mierzysz wysokość instrumentu <i class="v">i</i> nad punktem A i czytasz tylko p, więc Δh = i − p.</p>
+<h3>Obliczenie ciągu nawiązanego do dwóch reperów</h3>
+<ol>
+  <li>Sprawdź dziennik: Σt − Σp musi się równać ΣΔh.</li>
+  <li>Policz różnicę teoretyczną z wysokości reperów: Δh<sub>teor</sub> = H<sub>Rk</sub> − H<sub>Rp</sub>.</li>
+  <li>Policz odchyłkę: f<sub>h</sub> = ΣΔh − Δh<sub>teor</sub>.</li>
+  <li>Porównaj |f<sub>h</sub>| z odchyłką dopuszczalną dla klasy i długości ciągu (z obowiązującej instrukcji technicznej albo z wymagań prowadzącego). Po przekroczeniu pomiar powtarzaj.</li>
+  <li>Rozdziel poprawki. Przy podobnych długościach celowych dajesz każdemu stanowisku v = −f<sub>h</sub> / n, a przy różnych długościach rozdzielasz proporcjonalnie do długości. Suma poprawek musi wyjść Σv = −f<sub>h</sub>.</li>
+  <li>Policz Δh poprawione: Δh + v.</li>
+  <li>Policz wysokości kolejnych punktów: H<sub>i+1</sub> = H<sub>i</sub> + Δh<sub>popr</sub>. Kontrola końcowa: wysokość policzona dla ostatniego punktu równa się wysokości reperu końcowego.</li>
+</ol>
+<p><b>Przykład liczbowy</b> (dane przykładowe): reper A ma H = 150.000 m, reper B ma H = 151.200 m, więc Δh<sub>teor</sub> = +1.200 m.</p>
+<table>
+  <tr><th>Stanowisko</th><th>Punkt w przód</th><th class="n">t [m]</th><th class="n">p [m]</th><th class="n">Δh [m]</th><th class="n">v [m]</th><th class="n">Δh popr. [m]</th><th class="n">H [m]</th></tr>
+  <tr><td>—</td><td>Reper A</td><td></td><td></td><td></td><td></td><td></td><td class="n">150.000</td></tr>
+  <tr><td>1</td><td>pkt 1</td><td class="n">1.523</td><td class="n">1.108</td><td class="n">+0.415</td><td class="n">−0.001</td><td class="n">+0.414</td><td class="n">150.414</td></tr>
+  <tr><td>2</td><td>pkt 2</td><td class="n">1.340</td><td class="n">1.712</td><td class="n">−0.372</td><td class="n">−0.001</td><td class="n">−0.373</td><td class="n">150.041</td></tr>
+  <tr><td>3</td><td>Reper B</td><td class="n">1.950</td><td class="n">0.790</td><td class="n">+1.160</td><td class="n">−0.001</td><td class="n">+1.159</td><td class="n">151.200</td></tr>
+  <tr><td>Σ</td><td></td><td class="n">4.813</td><td class="n">3.610</td><td class="n">+1.203</td><td class="n">−0.003</td><td class="n">+1.200</td><td></td></tr>
+</table>
+<p>Kontrola dziennika: 4.813 − 3.610 = 1.203 = ΣΔh. Odchyłka f<sub>h</sub> = 1.203 − 1.200 = +0.003 m (3 mm), więc n = 3 poprawki po −0.001 m. Wysokość reperu B wychodzi 151.200 m, czyli zgodnie z danymi.</p>
+
+<h2>3. Niwelacja trygonometryczna</h2>
+<p>Niwelacja trygonometryczna wyznacza przewyższenie pośrednio, z kąta pionowego i odległości: Δh = d · tg α. Jest mniej dokładna niż geometryczna, ale działa przy dowolnym nachyleniu celowej, więc nadaje się do wysokich obiektów i punktów odległych lub trudno dostępnych.</p>
+<div class="note"><b>Uwaga: wysokościowy czy zenitalny?</b> Wzory poniżej używają kąta <b>wysokościowego</b> α (0<sup>g</sup> poziomo). Tachimetry i teodolity zwykle podają kąt <b>zenitalny</b> V (0<sup>g</sup> w zenit). Zawsze sprawdź, co pokazuje Twój instrument, i w razie potrzeby przelicz α = 100<sup>g</sup> − V. Wtedy sin α = cos V, cos α = sin V i tg α = ctg V.</div>
+<p><b>Oznaczenia.</b> α – kąt wysokościowy: 0<sup>g</sup> przy lunecie poziomej, dodatni w górę, ujemny w dół, w zakresie od −100<sup>g</sup> do +100<sup>g</sup>. d – odległość poziomo zredukowana, d′ – odległość skośna, <i class="v">i</i> – wysokość instrumentu, <i class="v">s</i> – wysokość celu (sygnału, lustra).</p>
+<h3>Pomiar</h3>
+<ol>
+  <li>Ustaw instrument nad punktem o znanej wysokości H<sub>A</sub> i zmierz jego wysokość <i class="v">i</i> z dokładnością do 1 mm.</li>
+  <li>Zmierz odległość do obiektu (dalmierzem, taśmą lub z bazy).</li>
+  <li>Zmierz kąt pionowy do każdego interesującego punktu, w obu położeniach lunety, i weź średnią, żeby wyeliminować błąd miejsca zera. Dla kątów zenitalnych średnia to V = (V<sub>KL</sub> − V<sub>KP</sub> + 400<sup>g</sup>) / 2, a błąd miejsca zera (indeks) to (V<sub>KL</sub> + V<sub>KP</sub> − 400<sup>g</sup>) / 2.</li>
+  <li>Wykonaj szkic z zaznaczonymi punktami pomiarowymi.</li>
+</ol>
+<h3>Wzory</h3>
+<div class="f">
+  <div>Δh = d · tg α &nbsp;&nbsp;&nbsp; d = d′ · cos α &nbsp;&nbsp;&nbsp; Δh = d′ · sin α</div>
+  <div>Δh<sub>AB</sub> = d · tg α + i − s &nbsp;&nbsp;&nbsp; H<sub>B</sub> = H<sub>A</sub> + Δh<sub>AB</sub></div>
+  <div>przy kącie zenitalnym V: d = d′ · sin V &nbsp;&nbsp;&nbsp; Δh = d′ · cos V + i − s</div>
+</div>
+<p>Wysokość obiektu niedostępnego (wieża, komin, budynek) to różnica przewyższeń do jego wierzchołka i podstawy. Zachowaj znaki kątów: kąt do podstawy poniżej poziomu jest ujemny.</p>
+<div class="f"><div>h = d · (tg α<sub>g</sub> − tg α<sub>d</sub>)</div></div>
+<p><b>Przykład</b> (dane przykładowe): odległość pozioma d = 25.00 m, kąt do wierzchołka α<sub>g</sub> = +40.0000<sup>g</sup>, kąt do podstawy α<sub>d</sub> = −5.0000<sup>g</sup>. Wtedy h = 25.00 · (tg 40<sup>g</sup> + tg 5<sup>g</sup>) = 25.00 · (0.72654 + 0.07870) = 20.13 m.</p>
+<p><b>Odległości powyżej kilkuset metrów.</b> Dodaj poprawkę za krzywiznę Ziemi i refrakcję, bo wpływ rośnie z kwadratem odległości. Dla d = 500 m wynosi około 17 mm (przy współczynniku refrakcji k = 0.13 i promieniu Ziemi R = 6371 km). Poprawkę dodajesz do Δh.</p>
+<div class="f"><div>p = <span class="fr"><span>(1 − k) · d²</span><span>2R</span></span></div></div>
+
+<h2>4. Tachimetria</h2>
+<p>Tachimetria wyznacza z jednego stanowiska współrzędne X, Y i wysokość H punktów terenowych. Mierzysz dla każdego z nich kierunek poziomy, kąt pionowy i odległość, a resztę liczysz.</p>
+<h3>Pomiar</h3>
+<ol>
+  <li>Ustaw tachimetr nad punktem osnowy o znanych X, Y, H, wycentruj go i spoziomuj. Zmierz wysokość instrumentu <i class="v">i</i>.</li>
+  <li>Wycelaj na punkt nawiązania o znanych współrzędnych. To orientacja: zapisz kierunek K<sub>N</sub> i policz azymut A<sub>SN</sub> ze współrzędnych.</li>
+  <li>Dla każdego punktu zmierz kierunek poziomy K, kąt pionowy (α albo V) i odległość skośną d′. Zapisz wysokość reflektora <i class="v">s</i>.</li>
+  <li>Mierz w dwóch położeniach lunety i weź średnią, żeby wyeliminować błąd miejsca zera koła pionowego.</li>
+  <li>Na końcu wróć na punkt nawiązania albo zmierz punkt kontrolny o znanych współrzędnych. Kierunek nie może się przesunąć.</li>
+</ol>
+<p>W tachimetrze elektronicznym ustaw też poprawkę atmosferyczną odległości (temperatura, ciśnienie) i, jeśli wymaga tego zadanie, poprawkę odwzorowawczą.</p>
+<h3>Obliczenia dla każdego punktu P</h3>
+<ol>
+  <li>Kąt poziomy: β = K<sub>P</sub> − K<sub>N</sub>. Jeśli wyjdzie ujemny, dodaj 400<sup>g</sup>.</li>
+  <li>Azymut: A<sub>SP</sub> = A<sub>SN</sub> + β. Jeśli przekroczy 400<sup>g</sup>, odejmij 400<sup>g</sup>.</li>
+  <li>Odległość poziomo zredukowaną: d = d′ · cos α (dla kąta zenitalnego: d′ · sin V).</li>
+  <li>Przyrosty ΔX = d · cos A<sub>SP</sub> i ΔY = d · sin A<sub>SP</sub>, a potem X<sub>P</sub> = X<sub>S</sub> + ΔX i Y<sub>P</sub> = Y<sub>S</sub> + ΔY.</li>
+  <li>Wysokość punktu: H<sub>P</sub> = H<sub>S</sub> + i + d′ · sin α − s (dla kąta zenitalnego: d′ · cos V).</li>
+</ol>
+<div class="f">
+  <div>β = K<sub>P</sub> − K<sub>N</sub> &nbsp;&nbsp;&nbsp; A<sub>SP</sub> = A<sub>SN</sub> + β &nbsp;&nbsp;&nbsp; d = d′ · cos α</div>
+  <div>H<sub>P</sub> = H<sub>S</sub> + i + d′ · sin α − s</div>
+</div>
+<p><b>Przykład</b> (dane przykładowe): stanowisko S(1000.00; 2000.00), H<sub>S</sub> = 100.000 m, i = 1.500 m, azymut orientacji A<sub>SN</sub> = 50.0000<sup>g</sup> przy K<sub>N</sub> = 0.0000<sup>g</sup>. Punkt P: K = 100.0000<sup>g</sup>, α = +3.0000<sup>g</sup> (V = 97.0000<sup>g</sup>), d′ = 50.000 m, s = 1.500 m.</p>
+<table>
+  <tr><th>Krok</th><th>Wynik</th></tr>
+  <tr><td>β = 100.0000<sup>g</sup> − 0.0000<sup>g</sup></td><td>100.0000<sup>g</sup></td></tr>
+  <tr><td>A<sub>SP</sub> = 50.0000<sup>g</sup> + 100.0000<sup>g</sup></td><td>150.0000<sup>g</sup></td></tr>
+  <tr><td>d = 50.000 · cos 3<sup>g</sup></td><td>49.944 m</td></tr>
+  <tr><td>ΔX = 49.944 · cos 150<sup>g</sup></td><td>−35.316 m</td></tr>
+  <tr><td>ΔY = 49.944 · sin 150<sup>g</sup></td><td>+35.316 m</td></tr>
+  <tr><td>X<sub>P</sub>, Y<sub>P</sub></td><td>964.684; 2035.316</td></tr>
+  <tr><td>H<sub>P</sub> = 100.000 + 1.500 + 50.000 · sin 3<sup>g</sup> − 1.500</td><td>102.355 m</td></tr>
+</table>
+<p>Przy dużych odległościach uwzględnij też poprawkę za krzywiznę Ziemi i refrakcję, tak jak w sekcji 3.</p>
+
+<h2>5. Ciąg poligonowy</h2>
+<p>Ciąg poligonowy wyznacza współrzędne punktów osnowy z pomierzonych kątów i długości boków. Obliczenie polega na tym, że przechodzisz po kolei przez azymuty, przyrosty i współrzędne, a po drodze rozkładasz dwie odchyłki: kątową i liniową.</p>
+<h3>Rodzaje ciągów</h3>
+<ul>
+  <li><b>Ciąg nawiązany obustronnie:</b> ma dwa punkty nawiązania na początku i dwa na końcu. Daje pełną kontrolę kątową i liniową.</li>
+  <li><b>Ciąg zamknięty (poligon):</b> wraca do punktu startowego. Kontrolę daje sama figura (patrz „Ciąg zamknięty” poniżej).</li>
+  <li><b>Ciąg wiszący:</b> nawiązany tylko z jednej strony. Nie ma kontroli, więc musi być krótki i sprawdzony pomiarem kontrolnym.</li>
+</ul>
+<h3>Pomiar</h3>
+<ol>
+  <li>Zaprojektuj ciąg i ustabilizuj punkty tak, aby z każdego było widać sąsiednie.</li>
+  <li>Na każdym punkcie zmierz kąt poziomy między punktem poprzednim a następnym, w dwóch położeniach lunety, i weź średnią. Mierz kąty po lewej stronie kierunku ciągu.</li>
+  <li>Zmierz długości wszystkich boków, najlepiej w obu kierunkach. Zredukuj je do poziomu.</li>
+  <li>Wpisz wszystko do dziennika i narysuj szkic.</li>
+</ol>
+<h3>Obliczenie krok po kroku (ciąg nawiązany obustronnie)</h3>
+<ol>
+  <li>Oblicz azymuty nawiązania ze współrzędnych: początkowy A<sub>p</sub> (z punktu nawiązania do pierwszego punktu ciągu) i końcowy A<sub>k</sub> (z ostatniego punktu ciągu do punktu nawiązania końcowego).</li>
+  <li>Policz odchyłkę kątową f<sub>β</sub>. Jej wartość sprowadź do przedziału od −200<sup>g</sup> do +200<sup>g</sup>.</li>
+  <li>Sprawdź, czy |f<sub>β</sub>| mieści się w dopuszczalnej. Rozdziel poprawki po równo na wszystkie kąty: v<sub>β</sub> = −f<sub>β</sub> / n.</li>
+  <li>Policz azymuty boków z kątów poprawionych. Ostatni azymut musi się równać A<sub>k</sub>.</li>
+  <li>Policz przyrosty ΔX i ΔY z azymutów i długości.</li>
+  <li>Policz odchyłki liniowe f<sub>x</sub>, f<sub>y</sub> i długość odchyłki f<sub>d</sub>. Sprawdź ją z dopuszczalną.</li>
+  <li>Rozdziel poprawki do przyrostów proporcjonalnie do długości boków.</li>
+  <li>Policz współrzędne kolejnych punktów. Ostatni musi wyjść równy punktowi nawiązania końcowego.</li>
+</ol>
+<div class="f">
+  <div>A<sub>i,i+1</sub> = A<sub>i−1,i</sub> + β<sub>i</sub> − 200<sup>g</sup> &nbsp; (mod 400<sup>g</sup>) &nbsp;&nbsp; <small>(kąty lewe)</small></div>
+  <div>f<sub>β</sub> = A<sub>p</sub> + Σβ − n · 200<sup>g</sup> − A<sub>k</sub> &nbsp;&nbsp;&nbsp; v<sub>β</sub> = − <span class="fr"><span>f<sub>β</sub></span><span>n</span></span></div>
+  <div>f<sub>x</sub> = X<sub>A</sub> + ΣΔX − X<sub>B</sub> &nbsp;&nbsp;&nbsp; f<sub>y</sub> = Y<sub>A</sub> + ΣΔY − Y<sub>B</sub> &nbsp;&nbsp;&nbsp; f<sub>d</sub> = √(f<sub>x</sub>² + f<sub>y</sub>²)</div>
+  <div>v<sub>x,i</sub> = − f<sub>x</sub> · <span class="fr"><span>d<sub>i</sub></span><span>Σd</span></span> &nbsp;&nbsp;&nbsp; v<sub>y,i</sub> = − f<sub>y</sub> · <span class="fr"><span>d<sub>i</sub></span><span>Σd</span></span></div>
+</div>
+<p><b>Przykład liczbowy</b> (dane przykładowe). Punkty nawiązania: N1 (1000.000; 1000.000), A (1100.000; 1200.000), B (1460.000; 1560.000), N2 (1600.000; 1640.000). Ze współrzędnych wychodzą azymuty A<sub>p</sub> = 70.4833<sup>g</sup> i A<sub>k</sub> = 33.0499<sup>g</sup>. Pomierzono n = 4 kąty (A, 1, 2, B) i trzy boki.</p>
+<p>Odchyłka kątowa: f<sub>β</sub> = 70.4833 + 762.5686 − 800 − 33.0499 = +0.0020<sup>g</sup>, więc v<sub>β</sub> = −0.0005<sup>g</sup> na każdy kąt.</p>
+<table>
+  <tr><th>Punkt</th><th class="n">β pomierzony [g]</th><th class="n">v<sub>β</sub> [g]</th><th class="n">β poprawiony [g]</th></tr>
+  <tr><td>A</td><td class="n">184.8109</td><td class="n">−0.0005</td><td class="n">184.8104</td></tr>
+  <tr><td>1</td><td class="n">203.7398</td><td class="n">−0.0005</td><td class="n">203.7393</td></tr>
+  <tr><td>2</td><td class="n">172.4127</td><td class="n">−0.0005</td><td class="n">172.4122</td></tr>
+  <tr><td>B</td><td class="n">201.6052</td><td class="n">−0.0005</td><td class="n">201.6047</td></tr>
+  <tr><td>Σ</td><td class="n">762.5686</td><td class="n">−0.0020</td><td class="n">762.5666</td></tr>
+</table>
+<p>Azymuty: A<sub>A1</sub> = 70.4833 + 184.8104 − 200 = 55.2937<sup>g</sup>, potem 59.0330<sup>g</sup> dla boku 1–2 i 31.4452<sup>g</sup> dla boku 2–B. Kontrola: 31.4452 + 201.6047 − 200 = 33.0499<sup>g</sup> = A<sub>k</sub>.</p>
+<table>
+  <tr><th>Bok</th><th class="n">Azymut [g]</th><th class="n">d [m]</th><th class="n">ΔX [m]</th><th class="n">ΔY [m]</th><th class="n">v<sub>x</sub> [m]</th><th class="n">v<sub>y</sub> [m]</th></tr>
+  <tr><td>A–1</td><td class="n">55.2937</td><td class="n">170.306</td><td class="n">+110.006</td><td class="n">+130.011</td><td class="n">−0.005</td><td class="n">−0.003</td></tr>
+  <tr><td>1–2</td><td class="n">59.0330</td><td class="n">199.991</td><td class="n">+119.996</td><td class="n">+159.992</td><td class="n">−0.005</td><td class="n">−0.003</td></tr>
+  <tr><td>2–B</td><td class="n">31.4452</td><td class="n">147.662</td><td class="n">+130.012</td><td class="n">+70.006</td><td class="n">−0.004</td><td class="n">−0.003</td></tr>
+  <tr><td>Σ</td><td></td><td class="n">517.959</td><td class="n">+360.014</td><td class="n">+360.009</td><td class="n">−0.014</td><td class="n">−0.009</td></tr>
+</table>
+<p>Różnica współrzędnych punktów nawiązania wynosi 360.000 m w X i w Y. Więc f<sub>x</sub> = +0.014 m, f<sub>y</sub> = +0.009 m i f<sub>d</sub> = 0.017 m. Poprawki dają Σv<sub>x</sub> = −0.014 i Σv<sub>y</sub> = −0.009, co zgadza się z odchyłkami.</p>
+<table>
+  <tr><th>Punkt</th><th class="n">X [m]</th><th class="n">Y [m]</th></tr>
+  <tr><td>A</td><td class="n">1100.000</td><td class="n">1200.000</td></tr>
+  <tr><td>1</td><td class="n">1210.001</td><td class="n">1330.008</td></tr>
+  <tr><td>2</td><td class="n">1329.992</td><td class="n">1489.997</td></tr>
+  <tr><td>B</td><td class="n">1460.000</td><td class="n">1560.000</td></tr>
+</table>
+<p>Współrzędne punktu B wyszły 1460.000; 1560.000, czyli równe danym. To końcowa kontrola całego obliczenia.</p>
+
+<h3>Ciąg zamknięty (poligon)</h3>
+<p>Poligon nie ma punktów nawiązania na końcu, więc kontrolą jest sama figura. Kąty mierzone po <b>lewej</b> stronie kierunku ciągu są <b>wewnętrzne</b> tylko wtedy, gdy obchodzisz poligon <b>przeciwnie do ruchu wskazówek zegara</b>. Przy obchodzie zgodnym z ruchem wskazówek zegara kąty lewe są <b>zewnętrzne</b>. Od tego zależy suma teoretyczna.</p>
+<div class="f">
+  <div>obchód przeciwny do wskazówek zegara (kąty wewnętrzne): &nbsp; Σβ<sub>teor</sub> = (n − 2) · 200<sup>g</sup></div>
+  <div>obchód zgodny ze wskazówkami zegara (kąty zewnętrzne): &nbsp; Σβ<sub>teor</sub> = (n + 2) · 200<sup>g</sup></div>
+  <div>f<sub>β</sub> = Σβ − Σβ<sub>teor</sub> &nbsp;&nbsp;&nbsp; v<sub>β</sub> = − <span class="fr"><span>f<sub>β</sub></span><span>n</span></span></div>
+  <div>f<sub>x</sub> = ΣΔX &nbsp;&nbsp;&nbsp; f<sub>y</sub> = ΣΔY &nbsp;&nbsp;&nbsp; f<sub>d</sub> = √(f<sub>x</sub>² + f<sub>y</sub>²)</div>
+  <div>v<sub>x,i</sub> = − f<sub>x</sub> · <span class="fr"><span>d<sub>i</sub></span><span>Σd</span></span> &nbsp;&nbsp;&nbsp; v<sub>y,i</sub> = − f<sub>y</sub> · <span class="fr"><span>d<sub>i</sub></span><span>Σd</span></span></div>
+</div>
+<p>Kolejność obliczeń jest taka sama jak w ciągu nawiązanym: poprawione kąty → azymuty (od znanego lub przyjętego azymutu pierwszego boku; po obejściu całej figury azymut pierwszego boku musi wyjść taki sam) → przyrosty → poprawki liniowe → współrzędne. Po obejściu poligonu współrzędne ostatniego punktu muszą wyjść równe współrzędnym punktu startowego.</p>
+
+<h2>6. Kontrola obliczeń, typowe błędy i źródła</h2>
+<p>Każda technika ma własną kontrolę, którą robisz zanim pójdziesz dalej. Jeśli kontrola nie wychodzi, szukaj błędu w obliczeniach, a dopiero potem w pomiarze.</p>
+<table>
+  <tr><th>Technika</th><th>Kontrola</th><th>Typowy błąd</th></tr>
+  <tr><td>Niwelacja geometryczna</td><td>Σt − Σp = ΣΔh; wysokość reperu końcowego wychodzi zgodna z danymi</td><td>zamiana odczytów t i p, zły znak Δh</td></tr>
+  <tr><td>Niwelacja trygonometryczna</td><td>wysokość policzona z dwóch stanowisk lub z dwóch kątów</td><td>kąt w stopniach przy kalkulatorze w gradach, pominięcie <i class="v">i</i> oraz <i class="v">s</i>, zły znak kąta, kąt zenitalny użyty jak wysokościowy</td></tr>
+  <tr><td>Tachimetria</td><td>pomiar punktu kontrolnego i powrót na punkt nawiązania; dwa położenia lunety</td><td>zła orientacja, zła wysokość reflektora, kąt zenitalny użyty jak wysokościowy</td></tr>
+  <tr><td>Ciąg poligonowy</td><td>f<sub>β</sub> i f<sub>d</sub> w dopuszczalnych; ostatni azymut = A<sub>k</sub>; ostatnie współrzędne = dane</td><td>zła ćwiartka azymutu, ujemny kąt bez dodania 400<sup>g</sup>, pomylone kąty wewnętrzne i zewnętrzne w poligonie</td></tr>
+</table>
+<h3>Zasady ogólne</h3>
+<ul>
+  <li>Ustaw kalkulator na grady (GRAD). To najczęstsza przyczyna odchyłek, które wyglądają na błąd pomiaru.</li>
+  <li>Nie zmazuj wpisów w dzienniku. Błędną liczbę przekreśl i wpisz poprawną obok.</li>
+  <li>Licz z jedną cyfrą więcej niż w wyniku, a zaokrąglaj dopiero na końcu, według Bradisa-Kryłowa.</li>
+  <li>Dane w przykładach są wymyślone. Wartości dopuszczalne odchyłek nie są tu podane: weź je z obowiązującej instrukcji technicznej lub rozporządzenia dla danej klasy osnowy (sprawdź aktualny numer, wydanie i załącznik) albo od prowadzącego.</li>
+</ul>
+<h3>Źródła i materiały do dalszej nauki</h3>
+<p class="small">Adresy oznaczone „sprawdzony” otwierały się 24.11.2026; pozostałe podaję samym tytułem (adresy mają krótkie sesje albo nie odpowiedziały), wyszukaj je po tytule.</p>
+<ul>
+  <li>S. Hunek, <i>Niwelacja trygonometryczna o wysokiej dokładności</i>, Acta Scientifica Academiae Ostroviensis nr 35–36, 2011, s. 173–184 (porównanie z niwelacją geometryczną; sprawdzony): <a href="https://bazhum.muzhp.pl/media/texts/acta-scientifica-academiae-ostroviensis/2011-numer-35-36/acta_scientifica_academiae_ostroviensis-r2011-t-n35_36-s173-184.pdf">bazhum.muzhp.pl</a>.</li>
+  <li>ZSGD Poznań, <i>Azymuty</i> – formularz obliczeń (sprawdzony): <a href="https://www.zsgd.poznan.pl/attachments/article/1062/azymuty.pdf">zsgd.poznan.pl/attachments/article/1062/azymuty.pdf</a>.</li>
+  <li>Muszyński Z., Osada E. i in., e-book ORE o pozyskiwaniu danych przestrzennych (niwelacja, tachimetria, poprawki): wyszukaj po tytule w zasobach ORE.</li>
+  <li>Politechnika Lubelska (WBiA): ćwiczenie z niwelacji geometrycznej, ćwiczenie z kąta pionowego i podstawy rachunku współrzędnych (zasady zaokrąglania, układ współrzędnych): materiały do wyszukania na stronie wydziału.</li>
+  <li>AGH: obliczanie ciągu nawiązanego obustronnie (wzory na odchyłki): wyszukaj po tytule.</li>
+  <li>Podręczniki (sprawdź aktualne wydania): A. Jagielski, <i>Geodezja I</i> i <i>II</i>; E. Osada, <i>Wykłady z geodezji i geoinformatyki</i>; Z. Wiśniewski, <i>Rachunek wyrównawczy w geodezji</i>.</li>
+</ul>
+
+</body>
+</html>
