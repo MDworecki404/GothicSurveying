@@ -151,20 +151,49 @@ namespace GOTHIC_NAMESPACE {
       return true;
     }
     // Skaner laserowy: promien z oka instrumentu; teren i voby ze swiata (bez postaci i voba skanera), zasieg 120 m.
-    bool ScanRay( double azDeg, double elevDeg, double& distM, double& cosInc, bool& isVob ) const override {
+    bool ScanRay( double azDeg, double elevDeg, double& distM, double& cosInc, bool& isVob, bool& isTarget ) const override {
       zCWorld* w = ogame->GetWorld();
       if ( !w || !hasInstr_ ) return false;
       const float rad = 3.14159265f / 180.0f, az = (float)azDeg * rad, p = (float)elevDeg * rad;
       const zVEC3 from = instrGround_ + zVEC3( 0, LV_INSTR_H, 0 );
       const zVEC3 dir( sinf( az ) * cosf( p ), sinf( p ), cosf( az ) * cosf( p ) );
-      if ( !w->TraceRayNearestHit( from, dir * 12000.0f, instr_, zTRACERAY_VOB_IGNORE_NO_CD_DYN | zTRACERAY_VOB_IGNORE_CHARACTER | zTRACERAY_POLY_IGNORE_TRANSP ) ) return false;
-      const zTTraceRayReport& r = w->traceRayReport;
-      distM = ( r.foundIntersection - from ).Length() / 100.0;
-      zVEC3 n = r.foundPolyNormal; const float nl = n.Length();
-      cosInc = nl > 0.5f ? fabs( ( n[VX] * dir[VX] + n[VY] * dir[VY] + n[VZ] * dir[VZ] ) / nl ) : 0.5;
-      isVob = r.foundVob != nullptr;
+      double best = 1e18; isVob = false; isTarget = false; cosInc = 0.5;
+      if ( w->TraceRayNearestHit( from, dir * 12000.0f, instr_, zTRACERAY_VOB_IGNORE_NO_CD_DYN | zTRACERAY_VOB_IGNORE_CHARACTER | zTRACERAY_POLY_IGNORE_TRANSP ) ) {
+        const zTTraceRayReport& r = w->traceRayReport;
+        best = ( r.foundIntersection - from ).Length();
+        zVEC3 n = r.foundPolyNormal; const float nl = n.Length();
+        cosInc = nl > 0.5f ? fabs( ( n[VX] * dir[VX] + n[VY] * dir[VY] + n[VZ] * dir[VZ] ) / nl ) : 0.5;
+        isVob = r.foundVob != nullptr;
+      }
+      const double sphR = (double)kScanTargetRadiusM * 100.0;                       // kule referencyjne: przeciecie promienia z kula (analitycznie, bez kolizji vobow)
+      for ( const ScanTgt& t : scanTgt_ ) {
+        if ( !t.up ) continue;
+        const zVEC3 c = t.pos + zVEC3( 0, (float)( kScanTargetUpM * 100.0 ), 0 ), oc = from - c;
+        const double b = oc[VX] * dir[VX] + oc[VY] * dir[VY] + oc[VZ] * dir[VZ], k = (double)oc.Length() * oc.Length() - sphR * sphR, disc = b * b - k;
+        if ( disc < 0 ) continue;
+        const double tt = -b - sqrt( disc );
+        if ( tt > 0 && tt < best && tt < 12000.0 ) {
+          best = tt; isTarget = true; isVob = false;
+          const zVEC3 hit = from + dir * (float)tt, nrm = ( hit - c ) * (float)( 1.0 / sphR );
+          cosInc = fabs( nrm[VX] * dir[VX] + nrm[VY] * dir[VY] + nrm[VZ] * dir[VZ] );
+        }
+      }
+      if ( best > 12000.0 ) return false;
+      distM = best / 100.0;
       return true;
     }
+    bool PlaceScanTarget( int slot, const ControlPoint& cp ) override {          // kula na znaku punktu osnowy (slot 1-6)
+      if ( slot < 1 || slot > 6 ) return false;
+      ScanTgt& t = scanTgt_[slot - 1];
+      RemoveVobSafe( t.vob );
+      t.pos = zVEC3( (float)cp.x, (float)cp.y, (float)cp.z ); t.up = true; t.vob = SpawnVob( LV_VIS_SPHERE, t.pos );
+      return true;
+    }
+    void RemoveScanTarget( int slot ) override {
+      if ( slot < 1 || slot > 6 ) return;
+      RemoveVobSafe( scanTgt_[slot - 1].vob ); scanTgt_[slot - 1].up = false;
+    }
+    bool ScanRegistrationByDefault() const override { return true; }
     std::string ScanOutDir() override {
       time_t t = time( nullptr ); tm lt; localtime_s( &lt, &t ); char st[32]; strftime( st, sizeof st, "%Y-%m-%d_%H-%M-%S", &lt );
       std::error_code ec; const std::string dir = std::string( "GothicSurveying/" ) + st + "_skan";
@@ -312,18 +341,18 @@ namespace GOTHIC_NAMESPACE {
     // Po zmianie świata: oddaje własne referencje bez dotykania świata (voby zwolnił już świat).
     void ForgetAll() {
       for ( auto& kv : pts_ ) DropVobRef( kv.second.marker );
-      DropVobRef( rod_[0] ); DropVobRef( rod_[1] ); DropVobRef( instr_ ); DropVobRef( pole_ ); DropVobRef( base_ ); hasPole_ = false; poleIsPrism_ = false;
+      DropVobRef( rod_[0] ); DropVobRef( rod_[1] ); DropVobRef( instr_ ); DropVobRef( pole_ ); DropVobRef( base_ ); for ( ScanTgt& t : scanTgt_ ) { DropVobRef( t.vob ); t.up = false; } hasPole_ = false; poleIsPrism_ = false;
       for ( Back& b : back_ ) { DropVobRef( b.marker ); DropVobRef( b.prism ); b.up = false; }
       DropVobRef( helmet_ ); DropVobRef( vest_ ); helmetNode_ = vestNode_ = nullptr;
       pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false; hasBase_ = false;
     }
     bool Stale() const {                                 // któryś z naszych vobów nie należy już do bieżącego świata
       for ( const auto& kv : pts_ ) if ( VobIsStale( kv.second.marker ) ) return true;
-      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ ) || VobIsStale( helmet_ ) || VobIsStale( vest_ ) || VobIsStale( pole_ ) || VobIsStale( base_ ) || BacksightsStale();
+      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ ) || VobIsStale( helmet_ ) || VobIsStale( vest_ ) || VobIsStale( pole_ ) || VobIsStale( base_ ) || ScanTargetsStale() || BacksightsStale();
     }
     void ClearAll() {
       for ( auto& kv : pts_ ) RemoveVobSafe( kv.second.marker );
-      RemoveVobSafe( rod_[0] ); RemoveVobSafe( rod_[1] ); RemoveVobSafe( instr_ ); RemoveVobSafe( pole_ ); RemoveVobSafe( base_ ); hasPole_ = false; poleIsPrism_ = false;
+      RemoveVobSafe( rod_[0] ); RemoveVobSafe( rod_[1] ); RemoveVobSafe( instr_ ); RemoveVobSafe( pole_ ); RemoveVobSafe( base_ ); for ( ScanTgt& t : scanTgt_ ) { RemoveVobSafe( t.vob ); t.up = false; } hasPole_ = false; poleIsPrism_ = false;
       for ( int i = 1; i <= 5; i++ ) RemoveBacksight( i );
       DressOff();
       pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false; hasBase_ = false;
@@ -340,6 +369,7 @@ namespace GOTHIC_NAMESPACE {
       s.Bool( "pole", hasPole_ ); s.Bool( "poleIsPrism", poleIsPrism_ ); PutPos( s, "polePos", poleGround_ );
       for ( int k = 0; k < 5; k++ ) { const std::string p = "back" + std::to_string( k ); s.Bool( p + ".up", back_[k].up ); s.Bool( p + ".marker", back_[k].marker != nullptr ); PutPos( s, p, back_[k].pos ); }
       s.Bool( "base", hasBase_ ); PutPos( s, "basePos", baseGround_ );
+      for ( int k = 0; k < 6; k++ ) { const std::string p = "sct" + std::to_string( k ); s.Bool( p + ".up", scanTgt_[k].up ); PutPos( s, p, scanTgt_[k].pos ); }
     }
     void LoadState( const StateKV& s ) {                // po CtrlForgetJob/ClearAll: swiat bez naszych obiektow
       prismH_ = s.GetNum( "prismH", 1.5 );
@@ -363,6 +393,7 @@ namespace GOTHIC_NAMESPACE {
         const std::string p = "back" + std::to_string( k );
         if ( s.GetBool( p + ".up" ) ) PlaceBacksightPos( k + 1, GetPos( s, p ), s.GetBool( p + ".marker" ) );
       }
+      for ( int k = 0; k < 6; k++ ) { const std::string p = "sct" + std::to_string( k ); if ( s.GetBool( p + ".up" ) ) { scanTgt_[k].pos = GetPos( s, p ); scanTgt_[k].up = true; scanTgt_[k].vob = SpawnVob( LV_VIS_SPHERE, scanTgt_[k].pos ); } }
       if ( s.GetBool( "base" ) ) { baseGround_ = GetPos( s, "basePos" ); hasBase_ = true; base_ = SpawnVob( LV_VIS_INSTR, baseGround_ ); }
     }
 
@@ -379,6 +410,7 @@ namespace GOTHIC_NAMESPACE {
     double prismH_ = 1.5; bool poleIsPrism_ = false;   // tachimetria: wysokosc lustra i rodzaj tyczki w slocie pole_
     struct Back { zVEC3 pos; zCVob* marker = nullptr; zCVob* prism = nullptr; bool up = false; };   // nawiazanie: znak + lustro
     Back back_[5];
+    bool ScanTargetsStale() const { for ( const ScanTgt& t : scanTgt_ ) if ( VobIsStale( t.vob ) ) return true; return false; }
     bool BacksightsStale() const { for ( const Back& b : back_ ) if ( VobIsStale( b.marker ) || VobIsStale( b.prism ) ) return true; return false; }
     void PlaceTachymeterPos( const zVEC3& p ) {
       RemoveVobSafe( instr_ );
@@ -399,6 +431,8 @@ namespace GOTHIC_NAMESPACE {
       zVEC3 d( instrGround_[VX] - p[VX], 0, instrGround_[VZ] - p[VZ] );
       if ( d.Length() > 0.1f ) { d.Normalize(); v->SetHeadingAtWorld( d ); }
     }
+    struct ScanTgt { zVEC3 pos; zCVob* vob = nullptr; bool up = false; };
+    ScanTgt scanTgt_[6];                               // kule referencyjne skanera (srodek = pos + kScanTargetUpM nad znakiem)
     zCVob* base_ = nullptr; zVEC3 baseGround_; bool hasBase_ = false;   // stacja bazowa RTK
     bool instrTachy_ = false;                          // instr_ to tachimetr (a nie niwelator)
     zCVob* pole_ = nullptr; zVEC3 poleGround_; bool hasPole_ = false; double clock_ = 0;   // GNSS: tyczka i zegar gry [s]

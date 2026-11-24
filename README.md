@@ -217,7 +217,13 @@ Skan trwa w czasie gry (klatka po klatce w budżecie ok. 12 ms; pasek postępu z
 
 Wyniki w folderze `GothicSurveying/RRRR-MM-DD_GG-MM-SS_skan/`: `skanNN.pts` (liczba punktów w pierwszej linii, potem `E N H intensywnosc`; X = E, Y = N, Z = H w układzie lokalnym siatki),
 `skanNN.las` (LAS 1.2, format 0, skala 1 mm; otwiera się np. w CloudCompare) i `skanNN_opis.txt` (parametry i stanowisko). Można zrobić wiele skanów na różnych stanowiskach w jednej robocie;
-po „Zakończ robotę” panel podsumowuje stanowiska i liczby punktów. Punkty zapisywane są strumieniowo na dysk, więc chmura nie obciąża pamięci gry. Rejestracja wielu skanów (tarcze) jest następnym krokiem.
+po „Zakończ robotę” panel podsumowuje stanowiska i liczby punktów. Punkty zapisywane są strumieniowo na dysk, więc chmura nie obciąża pamięci gry. **Rejestracja skanów na kulach referencyjnych** (domyślnie włączona; pozycja „Rejestracja” w menu): skan powstaje w **układzie lokalnym skanera** z losowym zerem azymutu, a stanowisko i obrót wyznacza się z kul.
+Dodaj co najmniej 3 (max 6) **kul referencyjnych** na znakach osnowy („Dodaj kulę referencyjną”: punkt osnowy do 150 m od ciebie; kula o średnicy 29 cm staje 0,5 m nad znakiem). Kule są retrorefleksyjne
+(intensywność 255), więc po skanie przeglądowym plugin je wykrywa, **doskanowuje gęsto** wokół każdej (pasek „doskanowanie kul”), dopasowuje do nich kulę metodą najmniejszych kwadratów (środek z dokładnością mm),
+przyporządkowuje do punktów osnowy (sprawdza wszystkie przyporządkowania, odrzuca niejednoznaczne) i dopasowuje obrót wokół pionu oraz przesunięcie (skaner jest poziomy). Komunikat i `skanNN_opis.txt` podają
+liczbę kul, rms dopasowania, współrzędne stanowiska (N, E, H osi skanera) i obrót; skan zapisuje się w siatce, więc skany z różnych stanowisk składają się w jedną chmurę. Kule zasłonięte przez teren lub
+voby nie są wykrywane (wystarczą 3 widoczne); gdy rejestracja się nie uda (za mało kul, niezgodność współrzędnych), skan zostaje w układzie lokalnym jako `skanNN_lokalny.pts/.las`.
+Przy zbyt grubej rozdzielczości mała kula może wypaść między promieniami skanu przeglądowego — wtedy wybierz drobniejszy krok.
 
 ## Poziomowanie instrumentu
 

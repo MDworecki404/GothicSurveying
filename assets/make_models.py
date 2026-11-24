@@ -155,6 +155,23 @@ def build_reper():
     return m
 
 
+def build_sphere_target():
+    """Kula referencyjna skanera (promien 14,5 cm, srodek 50 cm nad znakiem) na cienkim slupku."""
+    m = Mesh()
+    prism(m, (0, 0, 0), (0, 0, 36), 1.2, 8, block(1))
+    r, cz, rings, segs = 14.5, 50.0, 8, 16
+    def pt(i, j):
+        phi = math.pi * i / rings
+        th = 2 * math.pi * (j % segs) / segs
+        return (r * math.sin(phi) * math.cos(th), r * math.sin(phi) * math.sin(th), cz + r * math.cos(phi))
+    for i in range(rings):
+        for j in range(segs):
+            a, b, c, d = pt(i, j), pt(i, j + 1), pt(i + 1, j + 1), pt(i + 1, j)
+            m.tri(a, b, c, block(3))
+            m.tri(a, c, d, block(3))
+    return m
+
+
 # ---------- zapis .3DS ----------
 def chunk(cid, payload):
     return struct.pack("<HI", cid, 6 + len(payload)) + payload
@@ -349,7 +366,8 @@ def main():
                               ("LVL_PRISM15", build_prism_pole(150.0), one),
                               ("LVL_PRISM18", build_prism_pole(180.0), one),
                               ("LVL_PRISM20", build_prism_pole(200.0), one),
-                              ("LVL_REPER", build_reper(), one)):
+                              ("LVL_REPER", build_reper(), one),
+                              ("LVL_SPHERE", build_sphere_target(), one)):
         (meshes / f"{fname}.3DS").write_bytes(to_3ds(fname, mesh, mats))
         print(f"{fname}.3DS: {len(mesh.v)} wierzcholkow, {len(mesh.f)} trojkatow, {len(mats)} mat.")
     for f in sorted((Path(__file__).parent / "worldmaps").glob("LVL_MAP_*.TGA")):         # mapy swiatow z make_world_control.py

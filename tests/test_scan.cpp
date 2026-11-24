@@ -33,7 +33,7 @@ static void convert_writes_pts_and_las() {
   namespace fs = std::filesystem; const fs::path dir = fs::temp_directory_path() / "gs_scan_calc"; fs::create_directories(dir);
   ScanRawWriter w; assert(w.Open((dir / "r.tmp").string()));
   w.Append({1.0f, 2.0f, 3.0f, 10}); w.Append({-1.5f, 0.0f, -2.0f, 200}); w.Append({0.0f, 5.0f, 0.5f, 77}); w.Close();
-  const ScanStats st = ScanConvert((dir / "r.tmp").string(), 5500000.0, 6500000.0, 100.0, (dir / "o.pts").string(), (dir / "o.las").string());
+  const ScanStats st = ScanConvert((dir / "r.tmp").string(), 5500000.0, 6500000.0, 100.0, 0.0, (dir / "o.pts").string(), (dir / "o.las").string());
   assert(w.Count() == 3 && st.count == 3 && st.ok && near(st.minX, 6499998.5, 1e-4) && near(st.maxY, 5500005.0, 1e-4) && near(st.minZ, 98.0, 1e-4));
   std::ifstream pts(dir / "o.pts"); std::string first; std::getline(pts, first); assert(first == "3");
   double x, y, z; int i; pts >> x >> y >> z >> i; assert(near(x, 6500001.0, 1e-3) && near(y, 5500002.0, 1e-3) && near(z, 103.0, 1e-3) && i == 10);   // x = E, y = N, z = H
@@ -47,8 +47,17 @@ static void convert_writes_pts_and_las() {
   const int32_t X0 = (int32_t)u32(227); assert(X0 == (int32_t)std::llround((6500001.0 - offX) / 0.001) && u16(227 + 12) == 10 * 257);
 }
 
+static void convert_applies_rotation() {
+  namespace fs = std::filesystem; const fs::path dir = fs::temp_directory_path() / "gs_scan_rot"; fs::create_directories(dir);
+  ScanRawWriter w; assert(w.Open((dir / "r.tmp").string()));
+  w.Append({0.0f, 10.0f, 0.0f, 50});                                         // 10 m na polnoc w ukladzie lokalnym
+  w.Close();
+  const ScanStats st = ScanConvert((dir / "r.tmp").string(), 5500000.0, 6500000.0, 100.0, 90.0, (dir / "o.pts").string(), (dir / "o.las").string());
+  assert(st.ok && near(st.minX, 6500010.0, 1e-4) && near(st.minY, 5500000.0, 1e-4));       // obrot o 90 st. w prawo: polnoc -> wschod
+}
+
 int main() {
-  grid_counts_and_directions(); polar_to_local_axes(); noise_and_intensity(); convert_writes_pts_and_las();
+  grid_counts_and_directions(); polar_to_local_axes(); noise_and_intensity(); convert_writes_pts_and_las(); convert_applies_rotation();
   std::puts("test_scan OK");
   return 0;
 }

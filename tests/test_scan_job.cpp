@@ -13,6 +13,7 @@ static bool near(double a, double b, double eps) { return std::fabs(a - b) <= ep
 // Swiat: podloga 1,5 m pod okiem skanera (grunt H = 100) i sciana 10 m na polnoc od stanowiska.
 struct FakeScan : IWorld {
   std::vector<std::string> said; std::string dir; bool ground = true; bool controlNear = false;
+  std::vector<ControlPoint> ctrls; std::vector<std::pair<int, ControlPoint>> spheres;           // punkty osnowy w poblizu i postawione kule
   GridPos station{5500000.0, 6500000.0, 100.0};
   bool PlaceMarker(int, MarkerKind) override { return true; }
   bool FeetWithinCm(int, double) const override { return true; }
@@ -27,17 +28,29 @@ struct FakeScan : IWorld {
   void Say(const std::string& t) override { said.push_back(t); }
   bool PlaceTachymeter() override { return ground; }
   GridPos StationGrid() const override { return station; }
-  std::vector<ControlPoint> ControlNearHero(double) const override {
+  bool PlaceScanTarget(int slot, const ControlPoint& cp) override { spheres.push_back({slot, cp}); return true; }
+  void RemoveScanTarget(int slot) override { for (size_t i = 0; i < spheres.size(); i++) if (spheres[i].first == slot) { spheres.erase(spheres.begin() + (long)i); break; } }
+  bool ScanRegistrationByDefault() const override { return false; }
+  std::vector<ControlPoint> ControlNearHero(double maxM) const override {
+    if (maxM > 100.0) return ctrls;
     if (!controlNear) return {};
     ControlPoint c; c.id = "G1"; c.n = station.n + 0.012; c.e = station.e - 0.008; c.h = station.h + 0.02; return {c};
   }
   std::string ScanOutDir() override { std::filesystem::create_directories(dir); return dir; }
-  bool ScanRay(double az, double elev, double& dist, double& cosInc, bool& isVob) const override {
+  bool ScanRay(double az, double elev, double& dist, double& cosInc, bool& isVob, bool& isTarget) const override {
     const double pi = 3.14159265358979323846, a = az * pi / 180.0, e = elev * pi / 180.0, h = 1.5;
-    double best = 1e9; isVob = false; cosInc = 1.0;
+    double best = 1e9; isVob = false; isTarget = false; cosInc = 1.0;
     if (e < -1e-6) { best = h / std::sin(-e); cosInc = std::sin(-e); }                       // podloga
     const double north = std::cos(e) * std::cos(a);
     if (north > 1e-6) { const double t = 10.0 / north; if (t < best) { best = t; isVob = true; cosInc = north; } }   // sciana (vob)
+    for (const auto& sp : spheres) {                                                          // kule referencyjne: srodek 0,5 m nad znakiem
+      const double ce = sp.second.e - station.e, cn = sp.second.n - station.n, cu = sp.second.h + kScanTargetUpM - (station.h + h);
+      const double de = std::sin(a) * std::cos(e), dn = std::cos(a) * std::cos(e), du = std::sin(e);
+      const double b = ce * de + cn * dn + cu * du, c = ce * ce + cn * cn + cu * cu - kScanTargetRadiusM * kScanTargetRadiusM, disc = b * b - c;
+      if (disc < 0) continue;
+      const double t = b - std::sqrt(disc);
+      if (t > 0 && t < best) { best = t; isTarget = true; isVob = false; cosInc = 1.0; }
+    }
     if (best > 1e8) return false;
     dist = best; return true;
   }
@@ -108,6 +121,39 @@ static void cancel_removes_temp_file_and_state_roundtrip() {
   assert(g.job->SummaryLines() == f.job->SummaryLines() && g.enabled("finish") && g.enabled("scan"));
 }
 
+static ControlPoint CPoint(const std::string& id, double dn, double de, double dh) {
+  ControlPoint c; c.id = id; c.n = 5500000.0 + dn; c.e = 6500000.0 + de; c.h = 100.0 + dh; return c;
+}
+
+static void registration_recovers_station_and_rotation() {
+  Fx f; f.w.ctrls = {CPoint("G1", 15, 5, 0.2), CPoint("G2", -10, 20, -0.2), CPoint("G3", 5, -18, 0.5), CPoint("G4", -22, -6, 0.1)};
+  f.job->OnMenu("station"); f.job->OnMenu("reg");
+  assert(has(f.job->Menu()[2].label, "wlaczona") && !f.enabled("scan") && f.job->NeedsChoice("target") && f.job->TachyChoices("target").size() == 4);
+  f.job->OnMenu("target:G1"); f.job->OnMenu("target:G2");
+  assert(!f.enabled("scan") && f.job->TachyChoices("target").size() == 2);                  // dwie kule: za malo do rejestracji
+  f.job->OnMenu("target:G3"); f.job->OnMenu("target:G4"); assert(f.enabled("scan") && f.w.spheres.size() == 4);
+  f.job->OnMenu("scan"); assert(has(f.job->Hud(), "Skan 1"));
+  bool sawTargets = false;
+  for (int i = 0; i < 200000 && !f.enabled("station"); i++) { f.job->Tick(); if (has(f.job->Hud(), "doskanowanie")) sawTargets = true; }
+  assert(sawTargets && f.job->CanFinish());
+  const std::vector<std::string> sum = f.job->SummaryLines();
+  assert(has(sum[1], "rejestracja na 3 kulach") && !has(sum[1], "G1") && !has(sum[1], "lokalny") && std::filesystem::exists(f.w.dir + "/skan01.las") && !std::filesystem::exists(f.w.dir + "/skan01_lokalny.las"));
+  std::ifstream pts(f.w.dir + "/skan01.pts"); std::string first; std::getline(pts, first); double x, y, z; int in; long long wall = 0, k = 0, floorN = 0;
+  while (pts >> x >> y >> z >> in) { k++; if (std::fabs(y - 5500010.0) < 0.03) wall++; else if (std::fabs(z - 100.0) < 0.03) floorN++; }
+  assert(wall > 3000 && floorN > 3000 && k == std::stoll(first));                           // sciana na N = 10 m od stanowiska: obrot wyznaczony z kul (G1 za sciana jest niewidoczna, wystarczaja 3) (zero skanera bylo losowe)
+  f.job->OnMenu("untarget"); assert(f.w.spheres.size() == 3 && f.enabled("scan"));
+}
+
+static void registration_failure_keeps_local_cloud() {
+  Fx f; f.w.ctrls = {CPoint("G1", 15, 5, 0.2), CPoint("G2", -10, 20, -0.2), CPoint("G3", 5, -18, 0.5)};
+  f.job->OnMenu("station"); f.job->OnMenu("reg");
+  for (const char* id : {"target:G1", "target:G2", "target:G3"}) f.job->OnMenu(id);
+  f.w.spheres[0].second.n += 3.0;                                                           // znane wspolrzedne G1 sa bledne (3 m), kule w swiecie stoja gdzie indziej niz mowi osnowa
+  f.job->OnMenu("scan"); for (int i = 0; i < 200000 && !f.enabled("station"); i++) f.job->Tick();
+  const std::vector<std::string> sum = f.job->SummaryLines();
+  assert(f.job->CanFinish() && has(sum[1], "nieudana") && has(sum[1], "lokalny") && std::filesystem::exists(f.w.dir + "/skan01_lokalny.pts"));
+}
+
 struct LvlWorld : FakeScan { bool InstrumentLevelingEnabled() const override { return true; } };
 static void leveling_blocks_scan() {
   LvlWorld w; w.dir = (std::filesystem::temp_directory_path() / "gs_scan_job_lvl").string();
@@ -121,7 +167,7 @@ static void leveling_blocks_scan() {
 }
 
 int main() {
-  registry_and_menu_flow(); full_scan_writes_cloud_of_floor_and_wall(); station_on_control_point_uses_its_coordinates(); cancel_removes_temp_file_and_state_roundtrip(); leveling_blocks_scan();
+  registry_and_menu_flow(); full_scan_writes_cloud_of_floor_and_wall(); station_on_control_point_uses_its_coordinates(); cancel_removes_temp_file_and_state_roundtrip(); leveling_blocks_scan(); registration_recovers_station_and_rotation(); registration_failure_keeps_local_cloud();
   std::puts("test_scan_job OK");
   return 0;
 }

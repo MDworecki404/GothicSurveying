@@ -37,7 +37,7 @@ inline double ScanNoiseSigmaM(double distM) { return 0.0015 + 1e-5 * distM; }
 // Intensywnosc 0..255: cos kata padania (powierzchnia prostopadla = jasna) i spadek z odlegloscia.
 inline std::uint8_t ScanIntensity(double distM, double cosInc, bool isVob) {
   const double c = (std::min)(1.0, (std::max)(0.05, cosInc)), f = 1.0 / (1.0 + (distM / 60.0) * (distM / 60.0)), base = isVob ? 0.9 : 0.75;
-  return (std::uint8_t)(std::min)(255.0, (std::max)(4.0, 255.0 * base * c * (0.4 + 0.6 * f)));
+  return (std::uint8_t)(std::min)(250.0, (std::max)(4.0, 255.0 * base * c * (0.4 + 0.6 * f)));     // 255 zarezerwowane dla kul referencyjnych (retrorefleksja)
 }
 
 struct ScanLocal { float x, y, z; std::uint8_t i; };
@@ -75,12 +75,14 @@ inline bool ReadRec(std::ifstream& in, ScanLocal& p) {
 
 // Konwersja surowego pliku do .pts (x y z intensywnosc) i .las 1.2 (format punktu 0): wspolrzedne siatki E (X), N (Y), H (Z) = stanowisko + wektor lokalny.
 // Zwraca statystyki (bounding box w ukladzie siatki). Dwa przebiegi: granice, potem zapis (bez trzymania chmury w pamieci).
-inline ScanStats ScanConvert(const std::string& rawPath, double stN, double stE, double stH, const std::string& ptsPath, const std::string& lasPath) {
+// rotDeg: obrot ukladu lokalnego skanera wzgledem siatki (po rejestracji); 0 = lokalne osie zgodne z siatka.
+inline ScanStats ScanConvert(const std::string& rawPath, double stN, double stE, double stH, double rotDeg, const std::string& ptsPath, const std::string& lasPath) {
+  const double th = rotDeg * 3.14159265358979323846 / 180.0, cth = std::cos(th), sth = std::sin(th);
   ScanStats st;
   {
     std::ifstream in(rawPath, std::ios::binary); ScanLocal p;
     while (scandetail::ReadRec(in, p)) {
-      const double X = stE + p.x, Y = stN + p.y, Z = stH + p.z;
+      const double X = stE + p.y * sth + p.x * cth, Y = stN + p.y * cth - p.x * sth, Z = stH + p.z;
       if (!st.ok) { st.minX = st.maxX = X; st.minY = st.maxY = Y; st.minZ = st.maxZ = Z; st.ok = true; }
       st.minX = (std::min)(st.minX, X); st.maxX = (std::max)(st.maxX, X); st.minY = (std::min)(st.minY, Y); st.maxY = (std::max)(st.maxY, Y); st.minZ = (std::min)(st.minZ, Z); st.maxZ = (std::max)(st.maxZ, Z);
       st.count++;
@@ -103,7 +105,7 @@ inline ScanStats ScanConvert(const std::string& rawPath, double stN, double stE,
   las.write(h.data(), (std::streamsize)h.size());
   std::ifstream in(rawPath, std::ios::binary); ScanLocal p; std::string rec; char line[96];
   while (scandetail::ReadRec(in, p)) {
-    const double X = stE + p.x, Y = stN + p.y, Z = stH + p.z;
+    const double X = stE + p.y * sth + p.x * cth, Y = stN + p.y * cth - p.x * sth, Z = stH + p.z;
     std::snprintf(line, sizeof line, "%.3f %.3f %.3f %d\n", X, Y, Z, (int)p.i); pts << line;
     rec.clear();
     scandetail::PutLE(rec, (std::uint32_t)(std::int32_t)std::llround((X - offX) / scale), 4); scandetail::PutLE(rec, (std::uint32_t)(std::int32_t)std::llround((Y - offY) / scale), 4);
