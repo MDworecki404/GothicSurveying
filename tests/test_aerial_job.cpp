@@ -17,7 +17,7 @@ static const double N0 = 5500000.0, E0 = 6500000.0;
 // Swiat: plaski teren H = 100 m, bohater stoi tam, gdzie ustawi test.
 struct FakeAerial : IWorld {
   std::vector<std::string> said; std::string dir; GridPos hero{N0, E0, 100.0}; bool heroOk = true;
-  int placed = 0, removed = 0, poses = 0, outCalls = 0; bool dirOk = true; GridPos lastPose{0, 0, 0};
+  int placed = 0, removed = 0, poses = 0, outCalls = 0; bool dirOk = true; GridPos lastPose{0, 0, 0}; int landings = 0; bool wasUp = false;
   bool PlaceMarker(int, MarkerKind) override { return true; }
   bool FeetWithinCm(int, double) const override { return true; }
   void PlaceRod(RodRole, int) override {}
@@ -33,7 +33,7 @@ struct FakeAerial : IWorld {
   bool GroundHeightM(double, double, double& h) const override { h = 100.0; return groundOk; }
   bool PlaceDrone(const GridPos&) override { placed++; return true; }
   void RemoveDrone() override { removed++; }
-  void SetDronePose(const GridPos& p, double, double, double, double) override { poses++; lastPose = p; }
+  void SetDronePose(const GridPos& p, double, double, double, double) override { poses++; lastPose = p; if (p.h > 120.0) wasUp = true; else if (wasUp && p.h <= 100.5) { landings++; wasUp = false; } }
   std::string AerialOutDir() override { std::string d = dir; if (outCalls++ > 0) d += "_" + std::to_string(outCalls); if (dirOk) std::filesystem::create_directories(d); return d; }
   std::vector<ControlPoint> ControlNearHero(double) const override { ControlPoint c; c.id = "G1"; c.n = N0 + 5; c.e = E0 + 7; c.h = 100.0; return {c}; }
   bool Said(const std::string& part) const { for (const std::string& s : said) if (has(s, part)) return true; return false; }
@@ -82,10 +82,6 @@ static void launch_needs_area() {
   assert(f.w.Said("obszar") && f.w.placed == 0);                         // 2 wierzcholki nie wystarcza
 }
 
-static void launch_refused_when_battery() {
-  Fx f; f.Square(600); f.job->OnMenu("launch");
-  assert(f.w.Said("bateri") && f.w.placed == 0);
-}
 
 static void area_clear_and_vertex_limit() {
   Fx f;
@@ -120,7 +116,7 @@ static void params_change_plan() {
   Fx f; f.Square(100);
   f.job->OnMenu("agl");                                                      // 50 -> 80 m: szerszy pas, mniej szeregow
   assert(has(f.job->Hud(), "szeregow: 2"));
-  f.job->OnMenu("follow"); f.job->OnMenu("profile"); f.job->OnMenu("preset"); f.job->OnMenu("speed"); f.job->OnMenu("sidelap"); f.job->OnMenu("azimuth");
+  f.job->OnMenu("follow"); f.job->OnMenu("battery"); f.job->OnMenu("profile"); f.job->OnMenu("preset"); f.job->OnMenu("speed"); f.job->OnMenu("sidelap"); f.job->OnMenu("azimuth");
   assert(f.Lines(0) == 4);
 }
 
@@ -261,6 +257,22 @@ static void open_failure_refuses_launch() {
   assert(!f.enabled("cancel") && f.w.placed == 0 && f.w.Said("otworzyc"));
 }
 
+static void long_plan_flies_with_battery_swaps() {                             // dlugi plan: bez odmowy; dron wraca, laduje i leci dalej
+  Fx f; f.Square(300);
+  for (int i = 0; i < 3; i++) f.job->OnMenu("agl");                              // 50 -> 80 -> 100 -> 150 m (3 szeregi po 300 m)
+  for (int i = 0; i < 3; i++) f.job->OnMenu("speed");                            // 5 -> 6 -> 8 -> 3 m/s (szereg 100 s)
+  for (int i = 0; i < 2; i++) f.job->OnMenu("battery");                          // 25 -> 40 -> 5 min (225 s uzytecznych)
+  for (int i = 0; i < 3; i++) f.job->OnMenu("preset");                           // najrzadsze impulsy
+  assert(has(f.job->Hud(), "szeregow: 3") && has(f.job->Hud(), "3 loty"));
+  Air(f)->TestHooks(20000, nullptr, true); f.job->OnMenu("launch");
+  assert(f.w.placed == 1 && f.enabled("cancel") && f.w.Said("wymian"));
+  Fly(f);
+  assert(f.w.landings == 2 && f.w.removed == 1 && LasCount(f.w.dir) > 100000);   // 2 wymiany w locie (ladowanie koncowe: dron zdejmowany ze swiata bez pozy)
+  const auto las = Slurp(f.w.dir + "/lot.las"); std::set<int> st; const long long n = LasCount(f.w.dir);
+  for (long long k = 0; k < n; k++) st.insert((int)U(las, 227 + (size_t)k * 34 + 18, 2));
+  assert(st == (std::set<int>{0, 1, 2}));
+}
+
 static void route_blocked_warns_but_flies() {
   Fx f; Ready(f); f.job->OnMenu("launch");
   assert(f.w.routeChecks == 3 && !f.w.Said("przeszkod") && f.enabled("cancel"));       // czysta trasa: 3 szeregi sprawdzone, bez ostrzezenia
@@ -278,7 +290,7 @@ int main() {
   flight_runs_to_end(); zero_error_profile_hits_truth(); points_have_strip_ids_and_time(); rays_miss_no_crash(); ground_height_unavailable_falls_back();
   abort_midflight_writes_partial(); idle_phases_are_flown(); finish_false_midflight_converts_and_keeps_raw(); state_roundtrip();
   resume_after_finished_flight_keeps_old_result(); resume_with_short_raw_uses_new_folder(); open_failure_refuses_launch(); strip_and_control_report(); route_blocked_warns_but_flies();
-  registry_and_kind(); vertices_and_plan(); launch_needs_area(); launch_refused_when_battery(); area_clear_and_vertex_limit();
+  registry_and_kind(); vertices_and_plan(); launch_needs_area(); long_plan_flies_with_battery_swaps(); area_clear_and_vertex_limit();
   area_rect_from_two_corners(); ctrl_vertex_from_list(); params_change_plan(); plan_csv_written();
   std::puts("test_aerial_job OK"); return 0;
 }

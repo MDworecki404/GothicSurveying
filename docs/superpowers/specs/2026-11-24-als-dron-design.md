@@ -47,7 +47,7 @@ by swiaty testowe i inne roboty ich nie musialy znac.
 
 | Plik | Zawartosc | Testy |
 |---|---|---|
-| `calc/Flight.hpp` | plan nalotu: wielokat -> szeregi (kierunek, odstep z AGL, FOV, zakladka), czas lotu, bateria (25 min, zapas 25%), gestosc, eksport CSV; parametry sensora jako struktura (pod fotogrametrie) | `tests/test_flight.cpp` |
+| `calc/Flight.hpp` | plan nalotu: wielokat -> szeregi (kierunek, odstep z AGL, FOV, zakladka), czas lotu, loty na bateriach (wymiana w bazie zamiast odmowy startu; zmiana po wdrozeniu), gestosc, eksport CSV; parametry sensora jako struktura (pod fotogrametrie) | `tests/test_flight.cpp` |
 | `calc/Georef.hpp` | trajektoria prawdziwa i estymowana (GNSS szum/dryf, IMU szum/bias), boresight, lever arm, skaner liniowy (lustro, FOV), wzor georeferencji | `tests/test_georef.cpp` |
 | `calc/AlsLas.hpp` | strumieniowy zapis surowy (rekord z czasem GPS i numerem szeregu), LAS 1.2 format 3 (offset, skala 1 mm), PTS; kontrola szeregow i osnowy | `tests/test_alslas.cpp` |
 | `job/AerialJob.hpp` | robota: menu, plan, autopilot, `Tick()`, raport, stan | `tests/test_aerial.cpp` (falszywy swiat) |

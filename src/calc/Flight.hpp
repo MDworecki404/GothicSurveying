@@ -14,17 +14,21 @@ inline const AlsPreset kAlsPresets[4] = {
   {"2 kHz (20 linii/s)", 2000, 20}, {"5 kHz (50 linii/s)", 5000, 50}, {"10 kHz (80 linii/s)", 10000, 80}, {"20 kHz (100 linii/s)", 20000, 100},
 };
 
+// Parametry lotu poza szeregiem (wspolne dla planu i sciezki drona): szybki start, dojazd, krotki zawis przy zakrecie, wymiana baterii w bazie.
+inline const double kClimbMps = 8.0, kTransitMps = 12.0, kTurnS = 2.0, kSwapS = 10.0;
+
 struct FlightParams {
   std::vector<PlanPt> area;
   double stripAzDeg = 0, aglM = 50, speedMps = 5, sidelapPct = 30, batteryMin = 25, reservePct = 25;
   bool followTerrain = true;
   SensorSpec sensor;
 };
-struct Strip { int id; PlanPt a, b; double lengthM; };            // a->b = kierunek lotu
+struct Strip { int id; PlanPt a, b; double lengthM; int sortie = 0; };   // a->b = kierunek lotu; sortie = numer lotu na jednej baterii
 struct FlightPlan {
   std::vector<Strip> strips;
   double swathM = 0, spacingM = 0, scanTimeS = 0, flightTimeS = 0, estDensityPtsM2 = 0;
-  bool ok = false, batteryOk = false; std::string msg;
+  int sorties = 1;                                                 // liczba lotow (baterii): po wyczerpaniu dron wraca do bazy, wymienia baterie i leci dalej
+  bool ok = false; std::string msg;
 };
 
 inline FlightPlan PlanFlight(const FlightParams& p, PlanPt home) {
@@ -59,17 +63,25 @@ inline FlightPlan PlanFlight(const FlightParams& p, PlanPt home) {
     for (Strip& s : row) { s.id = (int)pl.strips.size(); pl.strips.push_back(s); }
   }
   if (pl.strips.empty()) { pl.msg = "brak szeregow w obszarze"; return pl; }
-  auto dist = [](PlanPt a, PlanPt b) { return std::hypot(a.n - b.n, a.e - b.e); };
-  double t = p.aglM / 3.0; PlanPt cur = home;            // wznios 3 m/s
-  for (const Strip& s : pl.strips) {
-    t += dist(cur, s.a) / p.speedMps + s.lengthM / p.speedMps + 5.0; pl.scanTimeS += s.lengthM / p.speedMps; cur = s.b;
+  auto leg = [&](PlanPt a, PlanPt b) { return std::hypot(a.n - b.n, a.e - b.e) / kTransitMps; };
+  const double vert = p.aglM / kClimbMps, usable = p.batteryMin * 60.0 * (1.0 - p.reservePct / 100.0);   // wznios albo ladowanie; czas lotu na jednej baterii
+  double total = 0, used = vert; PlanPt cur = home; int sortie = 0; bool any = false, tooLong = false;
+  for (Strip& s : pl.strips) {
+    double add = leg(cur, s.a) + kTurnS + s.lengthM / p.speedMps, back = leg(s.b, home) + vert;
+    if (any && used + add + back > usable) {                       // szereg sie nie miesci: powrot, ladowanie, wymiana baterii i nowy wznios
+      total += used + leg(cur, home) + vert + kSwapS;
+      sortie++; used = vert; cur = home; any = false;
+      add = leg(cur, s.a) + kTurnS + s.lengthM / p.speedMps; back = leg(s.b, home) + vert;
+    }
+    if (!any && used + add + back > usable) tooLong = true;        // pojedynczy szereg dluzszy niz bateria: leci mimo to
+    used += add; any = true; cur = s.b; s.sortie = sortie; pl.scanTimeS += s.lengthM / p.speedMps;
   }
-  t += dist(cur, home) / p.speedMps + p.aglM / 3.0;                // powrot i ladowanie
-  pl.flightTimeS = t;
+  total += used + leg(cur, home) + vert;                           // powrot i ladowanie
+  pl.flightTimeS = total; pl.sorties = sortie + 1;
   pl.estDensityPtsM2 = p.sensor.pulseHz / (p.speedMps * pl.swathM);
-  const double availS = p.batteryMin * 60.0 * (1.0 - p.reservePct / 100.0);
-  pl.batteryOk = pl.flightTimeS <= availS; pl.ok = true;
-  if (!pl.batteryOk) { char b[120]; std::snprintf(b, sizeof b, "bateria za mala: lot %.1f min, dostepne %.1f min", pl.flightTimeS / 60.0, availS / 60.0); pl.msg = b; }
+  pl.ok = true; char b[160];
+  if (pl.sorties > 1) { std::snprintf(b, sizeof b, "wymian baterii: %d (lotow: %d), kazda ok. %d s", pl.sorties - 1, pl.sorties, (int)kSwapS); pl.msg = b; }
+  if (tooLong) pl.msg += std::string(pl.msg.empty() ? "" : "; ") + "uwaga: szereg dluzszy niz bateria (poleci mimo to)";
   return pl;
 }
 

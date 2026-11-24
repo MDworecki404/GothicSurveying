@@ -64,10 +64,23 @@ static void concave_u_shape_splits() {
   assert(pl.strips.size() > PlanFlight(Square(), {N0, E0}).strips.size());   // linia przez wciecie dzieli sie na dwa odcinki
 }
 
-static void battery_flag() {
-  FlightParams p = Square(); p.batteryMin = 1;
-  FlightPlan pl = PlanFlight(p, {N0, E0}); assert(pl.ok && !pl.batteryOk && pl.msg.find("bateri") != std::string::npos);
-  p.batteryMin = 25; pl = PlanFlight(p, {N0, E0}); assert(pl.batteryOk);
+static void battery_swaps() {                                                  // bateria wyczerpana: powrot, wymiana i dalszy lot, plan zawsze wykonalny
+  FlightParams p = Square(); p.batteryMin = 25;
+  const FlightPlan one = PlanFlight(p, {N0, E0}); assert(one.ok && one.sorties == 1);
+  for (const Strip& s : one.strips) assert(s.sortie == 0);
+  p.batteryMin = 1;                                                              // 45 s uzytecznych: kazdy 100-metrowy szereg (20 s) to osobny lot
+  const FlightPlan many = PlanFlight(p, {N0, E0});
+  assert(many.ok && many.sorties == 3 && many.msg.find("wymian") != std::string::npos);
+  for (size_t i = 0; i < many.strips.size(); i++) assert(many.strips[i].sortie == (int)i);
+  assert(many.flightTimeS > one.flightTimeS + 2 * kSwapS);                      // dodatkowy wznios, dojazd, ladowanie i wymiana
+  p.batteryMin = 0.01;                                                           // szereg dluzszy niz bateria: lot mimo to, z ostrzezeniem
+  const FlightPlan tiny = PlanFlight(p, {N0, E0}); assert(tiny.ok && tiny.sorties == 3 && tiny.msg.find("dluzszy") != std::string::npos);
+}
+
+static void takeoff_is_quick() {                                               // start: 50 m AGL w ok. 6 s, zakret 2 s (wczesniej 17 s i 5 s)
+  assert(kClimbMps >= 8.0 && kTransitMps >= 12.0 && kTurnS <= 2.0 && kSwapS <= 10.0);
+  FlightParams p = Square(); const FlightPlan pl = PlanFlight(p, {N0, E0});
+  assert(pl.flightTimeS < 150.0);
 }
 
 static void csv_header_and_rows() {
@@ -79,6 +92,6 @@ static void csv_header_and_rows() {
 }
 
 int main() {
-  square_plan_values(); degenerate_area_refused(); concave_u_shape_splits(); battery_flag(); csv_header_and_rows();
+  square_plan_values(); degenerate_area_refused(); concave_u_shape_splits(); battery_swaps(); takeoff_is_quick(); csv_header_and_rows();
   std::puts("test_flight OK"); return 0;
 }

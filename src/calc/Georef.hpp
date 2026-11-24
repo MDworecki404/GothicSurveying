@@ -54,21 +54,29 @@ class FlightPath {
       if (dur <= 0) return;
       Seg s{t, dur, a, za, b, zb, Course(a, b), scan, strip, onTheFly}; segs_.push_back(s); t += dur;
     };
+    auto dist = [](PlanPt a, PlanPt b) { return std::hypot(a.n - b.n, a.e - b.e); };
     const double hz = Alt(home.n, home.e);
     const PlanPt first = plan.strips.empty() ? home : plan.strips[0].a;
     const double c0 = Course(home, first);
-    add(home, homeGround_, home, hz, std::fabs(hz - homeGround_) / 3.0, false, -1, false); if (!segs_.empty()) segs_.back().yaw = c0;
-    double zc = hz;
+    add(home, homeGround_, home, hz, std::fabs(hz - homeGround_) / kClimbMps, false, -1, false); if (!segs_.empty()) segs_.back().yaw = c0;
+    double zc = hz; int sortie = plan.strips.empty() ? 0 : plan.strips[0].sortie;
     for (const Strip& s : plan.strips) {
+      if (s.sortie != sortie) {                                           // wymiana baterii: powrot do bazy, ladowanie, postoj, nowy wznios
+        add(cur, zc, home, hz, dist(cur, home) / kTransitMps, false, -1, false);
+        add(home, hz, home, homeGround_, std::fabs(hz - homeGround_) / kClimbMps, false, -1, false);
+        { Seg h{t, kSwapS, home, homeGround_, home, homeGround_, segs_.empty() ? 0.0 : segs_.back().yaw, false, -1, false}; segs_.push_back(h); t += kSwapS; }
+        add(home, homeGround_, home, hz, std::fabs(hz - homeGround_) / kClimbMps, false, -1, false);
+        cur = home; zc = hz; sortie = s.sortie;
+      }
       const double za = Alt(s.a.n, s.a.e), zb = Alt(s.b.n, s.b.e);
-      add(cur, zc, s.a, za, std::hypot(s.a.n - cur.n, s.a.e - cur.e) / speedMps, false, -1, false);
+      add(cur, zc, s.a, za, dist(cur, s.a) / kTransitMps, false, -1, false);
       const double y = Course(s.a, s.b);
-      { Seg h{t, 5.0, s.a, za, s.a, za, y, false, -1, false}; segs_.push_back(h); t += 5.0; }
+      { Seg h{t, kTurnS, s.a, za, s.a, za, y, false, -1, false}; segs_.push_back(h); t += kTurnS; }
       add(s.a, za, s.b, zb, s.lengthM / speedMps, true, s.id, follow_);
       cur = s.b; zc = zb;
     }
-    add(cur, zc, home, hz, std::hypot(home.n - cur.n, home.e - cur.e) / speedMps, false, -1, false);
-    add(home, hz, home, homeGround_, std::fabs(hz - homeGround_) / 3.0, false, -1, false);
+    add(cur, zc, home, hz, dist(cur, home) / kTransitMps, false, -1, false);
+    add(home, hz, home, homeGround_, std::fabs(hz - homeGround_) / kClimbMps, false, -1, false);
     total_ = t;
   }
   double Duration() const { return total_; }

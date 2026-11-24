@@ -78,6 +78,22 @@ static void flightpath_phases() {
   assert(near(start.pos.y, home.n, 1e-6) && near(end.pos.x, home.e, 1e-6));
 }
 
+static void flightpath_battery_swap() {                                         // powrot do bazy, ladowanie, postoj i wznios miedzy lotami
+  FlightParams p; p.batteryMin = 1; const FlightPlan pl = MakePlan(p); assert(pl.ok && pl.sorties == 3);
+  const PlanPt home{N0 - 10, E0 - 10};
+  FlightPath fp(pl, [](double, double) { return 100.0; }, p.aglM, p.speedMps, false, 100.0, home);
+  assert(near(fp.Duration(), pl.flightTimeS, 1.0));
+  int landings = 0; bool wasUp = false; int last = -1;
+  for (double t = 0; t <= fp.Duration(); t += 0.25) {
+    const TrajSample s = fp.At(t);
+    if (s.pos.z > 120.0) wasUp = true;
+    if (wasUp && s.pos.z <= 100.0 + 1e-6) { landings++; wasUp = false; assert(near(s.pos.y, home.n, 1e-6) && near(s.pos.x, home.e, 1e-6)); }   // laduje w bazie
+    if (s.scanning) { assert(s.strip >= last); last = s.strip; }
+  }
+  const TrajSample endS = fp.At(fp.Duration()); if (wasUp && endS.pos.z <= 100.0 + 1e-6) landings++;   // ostatnia probka: ladowanie koncowe
+  assert(landings == 3 && last == 2);                                           // dwie wymiany i ladowanie koncowe
+}
+
 static void follow_terrain_tracks_slope() {
   FlightParams p; const FlightPlan pl = MakePlan(p);
   const PlanPt home{N0 - 10, E0 - 10};
@@ -118,6 +134,6 @@ static void drift_is_meters_per_minute() {                                      
 int main() {
   drift_is_meters_per_minute();
   rpy_axes(); beam_dir(); mirror_sawtooth(); zero_error_roundtrip(); boresight_roll_bias_shift(); attitude_error_scales_with_range();
-  flightpath_phases(); follow_terrain_tracks_slope(); noise_deterministic_and_profile_ordering();
+  flightpath_phases(); flightpath_battery_swap(); follow_terrain_tracks_slope(); noise_deterministic_and_profile_ordering();
   std::puts("test_georef OK"); return 0;
 }
