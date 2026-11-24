@@ -147,6 +147,7 @@ class ScanJob : public Job {
   }
 
   bool CanFinish() const override { return !scans_.empty() && !scanning_; }
+  std::string ResultDir() const override { return outDir_; }
   std::string NextStep() const override {
     if (scanning_) return "";
     if (!stationUp_) return "station";

@@ -178,6 +178,7 @@ class AerialJob : public Job {
     return b;
   }
   bool CanFinish() const override { return flights_ > 0 && !flying_ && !adj_ && !prod_; }
+  std::string ResultDir() const override { return outDir_; }
   std::string NextStep() const override {
     if (area_.size() < 3) return "area_map";
     if (flying_ || adj_ || prod_) return "";

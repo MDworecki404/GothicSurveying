@@ -13,6 +13,18 @@ namespace GOTHIC_NAMESPACE {
   inline std::string        gReadingLog;              // GothicSurveying/odczyty_biezace.csv: log odczytów bieżącej roboty (po końcu trafia do folderu roboty)
   inline std::string        gJobDir;                  // folder zakończonej roboty: GothicSurveying/<data_godzina>
 
+  inline std::string        gJobMeasId;               // id pomiaru w gProject, ktory realizuje biezaca robota ("" = brak)
+  inline bool               gStartGuided = false;     // czy nastepny pomiar startuje w trybie prowadzonym (kreator)
+
+  // Rejestracja konca pomiaru w projekcie (zakonczenie / przerwanie / zmiana swiata); wolac przed CtrlEndJob.
+  inline void CtrlMarkEnd( MeasState s, const std::string& dir, const std::string& summary ) {
+    if ( gJobMeasId.empty() ) return;
+    SetState( gProject, gJobMeasId, s, dir, summary );
+    ProjSave();
+    gJobMeasId.clear();
+  }
+  inline std::string CtrlFirst( const std::vector<std::string>& v ) { return v.empty() ? std::string() : v[0]; }
+
   inline FieldBook          gPendingFb;               // dziennik oczekujący na wpisy gracza (tryb samodzielny)
 
   inline zCView*            gStatusPanel = nullptr;  // panel odbiornika GNSS (linie ze Job::StatusLines)
@@ -102,6 +114,7 @@ namespace GOTHIC_NAMESPACE {
     }
     TextPanelShow( r.trig ? "Niwelacja trygonometryczna - podsumowanie" : "Tachimetria - podsumowanie", lines, ok ? "Zapisano w folderze: " + gJobDir : "BLAD ZAPISU plikow dziennika" );
     SvTrace( "Tachimetria zakonczona" );
+    CtrlMarkEnd( MeasState::Done, gJobDir, CtrlFirst( lines ) );
     CtrlEndJob();
   }
 
@@ -148,6 +161,7 @@ namespace GOTHIC_NAMESPACE {
     }
     TextPanelShow( "Pomiar GNSS - podsumowanie", lines, ok ? "Zapisano w folderze: " + gJobDir : "BLAD ZAPISU plikow dziennika" );
     SvTrace( "Pomiar GNSS zakonczony" );
+    CtrlMarkEnd( MeasState::Done, gJobDir, CtrlFirst( lines ) );
     CtrlEndJob();
   }
 
@@ -155,13 +169,13 @@ namespace GOTHIC_NAMESPACE {
     if ( !gJob ) return;
     if ( gJob->Kind() == JobKind::Gnss ) { CtrlFinishGnss(); return; }
     if ( gJob->Kind() == JobKind::Tachy ) { CtrlFinishTachy(); return; }
-    if ( gJob->Kind() == JobKind::Scan ) { TextPanelShow( "Skaner laserowy - podsumowanie", gJob->SummaryLines(), "Pliki .pts i .las w folderze GothicSurveying" ); SvTrace( "Skaner zakonczony" ); CtrlEndJob(); return; }
-    if ( gJob->Kind() == JobKind::Aerial || gJob->Kind() == JobKind::Photo ) { TextPanelShow( gJob->Name() + " - podsumowanie", gJob->SummaryLines(), gJob->Kind() == JobKind::Photo ? "Zdjecia PNG, zdjecia.csv i raport wyrownania wiazki w folderze GothicSurveying (..._lot)" : "Pliki LAS, PTS, trajektoria i opis lotu w folderze GothicSurveying (..._lot)" ); SvTrace( "Robota lotnicza zakonczona" ); CtrlEndJob(); return; }
+    if ( gJob->Kind() == JobKind::Scan ) { TextPanelShow( "Skaner laserowy - podsumowanie", gJob->SummaryLines(), "Pliki .pts i .las w folderze GothicSurveying" ); SvTrace( "Skaner zakonczony" ); CtrlMarkEnd( MeasState::Done, gJob->ResultDir(), CtrlFirst( gJob->SummaryLines() ) ); CtrlEndJob(); return; }
+    if ( gJob->Kind() == JobKind::Aerial || gJob->Kind() == JobKind::Photo ) { TextPanelShow( gJob->Name() + " - podsumowanie", gJob->SummaryLines(), gJob->Kind() == JobKind::Photo ? "Zdjecia PNG, zdjecia.csv i raport wyrownania wiazki w folderze GothicSurveying (..._lot)" : "Pliki LAS, PTS, trajektoria i opis lotu w folderze GothicSurveying (..._lot)" ); SvTrace( "Robota lotnicza zakonczona" ); CtrlMarkEnd( MeasState::Done, gJob->ResultDir(), CtrlFirst( gJob->SummaryLines() ) ); CtrlEndJob(); return; }
     FieldBook fb = gJob->Finish( true );
     gJobDir = MakeJobDir();                            // nazwa folderu = czas zakończenia roboty
     MoveReadingLog( gReadingLog, gJobDir );
     if ( fb.mode == CalcMode::Manual ) {               // tryb samodzielny: gracz sam liczy dziennik w edytorze
-      gPendingFb = fb; CtrlEndJob(); FieldBookEditStart( fb );
+      gPendingFb = fb; CtrlMarkEnd( MeasState::Done, gJobDir, "dziennik w trybie samodzielnym: " + std::to_string( (int)fb.rows.size() ) + " stan." ); CtrlEndJob(); FieldBookEditStart( fb );
       return;
     }
     char b[200];
@@ -172,6 +186,7 @@ namespace GOTHIC_NAMESPACE {
     const bool ok = ExportFieldBook( fb, gJobDir, false );
     FieldBookShow( fb, ok ? "Zapisano w folderze: " + gJobDir : "BLAD ZAPISU plikow dziennika" );
     SvTrace( b );
+    CtrlMarkEnd( MeasState::Done, gJobDir, b );
     CtrlEndJob();
   }
 
@@ -190,9 +205,13 @@ namespace GOTHIC_NAMESPACE {
   }
 
   inline void CtrlStartJob( int typeIdx, TraverseKind kind, CalcMode mode, bool showTrueError = false ) {
+    ProjEnsure();
+    { std::string why; if ( !CanAddMeasurement( gProject, why ) ) { HudMessage( ( "Nie mozna zaczac pomiaru: " + why ).c_str() ); return; } }
     gJobOpts = JobOptions{ kind, mode, showTrueError };
     gJob = JobTypes()[typeIdx].create( gWorld, gJobOpts ); gJobTypeIdx = typeIdx;
     gReadingLog = PrepareReadingLog();
+    { Measurement& m = AddMeasurement( gProject, JobTypes()[typeIdx].id, JobTypes()[typeIdx].name ); m.guided = gStartGuided; gJobMeasId = m.id; m.state = MeasState::Running; ProjSave(); }
+    gStartGuided = false;
     gWorld.DressOn();                                  // zdejmuje CtrlEndJob (Zakończ / Przerwij / zmiana świata)
     HudMessage( ( "Robota: " + gJob->Name() + ". " LV_KEYNAME_MENU " - menu" ).c_str() );
   }
@@ -237,6 +256,7 @@ namespace GOTHIC_NAMESPACE {
       const std::string dir = gJob->Kind() == JobKind::Gnss ? CtrlSavePartialGnss( gJob->FinishGnss( false ) )
                             : gJob->Kind() == JobKind::Tachy ? CtrlSavePartialTachy( gJob->FinishTachy( false ) ) : CtrlSavePartial( gJob->Finish( false ) );
       HudMessage( dir.empty() ? "Robota przerwana" : ( "Robota przerwana, zapisano w folderze: " + dir ).c_str() );
+      CtrlMarkEnd( MeasState::Aborted, dir.empty() ? gJob->ResultDir() : dir, "" );
       CtrlEndJob();
     } );
   }
@@ -454,6 +474,7 @@ namespace GOTHIC_NAMESPACE {
     top.Int( "ver", 1 ); top.Str( "world", ControlWorldKey( ControlWorldName() ) ); top.Str( "type", JobTypes()[gJobTypeIdx].id );
     top.Int( "kind", (int)gJobOpts.kind ); top.Int( "mode", (int)gJobOpts.mode ); top.Bool( "trueErr", gJobOpts.showTrueError );
     top.Str( "job", job.ToText() ); top.Str( "wld", world.ToText() );
+    top.Str( "project", gProject.name ); top.Str( "pomiar", gJobMeasId );        // opcjonalne (stare zapisy ich nie maja)
     fs::create_directories( LV_OUT_DIR, ec );
     WriteBytes( path, top.ToText() );
     SvTrace( ( "stan roboty zapisany: " + path ).c_str() );
@@ -472,6 +493,16 @@ namespace GOTHIC_NAMESPACE {
     std::unique_ptr<Job> job = JobTypes()[idx].create( gWorld, gJobOpts );
     if ( !job->LoadState( StateKV::FromText( top.GetStr( "job" ) ) ) ) return false;
     gJob = std::move( job ); gJobTypeIdx = idx;
+    {                                                   // projekt: zapis wskazuje projekt i pomiar; stare zapisy (bez kluczy) trafiaja do projektu "Luzem_<swiat>"
+      const std::string pname = top.GetStr( "project" ), pid = top.GetStr( "pomiar" );
+      Project p; bool found = false;
+      if ( !pname.empty() && LoadProject( ProjRoot(), pname, p ) && p.world == ProjWorldKey() ) found = true;
+      if ( !found && !LoadProject( ProjRoot(), "Luzem_" + ProjSanitize( ProjWorldKey(), 24 ), p ) ) p = ProjMake( "Luzem_" + ProjSanitize( ProjWorldKey(), 24 ) );
+      gProject = p; gJobMeasId.clear();
+      for ( const Measurement& m : gProject.items ) if ( found && m.id == pid ) gJobMeasId = pid;
+      if ( gJobMeasId.empty() ) { Measurement& m = AddMeasurement( gProject, JobTypes()[idx].id, JobTypes()[idx].name ); gJobMeasId = m.id; }
+      SetState( gProject, gJobMeasId, MeasState::Running ); Reconcile( gProject, gJobMeasId ); ProjSave();
+    }
     gWorld.LoadState( StateKV::FromText( top.GetStr( "wld" ) ) );
     gReadingLog = PrepareReadingLog();
     gWorld.DressOn();
@@ -485,13 +516,16 @@ namespace GOTHIC_NAMESPACE {
     const int loadSlot = gPendingLoadSlot; gPendingLoadSlot = -2;     // wczytanie zapisu zakonczone (hook zadzialal przed ta klatka)
     if ( loadSlot != -2 || w != gCtrlWorld || ( w && gWorld.Stale() ) ) {   // inny świat albo ten sam obiekt świata po wczytaniu zapisu (voby zniknęły)                           // zmiana świata (wczytanie zapisu): zapisz, co się zmierzyło, i posprzątaj
       if ( gJob ) {
-        if ( gJob->Kind() == JobKind::Gnss ) CtrlSavePartialGnss( gJob->FinishGnss( false ) );
-        else if ( gJob->Kind() == JobKind::Tachy ) CtrlSavePartialTachy( gJob->FinishTachy( false ) );
-        else CtrlSavePartial( gJob->Finish( false ) );
+        std::string dir;
+        if ( gJob->Kind() == JobKind::Gnss ) dir = CtrlSavePartialGnss( gJob->FinishGnss( false ) );
+        else if ( gJob->Kind() == JobKind::Tachy ) dir = CtrlSavePartialTachy( gJob->FinishTachy( false ) );
+        else dir = CtrlSavePartial( gJob->Finish( false ) );
+        CtrlMarkEnd( MeasState::Aborted, dir.empty() ? gJob->ResultDir() : dir, "" );
       }
       if ( FieldBookEditActive() ) { gPendingFb.complete = false; ExportFieldBook( gPendingFb, gJobDir, true ); }
       FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); MapClose(); LevelClose(); CtrlForgetJob(); gCtrlWorld = w;
       if ( loadSlot != -2 && w ) CtrlRestoreJobState( loadSlot );
+      if ( w && !gJob ) { gProject = Project(); ProjEnsure(); Reconcile( gProject, "" ); ProjSave(); }   // brak roboty po zmianie swiata/zapisu: "w toku" w manifescie jest nieaktualne
     }
     if ( !w ) return;
     ControlTick();                                     // znaki osnowy: nowy swiat / wczytany zapis

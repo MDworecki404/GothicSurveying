@@ -30,7 +30,9 @@ static void aerial_fresh_asks_for_area_then_launch() {
 static void aerial_after_flight_asks_for_adjust_then_products_then_finish() {
   Fx f(false); f.Square(100); for (int i = 0; i < 3; i++) f.job->OnMenu("preset");
   static_cast<AerialJob*>(f.job.get())->TestHooks(20000, nullptr, true);          // jak w test_aerial_job: gestosc i budzet impulsow na klatke
+  assert(f.job->ResultDir().empty());
   f.job->OnMenu("launch");
+  assert(!f.job->ResultDir().empty());                     // folder wynikow znany po starcie lotu (rejestrowany w projekcie)
   assert(f.job->NextStep().empty());                         // w locie nic nie rekomendujemy
   f.Fly();
   assert(f.job->NextStep() == "adjust"); f.CheckEnabled();
