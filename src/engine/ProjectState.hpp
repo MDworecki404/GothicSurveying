@@ -6,6 +6,22 @@
 
 namespace GOTHIC_NAMESPACE {
   inline Project gProject;                                      // pusty (name == "") = jeszcze nie wczytany
+  inline UiSettings gUi; inline bool gUiLoaded = false;         // GothicSurveying/ustawienia.txt: ostatni projekt, kursory
+
+  inline std::string UiPath() { return std::string( LV_OUT_DIR ) + "/ustawienia.txt"; }
+  inline void UiEnsure() {
+    if ( gUiLoaded ) return;
+    gUiLoaded = true;
+    std::ifstream f( UiPath(), std::ios::binary );
+    if ( f ) gUi = UiSettingsFromText( std::string( ( std::istreambuf_iterator<char>( f ) ), std::istreambuf_iterator<char>() ) );
+  }
+  inline void UiSave() {
+    std::error_code ec; std::filesystem::create_directories( LV_OUT_DIR, ec );
+    const std::string t = UiSettingsToText( gUi );
+    std::ofstream f( UiPath(), std::ios::binary | std::ios::trunc );
+    if ( f ) f.write( t.data(), (std::streamsize)t.size() );
+  }
+  inline void UiRememberProject( const std::string& name ) { UiEnsure(); if ( gUi.lastProject != name ) { gUi.lastProject = name; UiSave(); } }
 
   inline std::string ProjRoot() { return LV_OUT_DIR; }
   inline std::string ProjWorldKey() { return ControlWorldKey( ControlWorldName() ); }
@@ -49,9 +65,13 @@ namespace GOTHIC_NAMESPACE {
     const std::string key = ProjWorldKey();
     if ( !gProject.name.empty() && gProject.world == key ) return;
     const std::vector<Project> all = ProjListForWorld();
-    if ( !all.empty() ) { gProject = all.back(); SvTrace( ( "projekt: wczytany " + gProject.name ).c_str() ); return; }
+    if ( !all.empty() ) {
+      UiEnsure(); gProject = all.back();                         // ostatnio uzywany projekt tego swiata, a bez niego najnowszy
+      for ( const Project& p : all ) if ( p.name == gUi.lastProject ) gProject = p;
+      SvTrace( ( "projekt: wczytany " + gProject.name ).c_str() ); return;
+    }
     gProject = ProjMake( "Luzem_" + ProjSanitize( key, 24 ) );
-    ProjSave();
+    ProjSave(); UiRememberProject( gProject.name );
     SvTrace( ( "projekt: utworzony domyslny " + gProject.name ).c_str() );
   }
 }

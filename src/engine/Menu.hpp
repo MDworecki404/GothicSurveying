@@ -7,7 +7,7 @@
 
 namespace GOTHIC_NAMESPACE {
   // title/items jak dotad (stare wywolania {tytul, {pozycje}} dzialaja); reszta opcjonalna.
-  struct MenuView { std::string title; std::vector<MenuItem> items; std::string crumbs, nextText, nextId, footer; };
+  struct MenuView { std::string title; std::vector<MenuItem> items; std::string crumbs, nextText, nextId, footer, screenKey, helpContext; bool digits = false; };   // screenKey: pamiec kursora; helpContext: F1; digits: cyfry 1-9 jako skroty
 
   inline bool      gMenuOpen = false;
   inline MenuView  gMenu;
@@ -17,6 +17,9 @@ namespace GOTHIC_NAMESPACE {
   inline zCView*   gMenuPanel = nullptr;
   inline std::function<void( const std::string& )> gMenuChoose;
   inline std::function<void()> gMenuBack;
+  inline std::function<void( const std::string& )> gMenuHelpFn;   // F1: ustawia ProjectUi (TextPanelShow jest zdefiniowany pozniej)
+  inline std::function<void( const std::string&, int )> gMenuRemember;   // zapamietanie pozycji kursora (screenKey, indeks)
+  inline std::function<int( const std::string& )> gMenuRecall;           // odczyt zapamietanej pozycji (-1 = brak)
 
   inline bool MenuIsOpen() { return gMenuOpen; }
 
@@ -59,6 +62,7 @@ namespace GOTHIC_NAMESPACE {
       else {
         const MenuItem& m = gMenu.items[row.item];
         line = row.item == gMenuCursor ? "> " : "  ";
+        if ( gMenu.digits && row.item < 9 ) line += std::to_string( row.item + 1 ) + ". ";
         line += m.enabled ? m.label : "[" + m.label + "]";                   // nieaktywne w nawiasach; powod w podpisie pod lista
         if ( !gMenu.nextId.empty() && m.id == gMenu.nextId ) line += "   <- dalej";
       }
@@ -74,7 +78,7 @@ namespace GOTHIC_NAMESPACE {
       const std::vector<std::string> wrapped = WrapText( text, 88, 2 );
       for ( size_t i = 0; i < wrapped.size(); i++ ) gMenuPanel->PrintCX( L( hintY + (int)i * p ), zSTRING( wrapped[i].c_str() ) );
     }
-    const std::string footer = gMenu.footer.empty() ? std::string( "Gora/Dol - wybor, Enter - zatwierdz, " ) + ( gMenuBack ? "Lewo - wstecz, " : "" ) + LV_KEYNAME_MENU " - zamknij" : gMenu.footer;
+    const std::string footer = gMenu.footer.empty() ? std::string( "Gora/Dol, Enter - wybor, " ) + ( gMenuBack ? LV_KEYNAME_BACK " - wstecz, " : "" ) + ( gMenu.helpContext.empty() ? "" : LV_KEYNAME_HELP " - pomoc, " ) + LV_KEYNAME_MENU " - zamknij" : gMenu.footer;
     gMenuPanel->PrintCX( L( hintY + 2 * p + 100 ), zSTRING( footer.c_str() ) );
   }
 
@@ -88,7 +92,11 @@ namespace GOTHIC_NAMESPACE {
       if ( firstEnabled < 0 ) firstEnabled = (int)i;
       if ( recommended < 0 && !gMenu.nextId.empty() && gMenu.items[i].id == gMenu.nextId ) recommended = (int)i;
     }
-    gMenuCursor = recommended >= 0 ? recommended : ( firstEnabled >= 0 ? firstEnabled : 0 );   // kursor od razu na rekomendowanym kroku, a bez niego na pierwszej aktywnej pozycji
+    gMenuCursor = recommended >= 0 ? recommended : ( firstEnabled >= 0 ? firstEnabled : 0 );
+    if ( recommended < 0 && !gMenu.screenKey.empty() && gMenuRecall ) {               // bez rekomendacji: wracamy na ostatnio wybrana pozycje tego ekranu
+      const int r = gMenuRecall( gMenu.screenKey );
+      if ( r >= 0 && r < (int)gMenu.items.size() && gMenu.items[r].enabled ) gMenuCursor = r;
+    }   // kursor od razu na rekomendowanym kroku, a bez niego na pierwszej aktywnej pozycji
     const MenuLayout lay = BuildLayout( gMenu.items, gMenuCursor, gMenuMaxRows );
     gMenuH = MenuComputeHeight( gMenu, lay.count, (int)lay.rows.size() > lay.count );
     const int y0 = ( std::max )( 100, ( std::min )( 900, ( 8192 - gMenuH ) / 2 ) );    // wysokie menu wyzej, zeby miescilo sie na ekranie
@@ -112,8 +120,15 @@ namespace GOTHIC_NAMESPACE {
       back();
       return;
     }
+    if ( !gMenu.helpContext.empty() && zinput->KeyToggled( LV_KEY_HELP ) ) { SvTrace( "menu: F1 (pomoc)" ); if ( gMenuHelpFn ) gMenuHelpFn( gMenu.helpContext ); return; }
+    if ( gMenu.digits ) {                              // cyfry 1-9: skrot do pozycji o tym numerze (tylko aktywnej)
+      static const int digitKeys[9] = { KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9 };
+      for ( int d = 0; d < 9 && d < (int)gMenu.items.size(); d++ )
+        if ( zinput->KeyToggled( digitKeys[d] ) && gMenu.items[d].enabled ) { gMenuCursor = d; MenuRedraw(); break; }
+    }
     if ( zinput->KeyToggled( KEY_RETURN ) && gMenuCursor >= 0 && gMenuCursor < (int)gMenu.items.size() && gMenu.items[gMenuCursor].enabled ) {
       std::string id = gMenu.items[gMenuCursor].id;
+      if ( !gMenu.screenKey.empty() && gMenuRemember ) gMenuRemember( gMenu.screenKey, gMenuCursor );
       auto choose = gMenuChoose;                      // kopia: wywołanie może otworzyć kolejne menu
       MenuClose();
       if ( choose ) choose( id );

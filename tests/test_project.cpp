@@ -4,6 +4,7 @@
 #include <fstream>
 #include <string>
 #include "calc/Project.hpp"
+#include "calc/UiSettings.hpp"
 
 static Project Fresh() { Project p; p.name = "Kolonia_1"; p.world = "NEWWORLD"; p.created = "2026-11-24 10:00"; return p; }
 
@@ -98,9 +99,26 @@ static void save_load_list_on_temp_dir() {
   std::filesystem::remove_all(root);
 }
 
+static void settings_roundtrip() {
+  UiSettings u; u.lastProject = "Kolonia_1"; u.cursor["home"] = 3; u.cursor["job:aerial"] = 12;
+  const UiSettings r = UiSettingsFromText(UiSettingsToText(u));
+  assert(r.lastProject == "Kolonia_1" && r.cursor.size() == 2 && r.cursor.at("home") == 3 && r.cursor.at("job:aerial") == 12);
+}
+
+static void settings_garbage_gives_defaults() {
+  for (const char* g : {"", "to nie jest ustawienie", "c.home=abc\nlast=\n", "\xFF\xFE\x01"}) {
+    const UiSettings r = UiSettingsFromText(g);
+    assert(r.lastProject.empty() || ProjectNameOk(r.lastProject));
+    for (const auto& kv : r.cursor) assert(kv.second >= 0 && kv.second < 1000);
+  }
+  UiSettings bad = UiSettingsFromText("last=../zly\nc.home=-5\nc.x=99999\n");
+  assert(bad.lastProject.empty() && bad.cursor.at("home") == 0 && bad.cursor.at("x") == 999);      // zla nazwa odrzucona, kursory przycinane do 0..999
+}
+
 int main() {
   name_validation(); add_numbers_per_type(); cannot_add_while_running_or_closed(); roundtrip_text(); corrupt_manifest_rejected();
   reconcile_marks_stale_running_aborted(); close_refused_while_running(); save_load_list_on_temp_dir();
+  settings_roundtrip(); settings_garbage_gives_defaults();
   std::puts("test_project OK");
   return 0;
 }

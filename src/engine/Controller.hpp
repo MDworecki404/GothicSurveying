@@ -3,6 +3,7 @@
 
 namespace GOTHIC_NAMESPACE {
   inline void ProjUiOpenHome();                        // engine/ProjectUi.hpp (dolaczane po tym pliku)
+  inline void ProjUiInstallMenuHooks();
   inline std::unique_ptr<Job> gJob;
   inline zCWorld*           gCtrlWorld = nullptr;
   inline zCView*            gJobHud = nullptr;       // stały panel z bieżącym krokiem roboty
@@ -397,6 +398,7 @@ namespace GOTHIC_NAMESPACE {
   }
 
   inline void CtrlOpenMenu() {
+    ProjUiInstallMenuHooks();                           // F1 i pamiec kursora dzialaja tez, gdy robote przywrocono z zapisu bez ekranu glownego
     if ( !gJob ) { ProjUiOpenHome(); return; }
     MenuView v{ gJob->Name(), gJob->Menu() };
     if ( gJob->Kind() == JobKind::Leveling ) v.items.push_back( { "scope", "Patrz przez lunete (" LV_KEYNAME_SCOPE ")", "najpierw niwelator i lata", gWorld.HasInstrument() && !gJob->ActiveRodPoints().empty() } );
@@ -410,6 +412,7 @@ namespace GOTHIC_NAMESPACE {
     v.items = Arrange( gJob->Kind(), v.items );                   // sekcje, stala kolejnosc, powody niedostepnosci; "Przerwij" zawsze ostatnie
     const Next nx = NextLine( v.items, gJob->NextStep() );        // rekomendowany krok
     v.nextText = nx.text; v.nextId = nx.id; v.crumbs = "GEODEZJA > Projekt: " + gProject.name + " > Pomiar";
+    v.helpContext = HelpContextFor( gJob->Kind() ); v.screenKey = v.helpContext;
     bool guided = false; for ( const Measurement& m : gProject.items ) if ( m.id == gJobMeasId ) guided = m.guided;
     if ( guided && !nx.id.empty() ) {                              // tryb prowadzony: tylko nastepny krok, "Pokaz wszystko" i Przerwij
       std::vector<MenuItem> g;

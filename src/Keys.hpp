@@ -10,6 +10,7 @@
 #define LV_KEYNAME_FLIP "K"
 #define LV_KEYNAME_ZOOM "PgUp/PgDn"
 #define LV_KEYNAME_BACK "Lewo"       // w menu: poprzedni ekran
+#define LV_KEYNAME_HELP "F1"         // w menu: pomoc kontekstowa
 
 // Kody klawiszy: tylko w silniku (testy ich nie mają); namespace jednej wersji gry na build (Plugin.cpp kompiluje tylko wybraną).
 #ifdef KEY_HOME
@@ -19,6 +20,7 @@ namespace GOTHIC_NAMESPACE {
   inline const int LV_KEY_ROD_BACK = KEY_Z;      // w lunecie: obrót na łatę wstecz
   inline const int LV_KEY_ROD_FORE = KEY_X;      // w lunecie: obrót na łatę wprzód
   inline const int LV_KEY_BACK     = KEY_LEFT;   // w menu: wstecz (poprzedni ekran)
+  inline const int LV_KEY_HELP     = KEY_F1;     // w menu: pomoc kontekstowa
   inline const int LV_KEY_ZOOM_IN  = KEY_PGUP;   // w lunecie: wieksze powiekszenie
   inline const int LV_KEY_ZOOM_OUT = KEY_PGDN;   // w lunecie: mniejsze powiekszenie
   inline const int LV_KEY_FLIP     = KEY_K;      // w lunecie tachimetru: przerzut lunety KL <-> KP

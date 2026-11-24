@@ -6,6 +6,7 @@
 #include <vector>
 #include "job/Jobs.hpp"
 #include "job/Workflow.hpp"
+#include "job/Help.hpp"
 
 struct FakeWorld : IWorld {
   bool PlaceMarker(int, MarkerKind) override { return true; }
@@ -116,10 +117,19 @@ static void all_done_recommends_new_or_close() {
 }
 static void closed_project_recommends_reopen() { Project p = Proj(); p.closed = true; assert(ProjectNext(p, Next{}).id == "reopen"); }
 
+static void help_has_lines_for_every_context() {
+  for (const char* c : {"home", "job:leveling", "job:gnss", "job:tachy", "job:scan", "job:aerial", "job:photo", "map"}) {
+    const auto h = HelpLines(c); assert(h.size() >= 3);
+    for (const std::string& l : h) { assert(l.size() <= 88); for (unsigned char ch : l) assert(ch < 128); }
+  }
+  assert(HelpLines("nieznany").size() >= 1);                       // nieznany kontekst: pomoc ogolna, nigdy pusto
+  assert(HelpContextFor(JobKind::Photo) == "job:photo" && HelpContextFor(JobKind::Leveling) == "job:leveling");
+}
+
 int main() {
   every_menu_id_has_a_section(); abort_is_last(); disabled_items_have_reason(); order_is_stable_across_kinds(); unknown_id_goes_to_advanced(); hint_becomes_reason_else_table();
   gnss_prefix_follows_base_item(); no_project_recommends_create(); running_measurement_recommends_continue_with_name(); empty_project_recommends_new();
-  all_done_recommends_new_or_close(); closed_project_recommends_reopen();
+  all_done_recommends_new_or_close(); closed_project_recommends_reopen(); help_has_lines_for_every_context();
   FakeWorld w; (void)KindOf;
   std::puts("test_workflow OK");
   return 0;

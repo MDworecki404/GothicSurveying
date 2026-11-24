@@ -23,6 +23,12 @@ namespace GOTHIC_NAMESPACE {
   inline void ProjUiOpenList();
   inline void ProjUiOpenHome();
 
+  inline void ProjUiInstallMenuHooks() {                          // F1 i pamiec kursora: menu (Menu.hpp) nie zna TextPanelShow ani ustawien
+    gMenuHelpFn = []( const std::string& ctx ) { TextPanelShow( "Pomoc", HelpLines( ctx ), "Zamknij: Enter" ); };
+    gMenuRemember = []( const std::string& key, int idx ) { UiEnsure(); if ( gUi.cursor[key] != idx ) { gUi.cursor[key] = idx; UiSave(); } };
+    gMenuRecall = []( const std::string& key ) { UiEnsure(); auto it = gUi.cursor.find( key ); return it == gUi.cursor.end() ? -1 : it->second; };
+  }
+
   // Kreator: pomiar z gotowymi ustawieniami w trybie prowadzonym (kolejne kroki podpowiada linia DALEJ).
   inline void ProjUiStartWizard( const Wizard& wz ) {
     int idx = -1; for ( size_t i = 0; i < JobTypes().size(); i++ ) if ( JobTypes()[i].id == wz.typeId ) idx = (int)i;
@@ -44,11 +50,13 @@ namespace GOTHIC_NAMESPACE {
   }
 
   inline void ProjUiOpenHome() {
+    ProjUiInstallMenuHooks();
     ProjEnsure();
+    UiRememberProject( gProject.name );
     ControlEnsureLoaded();
     const std::string wn = ControlWorldName();
     const int ctrl = (int)ControlNear( gControl, wn, 0.0, 0.0, 0.0, 1e12 ).size();
-    MenuView v; v.title = "GEODEZJA";
+    MenuView v; v.title = "GEODEZJA"; v.screenKey = "home"; v.helpContext = "home"; v.digits = true;
     v.crumbs = "Projekt: " + gProject.name + ( gProject.closed ? " (zamkniety)" : "" ) + "   swiat: " + wn + "   osnowa: " + std::to_string( ctrl ) + " pkt   pomiary: " + std::to_string( gProject.items.size() );
     for ( const Measurement& m : gProject.items ) {
       std::string label = std::string( ProjMark( m.state ) ) + " " + m.name;
@@ -83,10 +91,10 @@ namespace GOTHIC_NAMESPACE {
     v.items.push_back( { "newproj", "+ Nowy projekt", "nazwa nadawana automatycznie: " + ProjAutoName(), true } );
     MenuOpen( v, []( const std::string& id ) {
       if ( id == "newproj" ) {
-        gProject = ProjMake( ProjAutoName() ); ProjSave();
+        gProject = ProjMake( ProjAutoName() ); ProjSave(); UiRememberProject( gProject.name );
         HudMessage( ( "Nowy projekt: " + gProject.name ).c_str() );
       } else if ( id.compare( 0, 2, "p:" ) == 0 ) {
-        Project p; if ( LoadProject( ProjRoot(), id.substr( 2 ), p ) ) { gProject = p; HudMessage( ( "Projekt: " + gProject.name ).c_str() ); }
+        Project p; if ( LoadProject( ProjRoot(), id.substr( 2 ), p ) ) { gProject = p; UiRememberProject( gProject.name ); HudMessage( ( "Projekt: " + gProject.name ).c_str() ); }
       }
       ProjUiOpenHome();
     }, []() { ProjUiOpenHome(); } );
