@@ -172,3 +172,39 @@ inline std::vector<std::string> ListProjects(const std::string& root) {
   std::sort(out.begin(), out.end());
   return out;
 }
+
+// Powod, dla ktorego nazwa projektu nie nadaje sie (""= nadaje sie): pusta, za dluga, niedozwolone znaki albo zajeta (bez rozrozniania wielkosci liter, jak w Windows).
+inline std::string ProjectNameProblem(const std::string& name, const std::string& root) {
+  if (name.empty()) return "pusta nazwa";
+  if (name.size() > 32) return "za dluga (max 32 znaki)";
+  if (!ProjectNameOk(name)) return "dozwolone: litery bez polskich znakow, cyfry, _ i -";
+  namespace fs = std::filesystem; std::error_code ec;
+  auto lower = [](std::string s) { for (char& c : s) c = (char)std::tolower((unsigned char)c); return s; };
+  for (const auto& e : fs::directory_iterator(root + "/projekty", ec)) if (lower(e.path().filename().string()) == lower(name)) return "taka nazwa juz istnieje";
+  return "";
+}
+
+// Zmiana nazwy projektu: przenosi folder projektu (z plikami punktow i raportem) i przepisuje manifest. Zamkniety projekt jest tylko do odczytu.
+inline bool RenameProject(Project& p, const std::string& newName, const std::string& root, std::string& why) {
+  namespace fs = std::filesystem; std::error_code ec;
+  if (p.closed) { why = "projekt zamkniety (otworz go ponownie)"; return false; }
+  why = ProjectNameProblem(newName, root); if (!why.empty()) return false;
+  fs::rename(root + "/projekty/" + p.name, root + "/projekty/" + newName, ec);
+  if (ec) { why = "nie mozna zmienic nazwy folderu projektu"; return false; }
+  const std::string old = p.name; p.name = newName;
+  if (!SaveProject(p, root)) { why = "nie mozna zapisac projektu"; fs::rename(root + "/projekty/" + newName, root + "/projekty/" + old, ec); p.name = old; return false; }
+  return true;
+}
+
+// Usuwa projekt razem z wynikami wszystkich jego pomiarow (foldery wynikow, pliki punktow) i folder projektu; osnowa i cudze wyniki zostaja.
+// Odmowa przy pomiarze w toku albo niepoprawnej nazwie projektu. Zamkniety projekt mozna usunac.
+inline bool DeleteProjectWithFiles(const Project& p, const std::string& root, std::string& why) {
+  namespace fs = std::filesystem; std::error_code ec;
+  if (!ProjectNameOk(p.name)) { why = "niepoprawna nazwa projektu"; return false; }
+  if (const Measurement* r = RunningMeasurement(p)) { why = "trwa pomiar: " + r->name; return false; }
+  Project tmp = p; tmp.closed = false;                                  // usuwanie pomiarow nie dotyczy "tylko do odczytu"
+  std::vector<std::string> ids; for (const Measurement& m : tmp.items) ids.push_back(m.id);
+  for (const std::string& id : ids) { std::string w; RemoveMeasurementWithFiles(tmp, id, root, w); }
+  fs::remove_all(root + "/projekty/" + p.name, ec);
+  return true;
+}

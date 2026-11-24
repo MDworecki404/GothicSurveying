@@ -182,10 +182,61 @@ static void remove_ignores_unsafe_manifest_paths() {
   fs::remove_all(base);
 }
 
+static void name_problem_explains_why() {
+  namespace fs = std::filesystem;
+  const std::string root = (fs::temp_directory_path() / "gs_name_test").string(); fs::remove_all(root);
+  Project p = Fresh(); p.name = "Kolonia"; assert(SaveProject(p, root));
+  assert(ProjectNameProblem("Nowy_1", root).empty() && ProjectNameProblem("a-b_9", root).empty());
+  assert(ProjectNameProblem("", root).find("pusta") != std::string::npos);
+  assert(ProjectNameProblem(std::string(33, 'x'), root).find("32") != std::string::npos);
+  assert(ProjectNameProblem("Gornicza\xC5\x82", root).find("litery") != std::string::npos && ProjectNameProblem("a/b", root).find("litery") != std::string::npos && ProjectNameProblem("..", root).find("litery") != std::string::npos);
+  assert(ProjectNameProblem("Kolonia", root).find("istnieje") != std::string::npos && ProjectNameProblem("kolonia", root).find("istnieje") != std::string::npos);   // Windows: wielkosc liter bez znaczenia
+  fs::remove_all(root);
+}
+
+static void rename_project_moves_folder_and_keeps_data() {
+  namespace fs = std::filesystem;
+  const std::string root = (fs::temp_directory_path() / "gs_rename_test").string(); fs::remove_all(root);
+  Project p = Fresh(); p.name = "Stara"; AddMeasurement(p, "tachy", "Tachimetria"); SetState(p, "m1", MeasState::Done, "GothicSurveying/x", "ok"); p.items[0].pointsFile = "pomiar_m1.csv";
+  assert(SaveProject(p, root)); Touch(root + "/projekty/Stara/pomiar_m1.csv"); Touch(root + "/projekty/Stara/projekt_raport.csv");
+  Project other = Fresh(); other.name = "Zajeta"; assert(SaveProject(other, root));
+  std::string why;
+  assert(!RenameProject(p, "Zajeta", root, why) && p.name == "Stara" && !why.empty());                       // zajeta nazwa: bez zmian
+  assert(!RenameProject(p, "zla/nazwa", root, why) && p.name == "Stara");
+  assert(RenameProject(p, "Nowa", root, why) && p.name == "Nowa");
+  assert(!fs::exists(root + "/projekty/Stara") && fs::exists(root + "/projekty/Nowa/pomiar_m1.csv") && fs::exists(root + "/projekty/Nowa/projekt_raport.csv"));
+  Project q; assert(LoadProject(root, "Nowa", q) && q.name == "Nowa" && q.items.size() == 1 && q.items[0].dir == "GothicSurveying/x" && q.items[0].summary == "ok");
+  assert(!RenameProject(p, "NOWA", root, why) && p.name == "Nowa");                                          // sama zmiana wielkosci liter = ta sama nazwa: odmowa, projekt cały
+  Project r; assert(LoadProject(root, p.name, r) && r.items.size() == 1);
+  p.closed = true; assert(!RenameProject(p, "Inna", root, why));                                           // zamkniety: tylko do odczytu
+  fs::remove_all(root);
+}
+
+static void delete_project_removes_everything_of_the_project_only() {
+  namespace fs = std::filesystem;
+  const std::string base = (fs::temp_directory_path() / "gs_delproj").string(); fs::remove_all(base);
+  const std::string root = base + "/GothicSurveying";
+  Project p = Fresh(); p.name = "Kolonia_1"; AddMeasurement(p, "tachy", "Tachimetria"); AddMeasurement(p, "gnss", "GNSS");
+  p.items[0].dir = "GothicSurveying/2026-11-24_10-00-00"; p.items[0].pointsFile = "pomiar_m1.csv"; p.items[0].state = MeasState::Done;
+  p.items[1].dir = "GothicSurveying/2026-11-24_11-00-00"; p.items[1].state = MeasState::Aborted;
+  assert(SaveProject(p, root));
+  Touch(root + "/2026-11-24_10-00-00/a.csv"); Touch(root + "/2026-11-24_11-00-00/b.csv"); Touch(root + "/projekty/Kolonia_1/pomiar_m1.csv"); Touch(root + "/projekty/Kolonia_1/projekt_raport.docx");
+  Touch(root + "/osnowa.csv"); Touch(root + "/2026-11-25_09-00-00/cudzy.csv");                                      // wynik pomiaru spoza projektu
+  Project other = Fresh(); other.name = "Inny"; assert(SaveProject(other, root));
+  std::string why;
+  p.items[1].state = MeasState::Running; assert(!DeleteProjectWithFiles(p, root, why) && !why.empty() && fs::exists(root + "/2026-11-24_10-00-00/a.csv"));   // pomiar w toku: odmowa, nic nie kasujemy
+  p.items[1].state = MeasState::Aborted; p.closed = true;                                                            // zamkniety projekt mozna usunac
+  assert(DeleteProjectWithFiles(p, root, why));
+  assert(!fs::exists(root + "/2026-11-24_10-00-00") && !fs::exists(root + "/2026-11-24_11-00-00") && !fs::exists(root + "/projekty/Kolonia_1"));
+  assert(fs::exists(root + "/osnowa.csv") && fs::exists(root + "/2026-11-25_09-00-00/cudzy.csv") && fs::exists(root + "/projekty/Inny/projekt.txt"));
+  Project bad = Fresh(); bad.name = "../Inny"; assert(!DeleteProjectWithFiles(bad, root, why) && fs::exists(root + "/projekty/Inny/projekt.txt"));   // zla nazwa: nic nie ruszamy
+  fs::remove_all(base);
+}
+
 int main() {
   name_validation(); add_numbers_per_type(); cannot_add_while_running_or_closed(); roundtrip_text(); corrupt_manifest_rejected();
   reconcile_marks_stale_running_aborted(); close_refused_while_running(); save_load_list_on_temp_dir();
-  settings_roundtrip(); settings_garbage_gives_defaults(); attach_restored_reuses_unfinished_but_not_done(); safe_result_dir_and_untrusted_manifest_fields(); settings_last_project_is_per_world(); safe_delete_dir_only_single_result_folder(); remove_measurement_with_files(); remove_ignores_unsafe_manifest_paths();
+  settings_roundtrip(); settings_garbage_gives_defaults(); attach_restored_reuses_unfinished_but_not_done(); safe_result_dir_and_untrusted_manifest_fields(); settings_last_project_is_per_world(); safe_delete_dir_only_single_result_folder(); remove_measurement_with_files(); remove_ignores_unsafe_manifest_paths(); name_problem_explains_why(); rename_project_moves_folder_and_keeps_data(); delete_project_removes_everything_of_the_project_only();
   std::puts("test_project OK");
   return 0;
 }

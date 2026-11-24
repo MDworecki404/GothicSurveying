@@ -23,6 +23,7 @@
 #include "engine/MapView.hpp"
 #include "engine/LevelView.hpp"
 #include "engine/Export.hpp"
+#include "engine/TextInput.hpp"
 #include "engine/ProjectState.hpp"
 #include "engine/FieldBookView.hpp"
 #include "engine/FieldBookEdit.hpp"

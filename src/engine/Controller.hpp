@@ -539,7 +539,7 @@ namespace GOTHIC_NAMESPACE {
         CtrlMarkEnd( MeasState::Aborted, dir.empty() ? gJob->ResultDir() : dir, "" );
       }
       if ( FieldBookEditActive() ) { gPendingFb.complete = false; ExportFieldBook( gPendingFb, gJobDir, true ); }
-      gMenuAfterPanel = nullptr; FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); MapClose(); LevelClose(); CtrlForgetJob(); gCtrlWorld = w;
+      gMenuAfterPanel = nullptr; TextInputClose(); FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); MapClose(); LevelClose(); CtrlForgetJob(); gCtrlWorld = w;
       if ( loadSlot != -2 && w ) CtrlRestoreJobState( loadSlot );
       if ( w && !gJob ) { gProject = Project(); ProjEnsure(); Reconcile( gProject, "" ); ProjSave(); }   // brak roboty po zmianie swiata/zapisu: "w toku" w manifescie jest nieaktualne
     }
@@ -549,7 +549,7 @@ namespace GOTHIC_NAMESPACE {
     const DWORD nowClock = GetTickCount();
     double dtClock = ( nowClock - lastClock ) / 1000.0; lastClock = nowClock;
     if ( dtClock > 0.2 ) dtClock = 0.2;
-    const bool gamePaused = MenuIsOpen() || ScopeActive() || FieldBookVisible() || TextPanelVisible() || FieldBookEditActive() || PoleFineActive() || TachyViewActive() || MapActive() || LevelActive();
+    const bool gamePaused = MenuIsOpen() || ScopeActive() || FieldBookVisible() || TextPanelVisible() || TextInputActive() || FieldBookEditActive() || PoleFineActive() || TachyViewActive() || MapActive() || LevelActive();
     gWorld.ScanVisualTick();                           // wiazki skanera laserowego
     ControlLabelTick( gamePaused );                    // etykieta najblizszego punktu osnowy
     if ( !gamePaused ) { gWorld.AdvanceClock( dtClock ); if ( gJob ) gJob->Tick(); gWorld.FollowCamTick(); }   // zegar symulacji stoi, gdy gra zatrzymana
@@ -562,6 +562,7 @@ namespace GOTHIC_NAMESPACE {
     if ( FieldBookEditActive() ) { if ( FieldBookEditTick() ) CtrlFinishManual(); return; }
     if ( MapActive() ) { MapTick(); return; }
     if ( LevelActive() ) { LevelTick(); return; }
+    if ( TextInputActive() ) { TextInputTick(); return; }
     if ( TextPanelVisible() ) { TextPanelTick(); return; }
     if ( gMenuAfterPanel && !FieldBookVisible() ) { auto reopen = gMenuAfterPanel; gMenuAfterPanel = nullptr; reopen(); return; }   // panel z menu (F1, lista plikow) zamkniety: wroc do menu
     if ( FieldBookVisible() ) { FieldBookTick(); return; }

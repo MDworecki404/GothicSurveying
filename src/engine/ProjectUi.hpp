@@ -177,6 +177,25 @@ namespace GOTHIC_NAMESPACE {
     } );
   }
 
+  // Usuniecie biezacego projektu z wynikami wszystkich jego pomiarow: potwierdzenie (domyslnie "Nie"). Osnowa zostaje.
+  inline void ProjUiConfirmDeleteProject() {
+    std::string why; const Measurement* running = RunningMeasurement( gProject );
+    if ( running ) { HudMessage( ( "Nie mozna usunac: trwa pomiar " + running->name ).c_str() ); ProjUiOpenList(); return; }
+    const std::string name = gProject.name;
+    MenuOpen( MenuView{ "Usunac projekt " + name + "?", { { "no", "Nie, zostaw", "", true },
+        { "yes", "Tak, usun projekt i wyniki jego pomiarow (nieodwracalne)", "pomiarow: " + std::to_string( gProject.items.size() ) + "; foldery wynikow zostana skasowane; punktow osnowy nie usuwa", true } } },
+      [name]( const std::string& id ) {
+        if ( id != "yes" ) { ProjUiOpenList(); return; }
+        std::string why2;
+        if ( DeleteProjectWithFiles( gProject, ProjRoot(), why2 ) ) {
+          SvTrace( ( "projekt usuniety: " + name ).c_str() );
+          gProject = Project(); ProjEnsure(); UiRememberProject( gProject.name );     // zostaje inny projekt tego swiata albo nowy domyslny
+          HudMessage( ( "Usunieto projekt: " + name + ". Teraz: " + gProject.name ).c_str() );
+          ProjUiOpenHome();
+        } else { HudMessage( ( "Nie usunieto: " + why2 ).c_str() ); ProjUiOpenList(); }
+      }, []() { ProjUiOpenList(); } );
+  }
+
   inline void ProjUiOpenList() {
     MenuView v; v.title = "Projekty swiata " + ControlWorldName();
     const std::vector<Project> all = ProjListForWorld();
@@ -184,11 +203,25 @@ namespace GOTHIC_NAMESPACE {
       MenuItem it{ "p:" + p.name, std::string( p.name == gProject.name ? "* " : "  " ) + p.name + "  (" + std::to_string( p.items.size() ) + " pom." + ( p.closed ? ", zamkniety" : "" ) + ")", "Enter - przelacz na ten projekt", true };
       v.items.push_back( it );
     }
-    v.items.push_back( { "newproj", "+ Nowy projekt", "nazwa nadawana automatycznie: " + ProjAutoName(), true } );
+    v.items.push_back( { "newproj", "+ Nowy projekt", "wpiszesz nazwe (domyslnie: " + ProjAutoName() + ")", true } );
+    { MenuItem it{ "rename", "Zmien nazwe biezacego projektu", "zmienia tez folder projektu; zapisy gry z trwajaca robota wskaza wtedy projekt Luzem", !gProject.closed }; it.why = "projekt zamkniety (otworz go ponownie)"; v.items.push_back( it ); }
+    { MenuItem it{ "deleteproj", "Usun biezacy projekt i jego wyniki", "kasuje projekt i foldery wynikow jego pomiarow (z potwierdzeniem)", !RunningMeasurement( gProject ) }; it.why = "trwa pomiar w tym projekcie"; v.items.push_back( it ); }
     MenuOpen( v, []( const std::string& id ) {
+      if ( id == "deleteproj" ) { ProjUiConfirmDeleteProject(); return; }
       if ( id == "newproj" ) {
-        gProject = ProjMake( ProjAutoName() ); ProjSave(); UiRememberProject( gProject.name );
-        HudMessage( ( "Nowy projekt: " + gProject.name ).c_str() );
+        TextInputStart( "Nazwa nowego projektu", ProjAutoName(), 32, []( const std::string& t ) { return ProjectNameProblem( t, ProjRoot() ); },
+          []( const std::string& t ) { gProject = ProjMake( t ); ProjSave(); UiRememberProject( gProject.name ); HudMessage( ( "Nowy projekt: " + gProject.name ).c_str() ); ProjUiOpenHome(); },
+          []() { ProjUiOpenList(); } );
+        return;
+      } else if ( id == "rename" ) {
+        TextInputStart( "Nowa nazwa projektu " + gProject.name, gProject.name, 32, []( const std::string& t ) { return ProjectNameProblem( t, ProjRoot() ); },
+          []( const std::string& t ) {
+            std::string why;
+            if ( RenameProject( gProject, t, ProjRoot(), why ) ) { UiRememberProject( gProject.name ); HudMessage( ( "Nazwa projektu: " + gProject.name ).c_str() ); }
+            else HudMessage( ( "Nie zmieniono nazwy: " + why ).c_str() );
+            ProjUiOpenHome(); },
+          []() { ProjUiOpenList(); } );
+        return;
       } else if ( id.compare( 0, 2, "p:" ) == 0 ) {
         Project p; if ( LoadProject( ProjRoot(), id.substr( 2 ), p ) ) { gProject = p; ProjReconcile(); UiRememberProject( gProject.name ); HudMessage( ( "Projekt: " + gProject.name ).c_str() ); }
       }

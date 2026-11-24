@@ -66,7 +66,7 @@ Pierwszy odczyt na stanowisku może być wstecz lub wprzód (kolejność dowolna
 ## Projekty i pomiary
 
 **Projekt** to praca na jednym świecie; w nim wykonujesz **pomiary** (ciąg niwelacyjny, GNSS, tachimetria, niwelacja trygonometryczna, skaner, nalot ALS, fotogrametria) – także kilka tego samego rodzaju, po kolei (naraz trwa jeden pomiar).
-Projekt jest niezależny od zapisu gry: leży w `GothicSurveying/projekty/<nazwa>/projekt.txt` (nazwa nadawana automatycznie jako `<świat>_<n>`) i działa w każdym zapisie tego samego świata.
+Projekt jest niezależny od zapisu gry: leży w `GothicSurveying/projekty/<nazwa>/projekt.txt` (nazwę wpisujesz sam przy zakładaniu: litery bez polskich znaków, cyfry, `-` i `_`, do 32 znaków; domyślnie `<świat>_<n>`; zmiana nazwy: „Projekty” → „Zmień nazwę bieżącego projektu”) i działa w każdym zapisie tego samego świata.
 Przy pierwszym uruchomieniu powstaje projekt `Luzem_<świat>`; zapisy stanu zrobione przed wprowadzeniem projektów wznawiają się właśnie w nim.
 
 **Ekran główny** pokazuje okruszki (projekt, świat, liczba punktów osnowy i pomiarów), wyróżnioną linię **DALEJ**, listę pomiarów ze stanem (`[x]` gotowy, `[~]` w toku, `[!]` przerwany, `[ ]` nowy),
@@ -82,6 +82,8 @@ Zamiast kreatora można wybrać rodzaj ręcznie (pełne menu). Dawna pozycja „
 Zamknięty projekt jest tylko do odczytu; „Otwórz projekt ponownie” przywraca możliwość dodawania pomiarów.
 
 Enter na pomiarze z listy otwiera jego menu: szczegóły, pliki wynikowe, otwarcie folderu i **Usuń pomiar i jego wyniki** (potwierdzenie, domyślnie „Nie”; dotyczy też pomiarów przerwanych). Kasuje folder wyników pomiaru (jeśli nie dzieli go inny pomiar), plik punktów w folderze projektu i wpis w projekcie; **nie usuwa punktów osnowy** założonych przez pomiar (są wspólne – służy do tego „Usuń osnowę”). Pomiaru w toku i pomiarów w zamkniętym projekcie usunąć nie można.
+
+**Usuń bieżący projekt i jego wyniki** („Projekty”, z potwierdzeniem, domyślnie „Nie”) kasuje folder projektu i foldery wyników wszystkich jego pomiarów (osnowy nie rusza); niedostępne przy pomiarze w toku. Zmiana nazwy projektu przenosi jego folder; zapisy gry z trwającą robotą, zrobione pod starą nazwą, wznowią pomiar w projekcie `Luzem_<świat>`.
 
 ## Poprawianie błędów w trakcie roboty
 
