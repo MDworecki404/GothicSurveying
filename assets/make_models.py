@@ -168,6 +168,12 @@ def build_scanner():
     prism(m, (0, 0, 141), (0, 0, 143), 12.5, 16, block(3))                   # pomaranczowy pierscien
     prism(m, (0, 0, 143), (0, 0, 156), 11, 16, block(2))                     # korpus (ciemny walec)
     box(m, 0, 11.2, 148, 9, 1.5, 6, block(3))                                # panel sterowania z przodu
+    return m
+
+
+def build_scanner_head():
+    """Obrotowa glowica skanera (osobny vob, obraca sie wokol pionu podczas skanu): pierscien, glowica z oknem wiazki (+Y), zwienczenie, uchwyt."""
+    m = Mesh()
     prism(m, (0, 0, 156), (0, 0, 158), 12, 16, block(1))                     # pierscien obrotu glowicy
     box(m, 0, 0, 165, 15, 11, 14, block(1))                                  # glowica z lustrem obrotowym
     box(m, 0, 6.2, 165, 8, 1.5, 9, block(3))                                 # okno wyjscia wiazki (pomaranczowe)
@@ -390,7 +396,8 @@ def main():
                               ("LVL_PRISM20", build_prism_pole(200.0), one),
                               ("LVL_REPER", build_reper(), one),
                               ("LVL_SPHERE", build_sphere_target(), one),
-                              ("LVL_SCANNER", build_scanner(), one)):
+                              ("LVL_SCANNER", build_scanner(), one),
+                              ("LVL_SCANHEAD", build_scanner_head(), one)):
         (meshes / f"{fname}.3DS").write_bytes(to_3ds(fname, mesh, mats))
         print(f"{fname}.3DS: {len(mesh.v)} wierzcholkow, {len(mesh.f)} trojkatow, {len(mats)} mat.")
     for f in sorted((Path(__file__).parent / "worldmaps").glob("LVL_MAP_*.TGA")):         # mapy swiatow z make_world_control.py

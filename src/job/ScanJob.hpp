@@ -105,9 +105,10 @@ class ScanJob : public Job {
           else if (!rgbOn_) rgb = (unsigned)inten * 0x010101u;                          // bez koloru: szarosc z intensywnosci
           const ScanLocal p = ScanToLocal(az, v, d, inten, rgb);
           raw_.Append(p);
+          if ((idx_ % 53) == 0) w_.ScanBeam(std::fmod(az + psi_, 360.0), 90.0 - v, dist);           // co ktorys promien rysowany jako wiazka
           if (tgt && brightDir_.size() < 50000) { brightDir_.push_back({az, v, dist}); brightLoc_.push_back({p.x, p.y, p.z}); }
         }
-        if ((idx_ & 63) == 0 && over()) return;
+        if ((idx_ & 63) == 0 && over()) { w_.ScanHead(std::fmod(az + psi_, 360.0)); return; }
       }
       raw_.Close();
       if (regOn_) { windows_ = ScanTargetWindows(brightDir_); wi_ = 0; wIdx_ = 0; }
@@ -211,7 +212,7 @@ class ScanJob : public Job {
   }
 
   void FinishScan() {
-    raw_.Close(); scanning_ = false; phase_ = 0;
+    raw_.Close(); scanning_ = false; phase_ = 0; w_.ScanBeam(0, 0, -1);
     Scan s; s.name = curName_; std::string files = curName_;
     double n = stN_, e = stE_, h = stH_, rot = 0;
     if (regOn_) {
@@ -254,7 +255,7 @@ class ScanJob : public Job {
 
   void AbortScan() {
     if (!scanning_ && rawPath_.empty()) return;
-    raw_.Close(); scanning_ = false; phase_ = 0;
+    raw_.Close(); scanning_ = false; phase_ = 0; w_.ScanBeam(0, 0, -1);
     std::error_code ec; if (!rawPath_.empty()) std::filesystem::remove(rawPath_, ec);
     rawPath_.clear();
   }

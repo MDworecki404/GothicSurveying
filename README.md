@@ -217,9 +217,13 @@ Skan trwa w czasie gry (klatka po klatce w budżecie ok. 12 ms; pasek postępu z
 
 Wyniki w folderze `GothicSurveying/RRRR-MM-DD_GG-MM-SS_skan/`: `skanNN.pts` (liczba punktów w pierwszej linii, potem `E N H intensywnosc R G B`; X = E, Y = N, Z = H w układzie lokalnym siatki),
 `skanNN.las` (LAS 1.2, format 2 z kolorem RGB, skala 1 mm; otwiera się np. w CloudCompare) i `skanNN_opis.txt` (parametry i stanowisko). Można zrobić wiele skanów na różnych stanowiskach w jednej robocie;
-po „Zakończ robotę” panel podsumowuje stanowiska i liczby punktów. Punkty zapisywane są strumieniowo na dysk, więc chmura nie obciąża pamięci gry. **Kolor RGB** (menu „Kolor RGB”, domyślnie włączony): każdy punkt dostaje kolor trafionej powierzchni — średnią barwę tekstury materiału wielokąta (albo kolor materiału), przyciemnioną dla powierzchni
-ustawionych skośnie do promienia; kule referencyjne są pomarańczowe. To kolor uśredniony dla całej tekstury, nie piksel z tekstury (trawa jest zielona, skała szara, ale bez rysunku detalu),
-a powierzchnie bez danych o kolorze dostają szary. Z wyłączonym kolorem punkty są szare wg intensywności.
+po „Zakończ robotę” panel podsumowuje stanowiska i liczby punktów. Punkty zapisywane są strumieniowo na dysk, więc chmura nie obciąża pamięci gry. **Widać, że skaner mierzy:** obrotowa głowica (osobny model) kręci się za azymutem skanowanej kolumny, a od głowicy do ostatnich ~40 trafień biegną czerwone linie (wiązki lasera), które znikają po skanie;
+HUD pokazuje procent i liczbę punktów.
+
+**Kolor RGB** (menu „Kolor RGB”, domyślnie włączony): punkty na terenie i w budynkach ze świata dostają **piksel tekstury** w miejscu trafienia (UV z interpolacji cech wierzchołków wielokąta, odczyt przez
+`zCTexture::GetRGBAAtTexel`); gdy odczyt się nie uda, bierze się średnią barwę tekstury, a dla vobów (ławki, płoty, skrzynie) średnią z materiałów ich siatki, bo nie wiadomo, która część została trafiona.
+Kolor jest przyciemniony dla powierzchni ustawionych skośnie do promienia; kule referencyjne są pomarańczowe, a bez żadnych danych punkt jest szary. Pierwsze próbki tekstur trafiają do `GothicSurveying.log`
+(uv, rozmiar tekstury, wynik). Z wyłączonym kolorem punkty są szare wg intensywności.
 
 **Rejestracja skanów na kulach referencyjnych** (domyślnie włączona; pozycja „Rejestracja” w menu): skan powstaje w **układzie lokalnym skanera** z losowym zerem azymutu, a stanowisko i obrót wyznacza się z kul.
 Dodaj co najmniej 3 (max 6) **kul referencyjnych** na znakach osnowy („Dodaj kulę referencyjną”: punkt osnowy do 150 m od ciebie; kula o średnicy 29 cm staje 0,5 m nad znakiem). Kule są retrorefleksyjne

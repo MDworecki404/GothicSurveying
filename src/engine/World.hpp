@@ -45,7 +45,7 @@ namespace GOTHIC_NAMESPACE {
       instr_ = SpawnVob( LV_VIS_INSTR, p ); instrGround_ = p; hasInstr_ = true; instrKind_ = 0;
       return true;
     }
-    void RemoveInstrument() override { RemoveVobSafe( instr_ ); hasInstr_ = false; }
+    void RemoveInstrument() override { RemoveVobSafe( instr_ ); RemoveVobSafe( scanHead_ ); hasInstr_ = false; }
     double PointHeightM( int pointId ) const override { return pts_.count( pointId ) ? Foot( pointId )[VY] / 100.0 : 0.0; }
     double SightDistCm( int pointId ) const override {
       auto it = pts_.find( pointId );
@@ -157,17 +157,68 @@ namespace GOTHIC_NAMESPACE {
       return true;
     }
     // Skaner laserowy: promien z oka instrumentu; teren i voby ze swiata (bez postaci i voba skanera), zasieg 120 m.
-    static unsigned PolyAverageRgb( zCPolygon* poly ) {            // srednia barwa tekstury materialu (albo kolor materialu); 0x808080 gdy brak danych
-      unsigned rgb = 0x808080;
+    // --- kolor punktu skanu ---
+    static unsigned MaterialRgb( zCMaterial* m ) {                // srednia barwa tekstury (albo kolor materialu); 0 gdy brak danych
+      unsigned rgb = 0;
       __try {
-        if ( poly && poly->material ) {
+        if ( m ) {
           zCOLOR c; c.dword = 0;
-          if ( poly->material->texture ) c = poly->material->texture->GetTextureInfo().averageColor;
-          if ( c.dword == 0 ) c = poly->material->color;
+          if ( m->texture ) c = m->texture->GetTextureInfo().averageColor;
+          if ( c.dword == 0 ) c = m->color;
           if ( c.dword != 0 ) rgb = ( (unsigned)c.r << 16 ) | ( (unsigned)c.g << 8 ) | (unsigned)c.b;
         }
       } __except ( EXCEPTION_EXECUTE_HANDLER ) {}
       return rgb;
+    }
+    static unsigned VobAverageRgb( zCVob* v ) {                    // voby: srednia z materialow siatki (nie wiemy, ktora czesc trafiono)
+      unsigned sr = 0, sg = 0, sb = 0; int n = 0;
+      __try {
+        zCProgMeshProto* pm = v ? zDYNAMIC_CAST<zCProgMeshProto>( v->visual ) : nullptr;
+        if ( pm && pm->subMeshList )
+          for ( int i = 0; i < pm->numSubMeshes && i < 64; i++ ) {
+            const unsigned c = MaterialRgb( pm->subMeshList[i].material );
+            if ( c ) { sr += ( c >> 16 ) & 255; sg += ( c >> 8 ) & 255; sb += c & 255; n++; }
+          }
+      } __except ( EXCEPTION_EXECUTE_HANDLER ) { n = 0; }
+      return n ? ( ( sr / n ) << 16 ) | ( ( sg / n ) << 8 ) | ( sb / n ) : 0u;
+    }
+    // Piksel tekstury w miejscu trafienia: wspolrzedne UV z interpolacji (barycentrycznie) cech wierzcholkow wielokata swiata, potem zCTexture::GetRGBAAtTexel.
+    // Zakladamy UV znormalizowane (0..1) i skladowe RGBA; pierwsze probki trafiaja do logu (diagnostyka). Po wielu bledach dostepu probkowanie sie wylacza.
+    static bool PolyTextureRgb( zCPolygon* poly, const zVEC3& p, unsigned& rgb ) {
+      static int fails = 0, logged = 0;
+      if ( fails > 20 ) return false;
+      bool ok = false; float tu = 0, tv = 0, rr = 0, gg = 0, bb = 0; int sw = 0, sh = 0;
+      __try {
+        if ( poly && poly->material && poly->material->texture && poly->polyNumVert >= 3 && poly->vertex && poly->feature ) {
+          float bestMin = -1e9f;
+          for ( int i = 1; i + 1 < poly->polyNumVert; i++ ) {
+            const zVEC3 a = poly->vertex[0]->position, b = poly->vertex[i]->position, c = poly->vertex[i + 1]->position;
+            const float e0x = b[VX] - a[VX], e0y = b[VY] - a[VY], e0z = b[VZ] - a[VZ], e1x = c[VX] - a[VX], e1y = c[VY] - a[VY], e1z = c[VZ] - a[VZ];
+            const float e2x = p[VX] - a[VX], e2y = p[VY] - a[VY], e2z = p[VZ] - a[VZ];
+            const float d00 = e0x * e0x + e0y * e0y + e0z * e0z, d01 = e0x * e1x + e0y * e1y + e0z * e1z, d11 = e1x * e1x + e1y * e1y + e1z * e1z;
+            const float d20 = e2x * e0x + e2y * e0y + e2z * e0z, d21 = e2x * e1x + e2y * e1y + e2z * e1z, den = d00 * d11 - d01 * d01;
+            if ( fabsf( den ) < 1e-9f ) continue;
+            const float wv = ( d11 * d20 - d01 * d21 ) / den, ww = ( d00 * d21 - d01 * d20 ) / den, wu = 1.0f - wv - ww;
+            const float mn = ( std::min )( wu, ( std::min )( wv, ww ) );
+            if ( mn > bestMin ) {
+              bestMin = mn;
+              tu = wu * poly->feature[0]->texu + wv * poly->feature[i]->texu + ww * poly->feature[i + 1]->texu;
+              tv = wu * poly->feature[0]->texv + wv * poly->feature[i]->texv + ww * poly->feature[i + 1]->texv;
+            }
+          }
+          zCTexture* tex = poly->material->texture;
+          tu -= floorf( tu ); tv -= floorf( tv );
+          const zVEC4 col = tex->GetRGBAAtTexel( tu, tv );
+          rr = col.n[0]; gg = col.n[1]; bb = col.n[2]; ok = true;
+          zCTextureInfo ti = tex->GetTextureInfo(); sw = ti.sizeX; sh = ti.sizeY;
+        }
+      } __except ( EXCEPTION_EXECUTE_HANDLER ) { fails++; return false; }
+      if ( !ok ) return false;
+      if ( ( std::max )( rr, ( std::max )( gg, bb ) ) <= 1.5f ) { rr *= 255.0f; gg *= 255.0f; bb *= 255.0f; }          // 0..1 -> 0..255
+      rr = ( std::min )( 255.0f, ( std::max )( 0.0f, rr ) ); gg = ( std::min )( 255.0f, ( std::max )( 0.0f, gg ) ); bb = ( std::min )( 255.0f, ( std::max )( 0.0f, bb ) );
+      rgb = ( (unsigned)rr << 16 ) | ( (unsigned)gg << 8 ) | (unsigned)bb;
+      if ( logged < 12 ) { logged++; char t[160]; sprintf( t, "skan: probka tekstury uv=(%.3f,%.3f) tekstura %dx%d -> rgb=(%.0f,%.0f,%.0f)", tu, tv, sw, sh, rr, gg, bb ); SvTrace( t ); }
+      return true;
     }
     bool ScanRay( double azDeg, double elevDeg, double& distM, double& cosInc, bool& isVob, bool& isTarget, unsigned* rgb ) const override {
       zCWorld* w = ogame->GetWorld();
@@ -183,7 +234,11 @@ namespace GOTHIC_NAMESPACE {
         cosInc = nl > 0.5f ? fabs( ( n[VX] * dir[VX] + n[VY] * dir[VY] + n[VZ] * dir[VZ] ) / nl ) : 0.5;
         isVob = r.foundVob != nullptr;
         if ( rgb ) {                                                                // kolor: srednia barwa tekstury, przyciemniona katem padania (powierzchnie skosne ciemniejsze)
-          const unsigned c = PolyAverageRgb( r.foundPoly ); const double k = 0.65 + 0.35 * cosInc;
+          unsigned c = 0;
+          if ( r.foundPoly && !r.foundVob ) { if ( !PolyTextureRgb( r.foundPoly, r.foundIntersection, c ) ) c = MaterialRgb( r.foundPoly->material ); }   // teren i budynki ze swiata: piksel tekstury
+          else if ( r.foundVob ) { if ( r.foundPoly ) c = MaterialRgb( r.foundPoly->material ); if ( !c ) c = VobAverageRgb( r.foundVob ); }          // voby: material wielokata albo srednia z siatki
+          if ( !c ) c = 0x808080;
+          const double k = 0.65 + 0.35 * cosInc;
           *rgb = ( (unsigned)( ( ( c >> 16 ) & 255 ) * k ) << 16 ) | ( (unsigned)( ( ( c >> 8 ) & 255 ) * k ) << 8 ) | (unsigned)( ( c & 255 ) * k );
         }
       }
@@ -203,6 +258,26 @@ namespace GOTHIC_NAMESPACE {
       if ( best > 12000.0 ) return false;
       distM = best / 100.0;
       return true;
+    }
+    void ScanHead( double azTrueDeg ) override {                                   // glowica obraca sie za azymutem skanowanej kolumny
+      if ( !scanHead_ || VobIsStale( scanHead_ ) ) return;
+      const float a = (float)azTrueDeg * 3.14159265f / 180.0f;
+      scanHead_->SetHeadingAtWorld( zVEC3( sinf( a ), 0, cosf( a ) ) );
+    }
+    void ScanBeam( double azTrueDeg, double elevDeg, double distM ) override {
+      if ( distM < 0 ) { beams_.clear(); return; }
+      beams_.push_back( { azTrueDeg, elevDeg, distM } );
+      if ( beams_.size() > 40 ) beams_.erase( beams_.begin() );
+    }
+    void ScanVisualTick() const {                                                 // co klatke: wiazki lasera od glowicy do ostatnich trafien
+      if ( beams_.empty() || !hasInstr_ || !zlineCache ) return;
+      const zVEC3 eye = instrGround_ + zVEC3( 0, LV_INSTR_H, 0 );
+      const float rad = 3.14159265f / 180.0f;
+      for ( const Beam& b : beams_ ) {
+        const float az = (float)b.az * rad, el = (float)b.el * rad;
+        const zVEC3 dir( sinf( az ) * cosf( el ), sinf( el ), cosf( az ) * cosf( el ) );
+        zlineCache->Line3D( eye, eye + dir * (float)( b.dist * 100.0 ), GFX_RED, 0 );
+      }
     }
     bool PlaceScanTarget( int slot, const ControlPoint& cp ) override {          // kula na znaku punktu osnowy (slot 1-6)
       if ( slot < 1 || slot > 6 ) return false;
@@ -363,18 +438,18 @@ namespace GOTHIC_NAMESPACE {
     // Po zmianie świata: oddaje własne referencje bez dotykania świata (voby zwolnił już świat).
     void ForgetAll() {
       for ( auto& kv : pts_ ) DropVobRef( kv.second.marker );
-      DropVobRef( rod_[0] ); DropVobRef( rod_[1] ); DropVobRef( instr_ ); DropVobRef( pole_ ); DropVobRef( base_ ); for ( ScanTgt& t : scanTgt_ ) { DropVobRef( t.vob ); t.up = false; } hasPole_ = false; poleIsPrism_ = false;
+      DropVobRef( rod_[0] ); DropVobRef( rod_[1] ); DropVobRef( instr_ ); DropVobRef( scanHead_ ); DropVobRef( pole_ ); DropVobRef( base_ ); for ( ScanTgt& t : scanTgt_ ) { DropVobRef( t.vob ); t.up = false; } hasPole_ = false; poleIsPrism_ = false;
       for ( Back& b : back_ ) { DropVobRef( b.marker ); DropVobRef( b.prism ); b.up = false; }
       DropVobRef( helmet_ ); DropVobRef( vest_ ); helmetNode_ = vestNode_ = nullptr;
       pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false; hasBase_ = false;
     }
     bool Stale() const {                                 // któryś z naszych vobów nie należy już do bieżącego świata
       for ( const auto& kv : pts_ ) if ( VobIsStale( kv.second.marker ) ) return true;
-      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ ) || VobIsStale( helmet_ ) || VobIsStale( vest_ ) || VobIsStale( pole_ ) || VobIsStale( base_ ) || ScanTargetsStale() || BacksightsStale();
+      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ ) || VobIsStale( scanHead_ ) || VobIsStale( helmet_ ) || VobIsStale( vest_ ) || VobIsStale( pole_ ) || VobIsStale( base_ ) || ScanTargetsStale() || BacksightsStale();
     }
     void ClearAll() {
       for ( auto& kv : pts_ ) RemoveVobSafe( kv.second.marker );
-      RemoveVobSafe( rod_[0] ); RemoveVobSafe( rod_[1] ); RemoveVobSafe( instr_ ); RemoveVobSafe( pole_ ); RemoveVobSafe( base_ ); for ( ScanTgt& t : scanTgt_ ) { RemoveVobSafe( t.vob ); t.up = false; } hasPole_ = false; poleIsPrism_ = false;
+      RemoveVobSafe( rod_[0] ); RemoveVobSafe( rod_[1] ); RemoveVobSafe( instr_ ); RemoveVobSafe( scanHead_ ); RemoveVobSafe( pole_ ); RemoveVobSafe( base_ ); for ( ScanTgt& t : scanTgt_ ) { RemoveVobSafe( t.vob ); t.up = false; } hasPole_ = false; poleIsPrism_ = false;
       for ( int i = 1; i <= 5; i++ ) RemoveBacksight( i );
       DressOff();
       pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false; hasBase_ = false;
@@ -436,8 +511,9 @@ namespace GOTHIC_NAMESPACE {
     bool ScanTargetsStale() const { for ( const ScanTgt& t : scanTgt_ ) if ( VobIsStale( t.vob ) ) return true; return false; }
     bool BacksightsStale() const { for ( const Back& b : back_ ) if ( VobIsStale( b.marker ) || VobIsStale( b.prism ) ) return true; return false; }
     void PlaceTachymeterPos( const zVEC3& p, int kind = 1 ) {       // kind: 1 tachimetr, 2 skaner laserowy
-      RemoveVobSafe( instr_ );
+      RemoveVobSafe( instr_ ); RemoveVobSafe( scanHead_ );
       instr_ = SpawnVob( kind == 2 ? LV_VIS_SCANNER : LV_VIS_TACHY, p ); instrGround_ = p; hasInstr_ = true; instrKind_ = kind;
+      if ( kind == 2 ) scanHead_ = SpawnVob( LV_VIS_SCANHEAD, p );                  // obrotowa glowica skanera
       if ( poleIsPrism_ ) FaceInstrument( pole_ );
       for ( Back& b : back_ ) if ( b.up ) FaceInstrument( b.prism );
     }
@@ -456,6 +532,9 @@ namespace GOTHIC_NAMESPACE {
     }
     struct ScanTgt { zVEC3 pos; zCVob* vob = nullptr; bool up = false; };
     ScanTgt scanTgt_[6];                               // kule referencyjne skanera (srodek = pos + kScanTargetUpM nad znakiem)
+    zCVob* scanHead_ = nullptr;                        // obrotowa glowica skanera
+    struct Beam { double az, el, dist; };
+    std::vector<Beam> beams_;                          // ostatnie wiazki skanu (rysowane liniami)
     zCVob* base_ = nullptr; zVEC3 baseGround_; bool hasBase_ = false;   // stacja bazowa RTK
     int instrKind_ = 0;                                // rodzaj instr_: 0 niwelator, 1 tachimetr, 2 skaner laserowy
     zCVob* pole_ = nullptr; zVEC3 poleGround_; bool hasPole_ = false; double clock_ = 0;   // GNSS: tyczka i zegar gry [s]

@@ -33,6 +33,8 @@ class IWorld {
   virtual void   ShiftInstrumentMm(double dyMm) = 0;              // podnosi (+) / obniża (-) niwelator stojący na stanowisku
   virtual void   Say(const std::string& textAscii) = 0;
   // GNSS (domyslne ciala, zeby swiaty niwelacji ich nie musialy znac)
+  virtual void     ScanHead(double azTrueDeg) { (void)azTrueDeg; }                   // obrot glowicy skanera ku azymutowi biezacej kolumny
+  virtual void     ScanBeam(double azTrueDeg, double elevDeg, double distM) { (void)azTrueDeg; (void)elevDeg; (void)distM; }   // wiazka do narysowania (distM < 0: usun wszystkie)
   virtual bool     PlaceScanner() { return PlaceTachymeter(); }                     // skaner laserowy na statywie pod stopami (domyslnie jak tachimetr)
   virtual bool     PlaceBase(GridPos& g) { (void)g; return false; }                // stacja bazowa RTK pod stopami; g = prawdziwe wspolrzedne gruntu
   virtual bool     PlaceTachymeterOnPoint(int pointId) { (void)pointId; return false; }   // tachimetr dokladnie nad znakiem punktu (bohater nie musi tam stac)

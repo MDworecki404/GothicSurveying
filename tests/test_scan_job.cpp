@@ -28,6 +28,9 @@ struct FakeScan : IWorld {
   void Say(const std::string& t) override { said.push_back(t); }
   bool PlaceTachymeter() override { return ground; }
   GridPos StationGrid() const override { return station; }
+  mutable int beams = 0, clears = 0, heads = 0;
+  void ScanBeam(double, double, double d) override { if (d < 0) clears++; else beams++; }
+  void ScanHead(double) override { heads++; }
   bool PlaceScanTarget(int slot, const ControlPoint& cp) override { spheres.push_back({slot, cp}); return true; }
   void RemoveScanTarget(int slot) override { for (size_t i = 0; i < spheres.size(); i++) if (spheres[i].first == slot) { spheres.erase(spheres.begin() + (long)i); break; } }
   bool ScanRegistrationByDefault() const override { return false; }
@@ -94,6 +97,7 @@ static void full_scan_writes_cloud_of_floor_and_wall() {
     else other++;
   }
   assert(k == n && wall > 1000 && floorN > 1000 && other < n / 100 && wallGrey == wall && floorGreen == floorN);   // kolor z powierzchni (RGB wlaczone domyslnie)
+  assert(f.w.beams > 100 && f.w.clears >= 1);                                               // wiazki rysowane w trakcie skanu i usuniete na koncu
   const std::vector<std::string> sum = f.job->SummaryLines();
   assert(sum.size() == 2 && has(sum[1], "skan01") && has(sum[1], "dowolne stanowisko"));
   f.job->OnMenu("station"); f.runScan();                                                    // drugi skan: osobne pliki

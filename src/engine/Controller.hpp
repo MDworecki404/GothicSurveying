@@ -485,6 +485,7 @@ namespace GOTHIC_NAMESPACE {
     double dtClock = ( nowClock - lastClock ) / 1000.0; lastClock = nowClock;
     if ( dtClock > 0.2 ) dtClock = 0.2;
     const bool gamePaused = MenuIsOpen() || ScopeActive() || FieldBookVisible() || TextPanelVisible() || FieldBookEditActive() || PoleFineActive() || TachyViewActive() || MapActive() || LevelActive();
+    gWorld.ScanVisualTick();                           // wiazki skanera laserowego
     ControlLabelTick( gamePaused );                    // etykieta najblizszego punktu osnowy
     if ( !gamePaused ) { gWorld.AdvanceClock( dtClock ); if ( gJob ) gJob->Tick(); }   // zegar symulacji stoi, gdy gra zatrzymana
     if ( !MenuIsOpen() && !ScopeActive() && !PoleFineActive() && !TachyViewActive() ) gWorld.DressTick();   // przy zatrzymanej grze nic się nie rusza
