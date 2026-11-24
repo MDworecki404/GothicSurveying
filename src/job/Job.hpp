@@ -77,6 +77,7 @@ class IWorld {
   virtual void     SetDronePose(const GridPos& pos, double yawDeg, double pitchDeg, double rollDeg, double propPhaseDeg) { (void)pos; (void)yawDeg; (void)pitchDeg; (void)rollDeg; (void)propPhaseDeg; }
   virtual void     SetFollowCamera(bool on) { (void)on; }                                    // kamera za dronem
   virtual bool     RouteBlocked(const GridPos& a, const GridPos& b) const { (void)a; (void)b; return false; }   // przeszkoda na trasie (ostrzezenie)
+  virtual void     AerialBeam(const GridPos& from, double azDeg, double elevDeg, double distM) { (void)from; (void)azDeg; (void)elevDeg; (void)distM; }   // wiazka lasera drona do narysowania (distM < 0: usun wszystkie)
   virtual std::string AerialOutDir() { return ""; }                                         // folder wynikow lotu (tworzy); "" = blad
 };
 

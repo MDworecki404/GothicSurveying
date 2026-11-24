@@ -17,6 +17,8 @@ static const double N0 = 5500000.0, E0 = 6500000.0;
 // Swiat: plaski teren H = 100 m, bohater stoi tam, gdzie ustawi test.
 struct FakeAerial : IWorld {
   std::vector<std::string> said; std::string dir; GridPos hero{N0, E0, 100.0}; bool heroOk = true;
+  int beams = 0, beamClears = 0; bool lastBeamCleared = false;
+  void AerialBeam(const GridPos&, double, double, double d) override { if (d < 0) { beamClears++; lastBeamCleared = true; } else { beams++; lastBeamCleared = false; } }
   int placed = 0, removed = 0, poses = 0, outCalls = 0; bool dirOk = true; GridPos lastPose{0, 0, 0}; int landings = 0; bool wasUp = false;
   bool PlaceMarker(int, MarkerKind) override { return true; }
   bool FeetWithinCm(int, double) const override { return true; }
@@ -177,6 +179,12 @@ static void flight_runs_to_end() {
   assert(!f.job->SummaryLines().empty());
 }
 
+static void laser_beams_are_drawn_and_cleared() {                               // wiazki drona: co kilkadziesiat impulsow, po locie usuniete
+  Fx f; Ready(f, 20000); f.job->OnMenu("launch"); Fly(f);
+  const long long pts = LasCount(f.w.dir);
+  assert(f.w.beams > 20 && f.w.beams < pts / 20 && f.w.lastBeamCleared && f.w.beamClears >= 1);
+}
+
 static void zero_error_profile_hits_truth() {
   const ErrorProfile zero{"zero", 0, 0, 0, 0, 0, 0};
   Fx f; f.Square(100); f.job->OnMenu("preset"); f.job->OnMenu("preset"); f.job->OnMenu("preset"); Air(f)->TestHooks(20000, &zero, false);
@@ -314,6 +322,21 @@ static void adjust_after_flight_pipeline() {
   assert(has(t, "Boresight") && has(t, "nieokreslony") && has(t, "rms") && has(t, "G1") && has(t, "Przesuniecia szeregow") && !has(t, "Prawdziwy"));   // plaski teren: pitch i yaw nieokreslone
 }
 
+static void products_after_flight_and_adjust() {
+  Fx f; Ready(f, 20000);
+  assert(!f.enabled("products"));                                                    // przed lotem brak chmury
+  f.job->OnMenu("launch"); Fly(f); assert(f.enabled("products") && !f.enabled("products_cancel"));
+  f.job->OnMenu("adjust"); for (int i = 0; i < 100000 && f.enabled("adjust_cancel"); i++) f.job->Tick();
+  assert(std::filesystem::exists(f.w.dir + "/lot_wyrownany.bin"));                  // wyrownana chmura zostaje do produktow
+  f.job->OnMenu("products"); assert(f.enabled("products_cancel") && !f.enabled("products") && has(f.job->Hud(), "Produkty"));
+  for (int i = 0; i < 100000 && f.enabled("products_cancel"); i++) f.job->Tick();
+  assert(f.w.Said("Produkty gotowe"));
+  for (const char* n : {"nmt.asc", "nmpt.asc", "warstwice.csv", "warstwice.dxf", "lot_klasyfikacja.las", "produkty.txt"}) assert(std::filesystem::exists(f.w.dir + "/produkty/" + n));
+  const std::string t = Text(f.w.dir + "/produkty/produkty.txt"); assert(has(t, "grunt") && has(t, "Objetosci"));
+  const auto las = Slurp(f.w.dir + "/produkty/lot_klasyfikacja.las"); assert((long long)U(las, 107, 4) == LasCount(f.w.dir) && las[227 + 15] == 2);   // plaski teren: pierwszy punkt to grunt (klasa 2)
+  f.job->OnMenu("products"); f.job->Tick(); f.job->OnMenu("products_cancel"); assert(f.enabled("products") && !f.enabled("products_cancel"));   // przerwanie bez awarii
+}
+
 static void adjust_cancel_and_failures() {
   Fx f; Ready(f, 20000); f.job->OnMenu("launch"); Fly(f);
   f.job->OnMenu("adjust"); f.job->Tick(); f.job->OnMenu("adjust_cancel");
@@ -345,10 +368,10 @@ static void strip_and_control_report() {
 }
 
 int main() {
-  flight_runs_to_end(); zero_error_profile_hits_truth(); points_have_strip_ids_and_time(); rays_miss_no_crash(); ground_height_unavailable_falls_back();
+  flight_runs_to_end(); laser_beams_are_drawn_and_cleared(); zero_error_profile_hits_truth(); points_have_strip_ids_and_time(); rays_miss_no_crash(); ground_height_unavailable_falls_back();
   abort_midflight_writes_partial(); idle_phases_are_flown(); finish_false_midflight_converts_and_keeps_raw(); state_roundtrip();
   resume_after_finished_flight_keeps_old_result(); resume_with_short_raw_uses_new_folder(); open_failure_refuses_launch(); strip_and_control_report(); route_blocked_warns_but_flies();
-  adjust_after_flight_pipeline(); adjust_cancel_and_failures(); adjust_true_error_report_and_state();
+  adjust_after_flight_pipeline(); products_after_flight_and_adjust(); adjust_cancel_and_failures(); adjust_true_error_report_and_state();
   registry_and_kind(); vertices_and_plan(); launch_needs_area(); long_plan_flies_with_battery_swaps(); area_clear_and_vertex_limit();
   area_rect_from_two_corners(); area_rect_rotated(); calibration_strips_menu_and_state(); ctrl_vertex_from_list(); params_change_plan(); plan_csv_written();
   std::puts("test_aerial_job OK"); return 0;

@@ -396,6 +396,13 @@ namespace GOTHIC_NAMESPACE {
       if ( beams_.size() > 40 ) beams_.erase( beams_.begin() );
     }
     void ScanVisualTick() const {                                                 // co klatke: wiazki lasera od glowicy do ostatnich trafien
+      if ( !abeams_.empty() && zlineCache ) {                                     // wiazki drona (punkt poczatkowy zapamietany w momencie impulsu)
+        const float rad = 3.14159265f / 180.0f;
+        for ( const ABeam& b : abeams_ ) {
+          const float az = (float)b.az * rad, el = (float)b.el * rad; const zVEC3 dir( sinf( az ) * cosf( el ), sinf( el ), cosf( az ) * cosf( el ) );
+          zlineCache->Line3D( b.from, b.from + dir * (float)( b.dist * 100.0 ), GFX_RED, 0 );
+        }
+      }
       if ( beams_.empty() || !hasInstr_ || !zlineCache ) return;
       const zVEC3 eye = instrGround_ + zVEC3( 0, LV_INSTR_H, 0 );
       const float rad = 3.14159265f / 180.0f;
@@ -481,6 +488,11 @@ namespace GOTHIC_NAMESPACE {
         const Rot3 Rs = MulR( R, RotFromRpy( 0, 0, ( i % 2 ? -1.0 : 1.0 ) * propPhaseDeg ) );
         prop_[i]->SetTrafoObjToWorld( DroneTrafo( prop_[i]->trafoObjToWorld, Rs, p + zVEC3( (float)o.x, (float)o.z, (float)o.y ) ) );
       }
+    }
+    void AerialBeam( const GridPos& from, double azDeg, double elevDeg, double distM ) override {     // wiazki lasera drona: ostatnie ok. 40, rysowane w ScanVisualTick
+      if ( distM < 0 ) { abeams_.clear(); return; }
+      double gx, gy, gz; GnssFromGrid( from, gx, gy, gz ); abeams_.push_back( { zVEC3( (float)gx, (float)gy, (float)gz ), azDeg, elevDeg, distM } );
+      if ( abeams_.size() > 40 ) abeams_.erase( abeams_.begin() );
     }
     void SetFollowCamera( bool on ) override { followCam_ = on; camLog_ = 0; SvTrace( on ? "kamera za dronem: wlaczona" : "kamera za dronem: wylaczona" ); }
     void FollowCamTick() {                                                              // co klatke po ruchu drona; kamera 12 m za dronem i 5 m nad nim
@@ -707,6 +719,7 @@ namespace GOTHIC_NAMESPACE {
       m.SetTranslation( pos );
       return m;
     }
+    struct ABeam { zVEC3 from; double az, el, dist; }; std::vector<ABeam> abeams_;   // wiazki drona
     zCVob* drone_ = nullptr; zCVob* prop_[4] = { nullptr, nullptr, nullptr, nullptr }; bool droneUp_ = false, followCam_ = false; int camLog_ = 0;   // dron ALS
     struct Pt { zVEC3 pos; zCVob* marker = nullptr; bool reper = false; };
     zVEC3 Foot( int pointId ) const {

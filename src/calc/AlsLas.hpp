@@ -50,7 +50,8 @@ inline bool ReadRec(std::ifstream& in, AlsPoint& p) {
 }
 }  // namespace alsdetail
 
-inline AlsStats AlsConvert(const std::string& rawPath, double originN, double originE, double originH, const std::string& ptsPath, const std::string& lasPath) {
+inline AlsStats AlsConvert(const std::string& rawPath, double originN, double originE, double originH, const std::string& ptsPath, const std::string& lasPath,
+                           const std::vector<std::uint8_t>* classes = nullptr, bool writePts = true) {   // classes: klasa ASPRS kazdego punktu (kolejnosc pliku)
   AlsStats st; AlsPoint p;
   {
     std::ifstream in(rawPath, std::ios::binary);
@@ -62,8 +63,8 @@ inline AlsStats AlsConvert(const std::string& rawPath, double originN, double or
     }
   }
   const double scale = 0.001, offX = std::floor(st.minE), offY = std::floor(st.minN), offZ = std::floor(st.minH);
-  std::ofstream pts(ptsPath, std::ios::binary | std::ios::trunc), las(lasPath, std::ios::binary | std::ios::trunc);
-  pts << st.count << "\n";
+  std::ofstream pts, las(lasPath, std::ios::binary | std::ios::trunc); if (writePts) pts.open(ptsPath, std::ios::binary | std::ios::trunc);
+  if (writePts) pts << st.count << "\n";
   std::string h;                                                       // naglowek LAS 1.2 (227 bajtow), format punktu 3, rekord 34 B
   h += "LASF"; scandetail::PutLE(h, 0, 2); scandetail::PutLE(h, 0, 2); scandetail::PutLE(h, 0, 4); scandetail::PutLE(h, 0, 2); scandetail::PutLE(h, 0, 2); scandetail::PutLE(h, 0, 8);
   h += (char)1; h += (char)2;
@@ -76,15 +77,15 @@ inline AlsStats AlsConvert(const std::string& rawPath, double originN, double or
   scandetail::PutD(h, offX); scandetail::PutD(h, offY); scandetail::PutD(h, offZ);
   scandetail::PutD(h, st.maxE); scandetail::PutD(h, st.minE); scandetail::PutD(h, st.maxN); scandetail::PutD(h, st.minN); scandetail::PutD(h, st.maxH); scandetail::PutD(h, st.minH);
   las.write(h.data(), (std::streamsize)h.size());
-  std::ifstream in(rawPath, std::ios::binary); std::string rec; char line[128];
+  std::ifstream in(rawPath, std::ios::binary); std::string rec; char line[128]; size_t idx = 0;
   while (alsdetail::ReadRec(in, p)) {
     const double E = originE + p.x, N = originN + p.y, H = originH + p.z;
-    std::snprintf(line, sizeof line, "%.3f %.3f %.3f %d %d %d %d\n", E, N, H, (int)p.i, (int)p.r, (int)p.g, (int)p.b); pts << line;
+    if (writePts) { std::snprintf(line, sizeof line, "%.3f %.3f %.3f %d %d %d %d\n", E, N, H, (int)p.i, (int)p.r, (int)p.g, (int)p.b); pts << line; }
     rec.clear();
     scandetail::PutLE(rec, (std::uint32_t)(std::int32_t)std::llround((E - offX) / scale), 4); scandetail::PutLE(rec, (std::uint32_t)(std::int32_t)std::llround((N - offY) / scale), 4);
     scandetail::PutLE(rec, (std::uint32_t)(std::int32_t)std::llround((H - offZ) / scale), 4);
     scandetail::PutLE(rec, (std::uint64_t)p.i * 257u, 2);
-    rec += (char)0x09; rec += (char)0; rec += (char)0; rec += (char)0; scandetail::PutLE(rec, p.strip, 2);   // flagi (1 zwrot z 1), klasyfikacja, kat, dane uzytkownika, numer szeregu
+    rec += (char)0x09; rec += (char)(classes && idx < classes->size() ? (*classes)[idx] : 0); rec += (char)0; rec += (char)0; scandetail::PutLE(rec, p.strip, 2); idx++;   // flagi (1 zwrot z 1), klasyfikacja, kat, dane uzytkownika, numer szeregu
     scandetail::PutD(rec, p.gps);
     scandetail::PutLE(rec, (std::uint64_t)p.r * 257u, 2); scandetail::PutLE(rec, (std::uint64_t)p.g * 257u, 2); scandetail::PutLE(rec, (std::uint64_t)p.b * 257u, 2);
     las.write(rec.data(), (std::streamsize)rec.size());
