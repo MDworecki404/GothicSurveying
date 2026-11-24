@@ -343,25 +343,7 @@ namespace GOTHIC_NAMESPACE {
         zVEC3 n = r.foundPolyNormal; const float nl = n.Length();
         cosInc = nl > 0.5f ? fabs( ( n[VX] * dir[VX] + n[VY] * dir[VY] + n[VZ] * dir[VZ] ) / nl ) : 0.5;
         isVob = r.foundVob != nullptr;
-        if ( rgb ) {                                                                // kolor: srednia barwa tekstury, przyciemniona katem padania (powierzchnie skosne ciemniejsze)
-          unsigned c = 0; bool have = false;
-          if ( r.foundPoly && !r.foundVob ) {                                        // teren i budynki ze swiata: piksel tekstury, w razie braku srednia barwa
-            zCTexture* tex = nullptr; float tu = 0, tv = 0;
-            if ( PolyHitUv( r.foundPoly, r.foundIntersection, tex, tu, tv ) ) {
-              if ( const TexThumb* th = ThumbFor( tex ) ) { c = TexThumbSample( *th, tu, tv ); have = true; }       // miniaturka tekstury w miejscu trafienia
-            }
-            if ( !have ) have = PolyTextureRgb( r.foundPoly, r.foundIntersection, c );                              // zapas: bufor tekstury silnika
-            if ( !have && r.foundPoly->material && r.foundPoly->material->texture ) { c = TextureAverageCached( r.foundPoly->material->texture ); have = c != 0; }   // przezroczysty tekstel: srednia tekstury
-            if ( !have ) { c = MaterialRgb( r.foundPoly->material ); have = c != 0; }
-          } else if ( r.foundVob ) {                                                  // voby: material wielokata albo srednia z siatki
-            if ( r.foundPoly ) c = MaterialRgb( r.foundPoly->material );
-            if ( !c ) c = VobAverageRgb( r.foundVob );
-            have = c != 0;
-          }
-          if ( !have ) c = 0x808080;
-          const double k = 0.65 + 0.35 * cosInc;
-          *rgb = ( (unsigned)( ( ( c >> 16 ) & 255 ) * k ) << 16 ) | ( (unsigned)( ( ( c >> 8 ) & 255 ) * k ) << 8 ) | (unsigned)( ( c & 255 ) * k );
-        }
+        if ( rgb ) *rgb = HitColor( r, cosInc );
       }
       const double sphR = (double)kScanTargetRadiusM * 100.0;                       // kule referencyjne: przeciecie promienia z kula (analitycznie, bez kolizji vobow)
       for ( const ScanTgt& t : scanTgt_ ) {
@@ -379,6 +361,29 @@ namespace GOTHIC_NAMESPACE {
       if ( best > 12000.0 ) return false;
       distM = best / 100.0;
       return true;
+    }
+    // Kolor trafienia: srednia barwa tekstury (miniaturka), przyciemniona katem padania; wspolny dla skanera naziemnego i lotniczego.
+    unsigned HitColor( const zTTraceRayReport& r, double cosInc ) const {
+      unsigned rgbOut = 0;
+                                                                // kolor: srednia barwa tekstury, przyciemniona katem padania (powierzchnie skosne ciemniejsze)
+          unsigned c = 0; bool have = false;
+          if ( r.foundPoly && !r.foundVob ) {                                        // teren i budynki ze swiata: piksel tekstury, w razie braku srednia barwa
+            zCTexture* tex = nullptr; float tu = 0, tv = 0;
+            if ( PolyHitUv( r.foundPoly, r.foundIntersection, tex, tu, tv ) ) {
+              if ( const TexThumb* th = ThumbFor( tex ) ) { c = TexThumbSample( *th, tu, tv ); have = true; }       // miniaturka tekstury w miejscu trafienia
+            }
+            if ( !have ) have = PolyTextureRgb( r.foundPoly, r.foundIntersection, c );                              // zapas: bufor tekstury silnika
+            if ( !have && r.foundPoly->material && r.foundPoly->material->texture ) { c = TextureAverageCached( r.foundPoly->material->texture ); have = c != 0; }   // przezroczysty tekstel: srednia tekstury
+            if ( !have ) { c = MaterialRgb( r.foundPoly->material ); have = c != 0; }
+          } else if ( r.foundVob ) {                                                  // voby: material wielokata albo srednia z siatki
+            if ( r.foundPoly ) c = MaterialRgb( r.foundPoly->material );
+            if ( !c ) c = VobAverageRgb( r.foundVob );
+            have = c != 0;
+          }
+          if ( !have ) c = 0x808080;
+          const double k = 0.65 + 0.35 * cosInc;
+        rgbOut = ( (unsigned)( ( ( c >> 16 ) & 255 ) * k ) << 16 ) | ( (unsigned)( ( ( c >> 8 ) & 255 ) * k ) << 8 ) | (unsigned)( ( c & 255 ) * k );
+      return rgbOut;
     }
     void ScanHead( double azTrueDeg ) override {                                   // glowica obraca sie za azymutem skanowanej kolumny
       if ( !scanHead_ || VobIsStale( scanHead_ ) ) return;
@@ -412,11 +417,81 @@ namespace GOTHIC_NAMESPACE {
       RemoveVobSafe( scanTgt_[slot - 1].vob ); scanTgt_[slot - 1].up = false;
     }
     bool ScanRegistrationByDefault() const override { return true; }
-    std::string ScanOutDir() override {
-      time_t t = time( nullptr ); tm lt; localtime_s( &lt, &t ); char st[32]; strftime( st, sizeof st, "%Y-%m-%d_%H-%M-%S", &lt );
-      std::error_code ec; const std::string dir = std::string( "GothicSurveying/" ) + st + "_skan";
-      std::filesystem::create_directories( dir, ec );
-      return ec ? std::string() : dir;
+    std::string ScanOutDir() override { return OutDirWithSuffix( "_skan" ); }
+    std::string AerialOutDir() override { return OutDirWithSuffix( "_lot" ); }
+    // --- nalot ALS: dron (korpus + 4 smigla), promienie z dowolnego punktu, wysokosc terenu, kamera za dronem ---
+    bool AerialRay( const GridPos& from, double azDeg, double elevDeg, double maxM, double& distM, double& cosInc, bool& isVob, unsigned* rgb ) const override {
+      zCWorld* w = ogame->GetWorld();
+      if ( !w ) return false;
+      double gx, gy, gz; GnssFromGrid( from, gx, gy, gz );
+      const zVEC3 org( (float)gx, (float)gy, (float)gz );
+      const float rad = 3.14159265f / 180.0f, az = (float)azDeg * rad, p = (float)elevDeg * rad;
+      const zVEC3 dir( sinf( az ) * cosf( p ), sinf( p ), cosf( az ) * cosf( p ) );
+      if ( !w->TraceRayNearestHit( org, dir * (float)( maxM * 100.0 ), (zCVob*)nullptr, zTRACERAY_VOB_IGNORE_NO_CD_DYN | zTRACERAY_VOB_IGNORE_CHARACTER | zTRACERAY_POLY_IGNORE_TRANSP | zTRACERAY_STAT_POLY | zTRACERAY_POLY_NORMAL ) ) return false;
+      const zTTraceRayReport& r = w->traceRayReport;
+      distM = ( r.foundIntersection - org ).Length() / 100.0;
+      zVEC3 n = r.foundPolyNormal; const float nl = n.Length();
+      cosInc = nl > 0.5f ? fabs( ( n[VX] * dir[VX] + n[VY] * dir[VY] + n[VZ] * dir[VZ] ) / nl ) : 0.5;
+      isVob = r.foundVob != nullptr;
+      if ( rgb ) *rgb = HitColor( r, cosInc );
+      return true;
+    }
+    bool GroundHeightM( double n, double e, double& h ) const override {            // najwyzszy wielokat statyczny w (N, E): teren (dachy tez, bo dron leci nad nimi)
+      zCWorld* w = ogame->GetWorld();
+      if ( !w ) return false;
+      double gx, gy, gz; GnssFromGrid( GridPos{ n, e, 0 }, gx, gy, gz );
+      if ( !w->TraceRayNearestHit( zVEC3( (float)gx, 100000.0f, (float)gz ), zVEC3( 0, -300000.0f, 0 ), (zCVob*)nullptr, zTRACERAY_VOB_IGNORE | zTRACERAY_POLY_IGNORE_TRANSP ) ) return false;
+      h = w->traceRayReport.foundIntersection[VY] / 100.0 + GNSS_H0;
+      return true;
+    }
+    bool HeroGround( GridPos& g ) const override {
+      zVEC3 p;
+      if ( !FeetGround( p ) ) return false;
+      g = GnssToGrid( p[VX], p[VY], p[VZ] );
+      return true;
+    }
+    bool RouteBlocked( const GridPos& a, const GridPos& b ) const override {
+      zCWorld* w = ogame->GetWorld();
+      if ( !w ) return false;
+      double ax, ay, az, bx, by, bz; GnssFromGrid( a, ax, ay, az ); GnssFromGrid( b, bx, by, bz );
+      const zVEC3 from( (float)ax, (float)ay, (float)az ), to( (float)bx, (float)by, (float)bz );
+      return w->TraceRayNearestHit( from, to - from, (zCVob*)nullptr, zTRACERAY_VOB_IGNORE_NO_CD_DYN | zTRACERAY_VOB_IGNORE_CHARACTER | zTRACERAY_POLY_IGNORE_TRANSP ) != 0;
+    }
+    bool PlaceDrone( const GridPos& pos ) override {
+      RemoveDrone();
+      double gx, gy, gz; GnssFromGrid( pos, gx, gy, gz );
+      const zVEC3 p( (float)gx, (float)gy, (float)gz );
+      drone_ = SpawnVob( LV_VIS_DRONE, p );
+      for ( int i = 0; i < 4; i++ ) prop_[i] = SpawnVob( LV_VIS_PROP, p );
+      droneUp_ = drone_ != nullptr;
+      char b[120]; sprintf( b, "dron: postawiony (%.0f, %.0f, %.0f)", p[VX], p[VY], p[VZ] ); SvTrace( b );
+      return droneUp_;
+    }
+    void RemoveDrone() override { RemoveVobSafe( drone_ ); for ( zCVob*& v : prop_ ) RemoveVobSafe( v ); droneUp_ = false; }
+    void SetDronePose( const GridPos& pos, double yawDeg, double pitchDeg, double rollDeg, double propPhaseDeg ) override {
+      if ( !droneUp_ || !drone_ || VobIsStale( drone_ ) ) return;
+      double gx, gy, gz; GnssFromGrid( pos, gx, gy, gz );
+      const zVEC3 p( (float)gx, (float)gy, (float)gz );
+      const Rot3 R = RotFromRpy( rollDeg, pitchDeg, yawDeg );
+      drone_->SetTrafoObjToWorld( DroneTrafo( drone_->trafoObjToWorld, R, p ) );
+      static const double ox[4] = { 45, -45, 45, -45 }, oy[4] = { 45, 45, -45, -45 };      // silniki w ukladzie ciala drona [cm]: x prawo, y przod, z gora
+      for ( int i = 0; i < 4; i++ ) {
+        if ( !prop_[i] || VobIsStale( prop_[i] ) ) continue;
+        const Vec3 o = Mul( R, Vec3{ ox[i], oy[i], 8.0 } );                                // ENU (E, N, U) -> gra (x = E, y = U, z = N)
+        const Rot3 Rs = MulR( R, RotFromRpy( 0, 0, ( i % 2 ? -1.0 : 1.0 ) * propPhaseDeg ) );
+        prop_[i]->SetTrafoObjToWorld( DroneTrafo( prop_[i]->trafoObjToWorld, Rs, p + zVEC3( (float)o.x, (float)o.z, (float)o.y ) ) );
+      }
+    }
+    void SetFollowCamera( bool on ) override { followCam_ = on; camLog_ = 0; SvTrace( on ? "kamera za dronem: wlaczona" : "kamera za dronem: wylaczona" ); }
+    void FollowCamTick() {                                                              // co klatke po ruchu drona; kamera 12 m za dronem i 5 m nad nim
+      if ( !followCam_ || !droneUp_ || !drone_ || VobIsStale( drone_ ) ) return;
+      zCVob* cam = ogame->GetCameraVob();
+      if ( !cam ) return;
+      const zVEC3 dp = drone_->GetPositionWorld(); zVEC3 at = drone_->GetAtVectorWorld(); at[VY] = 0;
+      if ( at.Length() > 0.01f ) at.Normalize();
+      const zVEC3 cp = dp - at * 1200.0f + zVEC3( 0, 500.0f, 0 ); zVEC3 look = dp - cp; look.Normalize();
+      cam->SetPositionWorld( cp ); cam->SetHeadingAtWorld( look );
+      if ( camLog_ < 3 ) { camLog_++; const zVEC3 rb = cam->GetPositionWorld(); char b[160]; sprintf( b, "kamera za dronem: ustawiono (%.0f,%.0f,%.0f), odczyt (%.0f,%.0f,%.0f)", cp[VX], cp[VY], cp[VZ], rb[VX], rb[VY], rb[VZ] ); SvTrace( b ); }
     }
     GridPos StationGrid() const override { return GnssToGrid( instrGround_[VX], instrGround_[VY], instrGround_[VZ] ); }
     GridPos PointGrid( int slot ) const override {
@@ -562,17 +637,18 @@ namespace GOTHIC_NAMESPACE {
       DropVobRef( rod_[0] ); DropVobRef( rod_[1] ); DropVobRef( instr_ ); DropVobRef( scanHead_ ); DropVobRef( pole_ ); DropVobRef( base_ ); for ( ScanTgt& t : scanTgt_ ) { DropVobRef( t.vob ); t.up = false; } hasPole_ = false; poleIsPrism_ = false;
       for ( Back& b : back_ ) { DropVobRef( b.marker ); DropVobRef( b.prism ); b.up = false; }
       DropVobRef( helmet_ ); DropVobRef( vest_ ); helmetNode_ = vestNode_ = nullptr;
+      DropVobRef( drone_ ); for ( zCVob*& v : prop_ ) DropVobRef( v ); droneUp_ = false; followCam_ = false;
       pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false; hasBase_ = false;
     }
     bool Stale() const {                                 // któryś z naszych vobów nie należy już do bieżącego świata
       for ( const auto& kv : pts_ ) if ( VobIsStale( kv.second.marker ) ) return true;
-      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ ) || VobIsStale( scanHead_ ) || VobIsStale( helmet_ ) || VobIsStale( vest_ ) || VobIsStale( pole_ ) || VobIsStale( base_ ) || ScanTargetsStale() || BacksightsStale();
+      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ ) || VobIsStale( scanHead_ ) || VobIsStale( helmet_ ) || VobIsStale( vest_ ) || VobIsStale( pole_ ) || VobIsStale( base_ ) || VobIsStale( drone_ ) || ScanTargetsStale() || BacksightsStale();
     }
     void ClearAll() {
       for ( auto& kv : pts_ ) RemoveVobSafe( kv.second.marker );
       RemoveVobSafe( rod_[0] ); RemoveVobSafe( rod_[1] ); RemoveVobSafe( instr_ ); RemoveVobSafe( scanHead_ ); RemoveVobSafe( pole_ ); RemoveVobSafe( base_ ); for ( ScanTgt& t : scanTgt_ ) { RemoveVobSafe( t.vob ); t.up = false; } hasPole_ = false; poleIsPrism_ = false;
       for ( int i = 1; i <= 5; i++ ) RemoveBacksight( i );
-      DressOff();
+      DressOff(); RemoveDrone(); followCam_ = false;
       pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false; hasBase_ = false;
     }
 
@@ -617,6 +693,21 @@ namespace GOTHIC_NAMESPACE {
     }
 
    private:
+    static std::string OutDirWithSuffix( const char* suffix ) {
+      time_t t = time( nullptr ); tm lt; localtime_s( &lt, &t ); char st[32]; strftime( st, sizeof st, "%Y-%m-%d_%H-%M-%S", &lt );
+      std::error_code ec; const std::string dir = std::string( "GothicSurveying/" ) + st + suffix;
+      std::filesystem::create_directories( dir, ec );
+      return ec ? std::string() : dir;
+    }
+    // Macierz obiektu z obrotu ENU (x prawo, y przod, z gora) i pozycji w swiecie gry (x = E, y = H, z = N).
+    static zMAT4 DroneTrafo( zMAT4 m, const Rot3& R, const zVEC3& pos ) {
+      m.SetRightVector( zVEC3( (float)R.m[0], (float)R.m[6], (float)R.m[3] ) );
+      m.SetUpVector( zVEC3( (float)R.m[2], (float)R.m[8], (float)R.m[5] ) );
+      m.SetAtVector( zVEC3( (float)R.m[1], (float)R.m[7], (float)R.m[4] ) );
+      m.SetTranslation( pos );
+      return m;
+    }
+    zCVob* drone_ = nullptr; zCVob* prop_[4] = { nullptr, nullptr, nullptr, nullptr }; bool droneUp_ = false, followCam_ = false; int camLog_ = 0;   // dron ALS
     struct Pt { zVEC3 pos; zCVob* marker = nullptr; bool reper = false; };
     zVEC3 Foot( int pointId ) const {
       const Pt& pt = pts_.at( pointId );

@@ -6,6 +6,8 @@ namespace GOTHIC_NAMESPACE {
   inline const char*  LV_VIS_REPER = "LVL_REPER.3DS";
   inline const char*  LV_VIS_SCANNER = "LVL_SCANNER.3DS";   // skaner laserowy na statywie (os 150 cm nad gruntem)
   inline const char*  LV_VIS_SCANHEAD = "LVL_SCANHEAD.3DS";   // obrotowa glowica skanera (osobny vob)
+  inline const char*  LV_VIS_DRONE = "LVL_DRONE.3DS";   // dron ALS: korpus z glowica LiDAR (poczatek ukladu = antena GNSS)
+  inline const char*  LV_VIS_PROP = "LVL_PROP.3DS";     // smiglo drona (osobny vob, obraca sie)
   inline const char*  LV_VIS_SPHERE = "LVL_SPHERE.3DS";   // kula referencyjna skanera
   inline const char*  LV_VIS_TACHY = "LVL_TACHY.3DS";    // tachimetr na statywie (os lunety 150 cm nad gruntem)
   // Tyczka z lustrem: model o wysokosci srodka lustra h (1,3 / 1,5 / 1,8 / 2,0 m).

@@ -38,7 +38,9 @@ struct FakeAerial : IWorld {
   std::vector<ControlPoint> ControlNearHero(double) const override { ControlPoint c; c.id = "G1"; c.n = N0 + 5; c.e = E0 + 7; c.h = 100.0; return {c}; }
   bool Said(const std::string& part) const { for (const std::string& s : said) if (has(s, part)) return true; return false; }
   int Count(const std::string& part) const { int n = 0; for (const std::string& s : said) if (has(s, part)) n++; return n; }
-  bool rays = true, groundOk = true;
+  bool rays = true, groundOk = true, blocked = false; int routeChecks = 0;
+  mutable int dummy = 0;
+  bool RouteBlocked(const GridPos&, const GridPos&) const override { const_cast<FakeAerial*>(this)->routeChecks++; return blocked; }
   bool AerialRay(const GridPos& from, double, double elevDeg, double maxM, double& dist, double& cosInc, bool& isVob, unsigned* rgb) const override {
     const double s = std::sin(elevDeg * 3.14159265358979323846 / 180.0);
     if (!rays || s > -1e-6) return false;
@@ -200,6 +202,13 @@ static void state_roundtrip() {
   assert(st == (std::set<int>{0, 1, 2}));
 }
 
+static void route_blocked_warns_but_flies() {
+  Fx f; Ready(f); f.job->OnMenu("launch");
+  assert(f.w.routeChecks == 3 && !f.w.Said("przeszkod") && f.enabled("abort"));       // czysta trasa: 3 szeregi sprawdzone, bez ostrzezenia
+  Fx g; Ready(g); g.w.blocked = true; g.job->OnMenu("launch");
+  assert(g.w.Said("3 z 3 szeregow") && g.w.Said("przeszkod") && g.enabled("abort"));       // ostrzezenie, lot sie zaczyna
+}
+
 static void strip_and_control_report() {
   Fx f; Ready(f, 20000); f.job->OnMenu("launch"); Fly(f);
   const std::string t = Text(f.w.dir + "/lot_opis.txt");
@@ -208,7 +217,7 @@ static void strip_and_control_report() {
 
 int main() {
   flight_runs_to_end(); zero_error_profile_hits_truth(); points_have_strip_ids_and_time(); rays_miss_no_crash(); ground_height_unavailable_falls_back();
-  abort_midflight_writes_partial(); state_roundtrip(); strip_and_control_report();
+  abort_midflight_writes_partial(); state_roundtrip(); strip_and_control_report(); route_blocked_warns_but_flies();
   registry_and_kind(); vertices_and_plan(); launch_needs_area(); launch_refused_when_battery(); area_clear_and_vertex_limit();
   ctrl_vertex_from_list(); params_change_plan(); plan_csv_written();
   std::puts("test_aerial_job OK"); return 0;

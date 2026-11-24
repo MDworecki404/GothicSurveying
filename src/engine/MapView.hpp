@@ -67,6 +67,48 @@ namespace GOTHIC_NAMESPACE {
     gMapBottom->PrintCXY( zSTRING( foot ) );
   }
 
+  // Podglad planu nalotu: powiekszony kadr obszaru (obszar zolty, szeregi zielone, dojazd czerwony) z punktami osnowy tego swiata w kadrze.
+  inline void MapOpenPlan( const std::vector<MapLine>& lines ) {
+    if ( MapActive() || lines.empty() ) return;
+    double minN = 1e18, maxN = -1e18, minE = 1e18, maxE = -1e18;
+    for ( const MapLine& l : lines ) {
+      minN = ( std::min )( minN, ( std::min )( l.n1, l.n2 ) ); maxN = ( std::max )( maxN, ( std::max )( l.n1, l.n2 ) );
+      minE = ( std::min )( minE, ( std::min )( l.e1, l.e2 ) ); maxE = ( std::max )( maxE, ( std::max )( l.e1, l.e2 ) );
+    }
+    const int sw = screen->nax( 8192 ), sh = screen->nay( 8192 );
+    const int S = (int)( sh * 0.72 ), bar = 38, gap = 6;
+    const int total = S + 2 * bar + 2 * gap, x0 = ( sw - S ) / 2, y0 = ( sh - total ) / 2, my0 = y0 + bar + gap;
+    gMapTop    = PanelOpen( screen->anx( x0 ), screen->any( y0 ), screen->anx( x0 + S ), screen->any( y0 + bar ) );
+    gMapPanel  = PanelOpen( screen->anx( x0 ), screen->any( my0 ), screen->anx( x0 + S ), screen->any( my0 + S ) );
+    gMapBottom = PanelOpen( screen->anx( x0 ), screen->any( my0 + S + gap ), screen->anx( x0 + S ), screen->any( my0 + S + gap + bar ) );
+    ogame->Pause();
+    const double sc = 0.84 * S / ( std::max )( ( std::max )( maxN - minN, maxE - minE ), 10.0 ), cn = ( minN + maxN ) / 2, ce = ( minE + maxE ) / 2;
+    auto px = [&]( double e ) { return x0 + (int)( S / 2 + ( e - ce ) * sc ); };
+    auto py = [&]( double n ) { return my0 + (int)( S / 2 - ( n - cn ) * sc ); };       // polnoc u gory
+    static const char* tex[3] = { "LVL_DOTY.TGA", "LVL_DOTG.TGA", "LVL_DOTR.TGA" };
+    int dots = 0, ctrl = 0, strips = 0;
+    for ( const MapLine& l : lines ) {
+      if ( l.color == 1 ) strips++;
+      const int ax = px( l.e1 ), ay = py( l.n1 ), bx = px( l.e2 ), by = py( l.n2 );
+      const double len = hypot( (double)( bx - ax ), (double)( by - ay ) ), step = l.color == 2 ? 14.0 : 7.0;
+      const int k = (int)( std::max )( 1.0, len / step );
+      for ( int i = 0; i <= k && dots < 1500; i++, dots++ ) MapDot( tex[l.color], ax + (int)( ( bx - ax ) * (double)i / k ), ay + (int)( ( by - ay ) * (double)i / k ), l.color == 2 ? 3 : 5 );
+    }
+    ControlEnsureLoaded();
+    const std::string wn = ControlWorldName();
+    for ( const ControlPoint& c : gControl ) {                                          // osnowa w kadrze: punkt odniesienia dla ukladu planu
+      if ( ControlWorldKey( c.world ) != ControlWorldKey( wn ) ) continue;
+      const int cx = px( c.e ), cy = py( c.n );
+      if ( cx < x0 || cx > x0 + S || cy < my0 || cy > my0 + S ) continue;
+      MapDot( c.id[0] == 'G' ? "LVL_DOTR.TGA" : "LVL_DOTG.TGA", cx, cy, 10 ); ctrl++;
+      gMapPanel->Print( (int)( 8192.0 * ( cx - x0 ) / S ) + 130, (int)( 8192.0 * ( cy - my0 ) / S ) - 330, zSTRING( c.id.c_str() ) );
+    }
+    char title[160], foot[200];
+    sprintf( title, "Plan nalotu - %d szeregow, kadr %.0f x %.0f m, polnoc u gory", strips, maxE - minE, maxN - minN );
+    sprintf( foot, "zolte - obszar, zielone - szeregi, czerwone male - dojazd; punkty osnowy w kadrze: %d   Enter - zamknij", ctrl );
+    gMapTop->PrintCXY( zSTRING( title ) ); gMapBottom->PrintCXY( zSTRING( foot ) );
+  }
+
   inline void MapTick() {
     if ( !gMapPanel ) return;
     if ( zinput->KeyToggled( KEY_RETURN ) || zinput->KeyToggled( LV_KEY_MENU ) ) MapClose();

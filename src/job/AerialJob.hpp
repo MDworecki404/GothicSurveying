@@ -199,6 +199,12 @@ class AerialJob : public Job {
     if (outDir_.empty()) { w_.Say("Nie mozna utworzyc folderu wynikow"); return; }
     { std::ofstream f(outDir_ + "/plan_nalotu.csv", std::ios::binary | std::ios::trunc); f << PlanCsv(plan_, params_); }
     stripStartCount_ = 0; stripStartTrajBytes_ = 0; stripStartSimT_ = 0; groundWarned_ = false;
+    int blocked = 0;                                                      // ostrzezenie (bez omijania): szeregi przecinajace teren lub obiekty na wysokosci przelotu
+    for (const Strip& s : plan_.strips) {
+      double ha = homeGroundH_, hb = homeGroundH_; if (params_.followTerrain) { w_.GroundHeightM(s.a.n, s.a.e, ha); w_.GroundHeightM(s.b.n, s.b.e, hb); }
+      if (w_.RouteBlocked(GridPos{s.a.n, s.a.e, ha + params_.aglM}, GridPos{s.b.n, s.b.e, hb + params_.aglM})) blocked++;
+    }
+    if (blocked > 0) w_.Say("Uwaga: przeszkody na trasie (" + std::to_string(blocked) + " z " + std::to_string(plan_.strips.size()) + " szeregow); lot sie odbedzie");
     if (BeginFlight(0)) w_.Say("Start lotu: " + std::to_string(plan_.strips.size()) + " szeregow");
   }
 

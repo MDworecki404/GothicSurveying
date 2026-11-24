@@ -183,6 +183,37 @@ def build_scanner_head():
     return m
 
 
+def build_drone():
+    """Dron ALS (quadkopter w ukladzie X): korpus z antena GNSS na gorze, 4 ramiona z silnikami (smigla to osobny model LVL_PROP), pomaranczowy znacznik przodu (+Y),
+    podwozie i glowica LiDAR zawieszona 30 cm pod korpusem, 15 cm do przodu (lever arm antena -> skaner = 0; 0,15; -0,30 m). Poczatek ukladu = antena/srodek korpusu."""
+    m = Mesh()
+    box(m, 0, 0, 0, 30, 30, 12, block(2))                                    # korpus
+    box(m, 0, 0, 7, 24, 24, 2, block(1))                                     # plyta gorna
+    prism(m, (0, -8, 8), (0, -8, 11), 4.5, 12, block(3))                     # antena GNSS
+    box(m, 0, 16, 2, 6, 3, 3, block(3))                                      # znacznik przodu
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            prism(m, (0, 0, 0), (45 * sx, 45 * sy, 0), 1.6, 4, block(1))      # ramie
+            prism(m, (45 * sx, 45 * sy, 0), (45 * sx, 45 * sy, 6), 4.5, 12, block(2))   # silnik
+            prism(m, (20 * sx, 20 * sy, -6), (26 * sx, 20 * sy, -38), 1.2, 4, block(1))  # noga podwozia
+    for sx in (-1, 1):
+        prism(m, (26 * sx, -26, -38), (26 * sx, 26, -38), 1.2, 4, block(1))   # plozy
+    prism(m, (0, 15, -6), (0, 15, -20), 2.0, 8, block(1))                    # wspornik glowicy
+    box(m, 0, 15, -27, 10, 14, 12, block(2))                                 # glowica LiDAR
+    box(m, 0, 15, -33.2, 7, 9, 1.5, block(3))                                # okno wiazki (w dol)
+    return m
+
+
+def build_drone_prop():
+    """Smiglo drona (osobny vob): dwie lopatki z pomaranczowymi koncowkami, srodek w poczatku ukladu, obrot wokol osi Z."""
+    m = Mesh()
+    box(m, 0, 0, 0, 50, 3, 0.6, block(2))
+    prism(m, (0, 0, -1), (0, 0, 2), 2.2, 8, block(1))
+    for sx in (-1, 1):
+        box(m, 22 * sx, 0, 0.3, 6, 3.2, 0.8, block(3))
+    return m
+
+
 def build_sphere_target():
     """Kula referencyjna skanera (promien 14,5 cm, srodek 50 cm nad znakiem) na cienkim slupku."""
     m = Mesh()
@@ -397,7 +428,9 @@ def main():
                               ("LVL_REPER", build_reper(), one),
                               ("LVL_SPHERE", build_sphere_target(), one),
                               ("LVL_SCANNER", build_scanner(), one),
-                              ("LVL_SCANHEAD", build_scanner_head(), one)):
+                              ("LVL_SCANHEAD", build_scanner_head(), one),
+                              ("LVL_DRONE", build_drone(), one),
+                              ("LVL_PROP", build_drone_prop(), one)):
         (meshes / f"{fname}.3DS").write_bytes(to_3ds(fname, mesh, mats))
         print(f"{fname}.3DS: {len(mesh.v)} wierzcholkow, {len(mesh.f)} trojkatow, {len(mats)} mat.")
     for f in sorted((Path(__file__).parent / "worldmaps").glob("LVL_MAP_*.TGA")):         # mapy swiatow z make_world_control.py

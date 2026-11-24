@@ -155,6 +155,7 @@ namespace GOTHIC_NAMESPACE {
     if ( gJob->Kind() == JobKind::Gnss ) { CtrlFinishGnss(); return; }
     if ( gJob->Kind() == JobKind::Tachy ) { CtrlFinishTachy(); return; }
     if ( gJob->Kind() == JobKind::Scan ) { TextPanelShow( "Skaner laserowy - podsumowanie", gJob->SummaryLines(), "Pliki .pts i .las w folderze GothicSurveying" ); SvTrace( "Skaner zakonczony" ); CtrlEndJob(); return; }
+    if ( gJob->Kind() == JobKind::Aerial ) { TextPanelShow( "Skaning lotniczy - podsumowanie", gJob->SummaryLines(), "Pliki LAS, PTS, trajektoria i opis lotu w folderze GothicSurveying (..._lot)" ); SvTrace( "Skaning lotniczy zakonczony" ); CtrlEndJob(); return; }
     FieldBook fb = gJob->Finish( true );
     gJobDir = MakeJobDir();                            // nazwa folderu = czas zakończenia roboty
     MoveReadingLog( gReadingLog, gJobDir );
@@ -223,7 +224,7 @@ namespace GOTHIC_NAMESPACE {
     MenuOpen( v, []( const std::string& id ) {
       const int idx = std::stoi( id );
       if ( JobTypes()[idx].scan ) CtrlStartJob( idx, TraverseKind::Open, CalcMode::Auto );
-      else if ( JobTypes()[idx].gnss || JobTypes()[idx].tachy ) CtrlOpenTrueErrorMenu( idx ); else CtrlOpenKindMenu( idx );
+      else if ( JobTypes()[idx].gnss || JobTypes()[idx].tachy || JobTypes()[idx].aerial ) CtrlOpenTrueErrorMenu( idx ); else CtrlOpenKindMenu( idx );
     } );
   }
 
@@ -378,6 +379,7 @@ namespace GOTHIC_NAMESPACE {
     if ( gJob->Kind() == JobKind::Leveling ) { char b[64]; sprintf( b, "Wysun laty: teraz %.0f m (zmien na %.0f m)", gRodLenCm / 100.0f, gRodLenCm >= 500.0f ? 3.0f : gRodLenCm / 100.0f + 1.0f ); v.items.push_back( { "rodlen", b, "3, 4 albo 5 m", true } ); }
     if ( gJob->GetLibella() && gJob->GetLibella()->enabled && gWorld.HasInstrument() )
       v.items.push_back( { "level", "Poziomuj instrument (libella)", "", true } );
+    if ( gJob->Kind() == JobKind::Aerial ) v.items.push_back( { "preview", "Podglad planu nalotu", "najpierw zdefiniuj obszar (min. 3 wierzcholki)", !gJob->MapOverlay().empty() } );
     v.items.push_back( { "map", "Mapa osnowy", "", true } );
     v.items.push_back( { "tp", "Teleport do punktu osnowy", "", true } );
     v.items.push_back( { "abort", "Przerwij robote (bez dziennika)", "", true } );
@@ -391,6 +393,7 @@ namespace GOTHIC_NAMESPACE {
       else if ( id == "rodlen" ) { gRodLenCm = gRodLenCm >= 500.0f ? 300.0f : gRodLenCm + 100.0f; gWorld.RefreshRods(); HudMessage( ( "Lata wysunieta na " + std::to_string( (int)( gRodLenCm / 100.0f ) ) + " m" ).c_str() ); }
       else if ( id == "level" ) LevelOpen( gJob->GetLibella(), gJob->Kind() == JobKind::Leveling || gJob->Kind() == JobKind::Scan ? kLevelBubbleArcmin : kTachyLevelArcmin, gJob->Kind() == JobKind::Leveling ? "niwelatora" : gJob->Kind() == JobKind::Scan ? "skanera" : "tachimetru" );
       else if ( id == "map" ) MapOpen();
+      else if ( id == "preview" ) MapOpenPlan( gJob->MapOverlay() );
       else if ( id == "tp" ) CtrlOpenTeleport( 0 );
       else if ( id == "abort" ) CtrlConfirmAbort();
       else {
@@ -487,7 +490,7 @@ namespace GOTHIC_NAMESPACE {
     const bool gamePaused = MenuIsOpen() || ScopeActive() || FieldBookVisible() || TextPanelVisible() || FieldBookEditActive() || PoleFineActive() || TachyViewActive() || MapActive() || LevelActive();
     gWorld.ScanVisualTick();                           // wiazki skanera laserowego
     ControlLabelTick( gamePaused );                    // etykieta najblizszego punktu osnowy
-    if ( !gamePaused ) { gWorld.AdvanceClock( dtClock ); if ( gJob ) gJob->Tick(); }   // zegar symulacji stoi, gdy gra zatrzymana
+    if ( !gamePaused ) { gWorld.AdvanceClock( dtClock ); if ( gJob ) gJob->Tick(); gWorld.FollowCamTick(); }   // zegar symulacji stoi, gdy gra zatrzymana
     if ( !MenuIsOpen() && !ScopeActive() && !PoleFineActive() && !TachyViewActive() ) gWorld.DressTick();   // przy zatrzymanej grze nic się nie rusza
     ScopeTick();
     PoleFineTick();
