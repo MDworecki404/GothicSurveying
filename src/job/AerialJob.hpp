@@ -7,6 +7,7 @@
 #include <fstream>
 #include <memory>
 #include "Job.hpp"
+#include "calc/AlsAdjust.hpp"
 #include "calc/AlsLas.hpp"
 #include "calc/Flight.hpp"
 #include "calc/Georef.hpp"
@@ -16,7 +17,8 @@ class AerialJob : public Job {
   AerialJob(IWorld& w, const JobOptions& o) : w_(w), opt_(o), seed_((uint32_t)(w.Random01() * 4e9) + 1), rangeRng_(seed_ ^ 0x5bd1e995u) {
     params_.sensor.pulseHz = kAlsPresets[preset_].pulseHz; params_.sensor.lineHz = kAlsPresets[preset_].lineHz;
   }
-  ~AerialJob() override { if (flying_) { raw_.Close(); traj_.close(); w_.RemoveDrone(); } }   // bez konwersji: wyniki powstaja tylko po locie albo przerwaniu
+  ~AerialJob() override { if (adj_) { adj_.reset(); std::error_code ec; std::filesystem::remove(outDir_ + "/lot_wyrownany.raw", ec); }
+    if (flying_) { raw_.Close(); traj_.close(); w_.RemoveDrone(); } }   // bez konwersji: wyniki powstaja tylko po locie albo przerwaniu
 
   // Haki testowe: limit impulsow na klatke (0 = budzet czasu), podmiana profilu bledow, wylaczenie szumu odleglosci.
   void TestHooks(int pulseCap, const ErrorProfile* profile, bool rangeNoise) { pulseCap_ = pulseCap; haveOverride_ = profile != nullptr; if (profile) override_ = *profile; rangeNoise_ = rangeNoise; idleStepS_ = pulseCap > 0 ? 1.0 : 0.0; }
@@ -49,8 +51,10 @@ class AerialJob : public Job {
       {"plan_csv", "Zapisz plan nalotu (CSV)", "najpierw zdefiniuj obszar", plan_.ok && !flying_},
       {"launch", "Start lotu", "", !flying_},
       {"cancel", "Przerwij lot", "trwa lot", flying_},
+      {"adjust", "Wyrownaj szeregi i skalibruj boresight", "po locie: kalibracja katow montazu i przesuniecia szeregow; wynik w osobnych plikach", CanAdjust()},
+      {"adjust_cancel", "Przerwij wyrownanie", "trwa wyrownanie", adj_ != nullptr},
       {"camera", camFollow_ ? "Kamera: za dronem (zmien)" : "Kamera: swobodna (zmien)", "widok z tylu drona w czasie lotu", flying_},
-      {"finish", "Zakoncz robote", "najpierw wykonaj lot", flights_ > 0 && !flying_},
+      {"finish", "Zakoncz robote", "najpierw wykonaj lot", flights_ > 0 && !flying_ && !adj_},
     };
   }
 
@@ -89,12 +93,15 @@ class AerialJob : public Job {
     } else if (base == "preset") { preset_ = (preset_ + 1) % 4; params_.sensor.pulseHz = kAlsPresets[preset_].pulseHz; params_.sensor.lineHz = kAlsPresets[preset_].lineHz; Replan();
     } else if (base == "plan_csv") { SavePlanCsv();
     } else if (base == "launch") { Launch();
+    } else if (base == "adjust") { StartAdjust();
+    } else if (base == "adjust_cancel") { FinishAdjust(true);
     } else if (base == "cancel") { FinishFlight(false, false); w_.Say("Lot przerwany");
     } else if (base == "camera") { camFollow_ = !camFollow_; w_.SetFollowCamera(camFollow_); }
   }
 
   // Lot w czasie gry: w kazdej klatce Tick() puszcza impulsy w budzecie czasu; czas symulacji rosnie z impulsami (gestosc nie zalezy od FPS).
   void Tick() override {
+    if (adj_) { if (adj_->Step(kBudgetMs)) FinishAdjust(false); return; }   // wyrownanie po locie: kolejne kroki w budzecie czasu klatki
     if (!flying_) return;
     const auto t0 = std::chrono::steady_clock::now();
     auto over = [&]() { return std::chrono::steady_clock::now() - t0 > std::chrono::milliseconds(kBudgetMs); };
@@ -153,6 +160,7 @@ class AerialJob : public Job {
 
   std::string Hud() const override {
     char b[220];
+    if (adj_) { std::snprintf(b, sizeof b, "Wyrownanie szeregow: %s", adj_->Progress().c_str()); return b; }
     if (flying_) { std::snprintf(b, sizeof b, "Lot ALS: szereg %d/%d, %d%%, %lld punktow", CurStrip() + 1, (int)plan_.strips.size(), (int)(100.0 * tSim_ / (std::max)(1e-9, path_->Duration())), raw_.Count()); return b; }
     if (!plan_.ok) { std::snprintf(b, sizeof b, "Nalot ALS: obszar %d wierzcholkow (min. 3)", (int)area_.size()); return b; }
     char loty[48] = ""; if (plan_.sorties > 1) std::snprintf(loty, sizeof loty, ", %d loty (wymiana baterii)", plan_.sorties);
@@ -160,7 +168,7 @@ class AerialJob : public Job {
                   (int)plan_.strips.size(), plan_.swathM, plan_.spacingM, plan_.flightTimeS / 60.0, loty, plan_.estDensityPtsM2);
     return b;
   }
-  bool CanFinish() const override { return flights_ > 0 && !flying_; }
+  bool CanFinish() const override { return flights_ > 0 && !flying_ && !adj_; }
 
   std::vector<MapLine> MapOverlay() const override {
     std::vector<MapLine> out;
@@ -333,6 +341,49 @@ class AerialJob : public Job {
   }
 
   int CurStrip() const { return curStrip_ >= 0 ? curStrip_ : fromStrip_; }   // szereg w toku (przed pierwszym impulsem: ten, od ktorego start)
+  bool CanAdjust() const { return flights_ > 0 && !flying_ && !adj_ && !outDir_.empty() && std::filesystem::exists(outDir_ + "/lot_surowy.bin"); }
+
+  // Wyrownanie po locie (kalibracja boresightu + przesuniecia szeregow): AlsAdjuster na plikach lotu, kroki w Tick(); wynik w lot_wyrownany.las/.pts i lot_wyrownanie.txt.
+  void StartAdjust() {
+    originN_ = area_.empty() ? 0 : area_[0].n; originE_ = area_.empty() ? 0 : area_[0].e; originH_ = homeGroundH_;
+    std::vector<ControlPoint> cps; for (const ControlPoint& c : w_.ControlNearHero(1e9)) if (InArea(c.n, c.e)) cps.push_back(c);
+    adj_ = std::make_unique<AlsAdjuster>(outDir_ + "/lot_surowy.bin", outDir_ + "/trajektoria.csv", outDir_ + "/lot_wyrownany.raw", originN_, originE_, originH_, cps);
+    w_.Say("Wyrownanie: start (kalibracja boresightu i przesuniecia szeregow)");
+  }
+  void FinishAdjust(bool cancelled) {
+    if (!adj_) return;
+    const AdjustResult r = adj_->Result(); adj_.reset();
+    const std::string rawOut = outDir_ + "/lot_wyrownany.raw"; std::error_code ec;
+    if (cancelled || !r.ok) { std::filesystem::remove(rawOut, ec); w_.Say(cancelled ? "Wyrownanie przerwane" : (r.msg.empty() ? "Wyrownanie nie powiodlo sie" : r.msg)); return; }
+    const AlsStats st = AlsConvert(rawOut, originN_, originE_, originH_, outDir_ + "/lot_wyrownany.pts", outDir_ + "/lot_wyrownany.las");
+    std::filesystem::remove(rawOut, ec);
+    WriteAdjustReport(r, st);
+    char b[200]; std::snprintf(b, sizeof b, "Wyrownanie zakonczone: rms nakladek %.1f -> %.1f mm, wynik w lot_wyrownany.las", r.rmsBefore * 1000.0, r.rmsAfter * 1000.0); w_.Say(b);
+  }
+  void WriteAdjustReport(const AdjustResult& r, const AlsStats& st) {
+    std::ofstream f(outDir_ + "/lot_wyrownanie.txt"); char b[300];
+    f << "Wyrownanie szeregow i kalibracja boresightu ALS\n";
+    std::snprintf(b, sizeof b, "Komorek w nakladkach: %d, szeregow: %d, punktow w wyniku: %lld\n", r.cells, r.strips, st.count); f << b;
+    f << "Boresight (poprawka montazu skanera; obejmuje staly bias IMU, bo oba dzialaja tak samo):\n";
+    static const char* nm[3] = {"roll", "pitch", "yaw"};
+    for (int k = 0; k < 3; k++) {
+      if (r.determined[k]) std::snprintf(b, sizeof b, "  %s: %+.4f +- %.4f st.\n", nm[k], r.bore[k], r.sigma[k]);
+      else std::snprintf(b, sizeof b, "  %s: nieokreslony (niepewnosc powyzej 0.05 st.; teren zbyt plaski lub brak szeregow poprzecznych, poprawka 0)\n", nm[k]);
+      f << b;
+    }
+    std::snprintf(b, sizeof b, "rms roznic wysokosci w nakladkach [m]: przed %.4f, po kalibracji %.4f, po wyrownaniu szeregow %.4f\n", r.rmsBefore, r.rmsCalibrated, r.rmsAfter); f << b;
+    f << "Przesuniecia szeregow [m] (E, N, H):\n";
+    for (const StripShift& sh : r.shifts) { std::snprintf(b, sizeof b, "  szereg %d: %+.3f %+.3f %+.3f (H %s, E/N %s)\n", sh.strip, sh.dE, sh.dN, sh.dH, sh.detH ? "wyznaczone" : "nieokreslone", sh.detEN ? "wyznaczone" : "nieokreslone"); f << b; }
+    f << "Kontrola na punktach osnowy (dh przed -> po):\n";
+    for (size_t i = 0; i < r.ctrlBefore.size() && i < r.ctrlAfter.size(); i++) { std::snprintf(b, sizeof b, "  %s: %+.3f -> %+.3f m (%d punktow)\n", r.ctrlBefore[i].id.c_str(), r.ctrlBefore[i].dhM, r.ctrlAfter[i].dhM, r.ctrlBefore[i].pts); f << b; }
+    if (r.ctrlBefore.empty()) f << "  (brak punktow osnowy w obszarze)\n";
+    if (opt_.showTrueError) {
+      const ErrorProfile prof = haveOverride_ ? override_ : kAlsProfiles[profile_]; TrajectoryNoise tn(seed_, prof); double br, bp, by, ir, ip, iy; tn.BoresightDeg(br, bp, by); tn.BiasDeg(ir, ip, iy);
+      std::snprintf(b, sizeof b, "Prawdziwy blad boresightu (roll, pitch, yaw): %+.4f %+.4f %+.4f st.; bias IMU: %+.4f %+.4f %+.4f st.\n", br, bp, by, ir, ip, iy); f << b;
+      std::snprintf(b, sizeof b, "Oczekiwana poprawka montazu (boresight - bias IMU): %+.4f %+.4f %+.4f st.\n", br - ir, bp - ip, by - iy); f << b;
+    }
+  }
+
   static constexpr int kBudgetMs = 12;                                   // budzet czasu lotu na klatke
   static constexpr double kSampleDt = 0.1, kMaxRangeM = 250.0, kGpsT0 = 345600.0;
 
@@ -342,6 +393,7 @@ class AerialJob : public Job {
   // lot
   std::unique_ptr<FlightPath> path_; std::unique_ptr<TrajectoryNoise> noise_; ErrorProfile profile_used_{"", 0, 0, 0, 0, 0, 0}, override_{"", 0, 0, 0, 0, 0, 0};
   std::chrono::steady_clock::time_point lastTick_ = std::chrono::steady_clock::now(); double idleStepS_ = 0;   // 0 = czas rzeczywisty klatki
+  std::unique_ptr<AlsAdjuster> adj_;
   mutable AlsRawWriter raw_; mutable std::ofstream traj_; std::string outDir_, rawPath_;
   Vec3 lever_{0.0, 0.15, -0.30}; Rot3 boreNom_ = RotFromRpy(0, 0, 0), boreTrue_ = RotFromRpy(0, 0, 0);
   double tSim_ = 0, t0_ = 0, t1_ = kSampleDt, clockOffset_ = 0, stripStartSimT_ = 0, homeGroundH_ = 0, originN_ = 0, originE_ = 0, originH_ = 0;

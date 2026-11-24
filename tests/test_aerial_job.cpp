@@ -285,6 +285,38 @@ static void long_plan_flies_with_battery_swaps() {                             /
   assert(st == (std::set<int>{0, 1, 2}));
 }
 
+static void adjust_after_flight_pipeline() {
+  Fx f; Ready(f, 20000);
+  assert(!f.enabled("adjust") && !f.enabled("adjust_cancel"));                  // przed lotem: brak danych
+  f.job->OnMenu("launch"); assert(!f.enabled("adjust")); Fly(f);                // w trakcie lotu: niedostepne
+  assert(f.enabled("adjust") && !f.enabled("adjust_cancel"));
+  f.job->OnMenu("adjust"); assert(f.enabled("adjust_cancel") && !f.enabled("adjust") && has(f.job->Hud(), "Wyrownanie"));
+  for (int i = 0; i < 100000 && f.enabled("adjust_cancel"); i++) f.job->Tick();
+  assert(!f.enabled("adjust_cancel") && f.w.Said("Wyrownanie zakonczone"));
+  for (const char* n : {"lot_wyrownany.las", "lot_wyrownany.pts", "lot_wyrownanie.txt"}) assert(std::filesystem::exists(f.w.dir + "/" + n));
+  assert(!std::filesystem::exists(f.w.dir + "/lot_wyrownany.raw"));
+  const auto adj = Slurp(f.w.dir + "/lot_wyrownany.las"); assert(adj.size() > 227 && (long long)U(adj, 107, 4) == LasCount(f.w.dir));   // te same punkty
+  const std::string t = Text(f.w.dir + "/lot_wyrownanie.txt");
+  assert(has(t, "Boresight") && has(t, "nieokreslony") && has(t, "rms") && has(t, "G1") && has(t, "Przesuniecia szeregow") && !has(t, "Prawdziwy"));   // plaski teren: pitch i yaw nieokreslone
+}
+
+static void adjust_cancel_and_failures() {
+  Fx f; Ready(f, 20000); f.job->OnMenu("launch"); Fly(f);
+  f.job->OnMenu("adjust"); f.job->Tick(); f.job->OnMenu("adjust_cancel");
+  assert(f.enabled("adjust") && !f.enabled("adjust_cancel") && !std::filesystem::exists(f.w.dir + "/lot_wyrownany.las") && !std::filesystem::exists(f.w.dir + "/lot_wyrownany.raw"));
+  std::filesystem::remove(f.w.dir + "/trajektoria.csv");                          // brak trajektorii: komunikat, bez awarii i bez plikow wyniku
+  f.w.said.clear(); f.job->OnMenu("adjust"); for (int i = 0; i < 1000 && f.enabled("adjust_cancel"); i++) f.job->Tick();
+  assert(f.w.Said("trajektorii") && !f.enabled("adjust_cancel") && !std::filesystem::exists(f.w.dir + "/lot_wyrownany.las"));
+}
+
+static void adjust_true_error_report_and_state() {
+  Fx f; f.job = CreateAerialJob(f.w, JobOptions{TraverseKind::Open, CalcMode::Auto, true}); Ready(f, 20000); f.job->OnMenu("launch"); Fly(f);
+  StateKV st; f.job->SaveState(st); std::unique_ptr<Job> j2 = CreateAerialJob(f.w, JobOptions{TraverseKind::Open, CalcMode::Auto, true});
+  assert(j2->LoadState(st)); f.job = std::move(j2); assert(f.enabled("adjust"));   // po wczytaniu zapisu wyrownanie nadal dostepne (pliki w folderze lotu)
+  f.job->OnMenu("adjust"); for (int i = 0; i < 100000 && f.enabled("adjust_cancel"); i++) f.job->Tick();
+  const std::string t = Text(f.w.dir + "/lot_wyrownanie.txt"); assert(has(t, "Prawdziwy blad boresightu") && has(t, "bias IMU"));
+}
+
 static void route_blocked_warns_but_flies() {
   Fx f; Ready(f); f.job->OnMenu("launch");
   assert(f.w.routeChecks == 3 && !f.w.Said("przeszkod") && f.enabled("cancel"));       // czysta trasa: 3 szeregi sprawdzone, bez ostrzezenia
@@ -302,6 +334,7 @@ int main() {
   flight_runs_to_end(); zero_error_profile_hits_truth(); points_have_strip_ids_and_time(); rays_miss_no_crash(); ground_height_unavailable_falls_back();
   abort_midflight_writes_partial(); idle_phases_are_flown(); finish_false_midflight_converts_and_keeps_raw(); state_roundtrip();
   resume_after_finished_flight_keeps_old_result(); resume_with_short_raw_uses_new_folder(); open_failure_refuses_launch(); strip_and_control_report(); route_blocked_warns_but_flies();
+  adjust_after_flight_pipeline(); adjust_cancel_and_failures(); adjust_true_error_report_and_state();
   registry_and_kind(); vertices_and_plan(); launch_needs_area(); long_plan_flies_with_battery_swaps(); area_clear_and_vertex_limit();
   area_rect_from_two_corners(); calibration_strips_menu_and_state(); ctrl_vertex_from_list(); params_change_plan(); plan_csv_written();
   std::puts("test_aerial_job OK"); return 0;
