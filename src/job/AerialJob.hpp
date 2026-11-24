@@ -37,6 +37,7 @@ class AerialJob : public Job {
     return {
       {"area_here", "Dodaj wierzcholek obszaru (pod stopami)", "max 12 wierzcholkow", !flying_},
       {"area_ctrl", "Dodaj wierzcholek obszaru (punkt osnowy)", "wybierz punkt osnowy z listy", !flying_},
+      {"area_map", "Zaznacz obszar na mapie (dwa narozniki)", "mapa swiata; zastepuje obecny obszar", !flying_},
       {"area_clear", "Wyczysc obszar", "brak wierzcholkow", !flying_ && !area_.empty()},
       {"agl", agl, "30 / 50 / 80 / 100 / 150 m", !flying_}, {"speed", spd, "3 / 5 / 6 / 8 m/s", !flying_}, {"sidelap", sid, "20 / 30 / 40 %", !flying_},
       {"azimuth", az, "wzdluz boku albo 0 / 45 / 90 / 135 st.", !flying_}, {"follow", fol, "AGL liczone od terenu albo stala wysokosc", !flying_},
@@ -66,6 +67,12 @@ class AerialJob : public Job {
     } else if (base == "area_ctrl") {
       for (const ControlPoint& c : w_.ControlNearHero(1e9)) if (c.id == arg) { AddVertex({c.n, c.e}); return; }
       w_.Say("Brak takiego punktu osnowy");
+    } else if (base == "area_rect") {                                       // z mapy: "N1:E1:N2:E2" (dwa przeciwlegle narozniki, dowolna kolejnosc)
+      double n1, e1, n2, e2;
+      if (std::sscanf(arg.c_str(), "%lf:%lf:%lf:%lf", &n1, &e1, &n2, &e2) != 4) return;
+      const double nlo = (std::min)(n1, n2), nhi = (std::max)(n1, n2), elo = (std::min)(e1, e2), ehi = (std::max)(e1, e2);
+      if (nhi - nlo < 1.0 || ehi - elo < 1.0) { w_.Say("Zaznaczony obszar jest za maly (min. 1 m w kazdym wymiarze)"); return; }
+      area_ = {{nlo, elo}, {nlo, ehi}, {nhi, ehi}, {nhi, elo}}; Replan();
     } else if (base == "area_clear") { area_.clear(); Replan();
     } else if (base == "agl") { Cycle(params_.aglM, kAgl, 5);
     } else if (base == "speed") { Cycle(params_.speedMps, kSpeed, 4);

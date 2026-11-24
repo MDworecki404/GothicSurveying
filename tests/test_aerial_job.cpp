@@ -96,6 +96,19 @@ static void area_clear_and_vertex_limit() {
   f.Square(100); assert(f.Lines(0) == 4);                                   // po czyszczeniu znow dziala
 }
 
+static void area_rect_from_two_corners() {                                    // zaznaczenie na mapie: dwa przeciwlegle narozniki w dowolnej kolejnosci
+  Fx f; assert(f.enabled("area_map"));
+  char id[160]; std::snprintf(id, sizeof id, "area_rect:%.3f:%.3f:%.3f:%.3f", N0 + 100, E0 + 100, N0, E0);   // gorny prawy pierwszy
+  f.job->OnMenu(id);
+  assert(f.Lines(0) == 4 && f.Lines(1) == 3 && has(f.job->Hud(), "szeregow: 3"));
+  f.job->OnMenu("area_here");                                                // reczny wierzcholek dochodzi do prostokata (5 wierzcholkow)
+  assert(f.Lines(0) == 5);
+  f.job->OnMenu(id); assert(f.Lines(0) == 4);                                // nowe zaznaczenie zastepuje stary obszar
+  f.w.said.clear(); f.job->OnMenu("area_rect:5500000.000:6500000.000:5500000.400:6500100.000");
+  assert(f.w.Said("za maly") && f.Lines(0) == 4);                            // zbyt waski: odmowa, obszar bez zmian
+  f.job->OnMenu("area_rect:abc"); assert(f.Lines(0) == 4);                   // zly zapis: ignorowany
+}
+
 static void ctrl_vertex_from_list() {
   Fx f; assert(f.job->NeedsChoice("area_ctrl"));
   const std::vector<MenuItem> ch = f.job->TachyChoices("area_ctrl"); assert(ch.size() == 1 && ch[0].id == "area_ctrl:G1");
@@ -266,6 +279,6 @@ int main() {
   abort_midflight_writes_partial(); idle_phases_are_flown(); finish_false_midflight_converts_and_keeps_raw(); state_roundtrip();
   resume_after_finished_flight_keeps_old_result(); resume_with_short_raw_uses_new_folder(); open_failure_refuses_launch(); strip_and_control_report(); route_blocked_warns_but_flies();
   registry_and_kind(); vertices_and_plan(); launch_needs_area(); launch_refused_when_battery(); area_clear_and_vertex_limit();
-  ctrl_vertex_from_list(); params_change_plan(); plan_csv_written();
+  area_rect_from_two_corners(); ctrl_vertex_from_list(); params_change_plan(); plan_csv_written();
   std::puts("test_aerial_job OK"); return 0;
 }

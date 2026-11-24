@@ -58,7 +58,16 @@ static void map_covers_all_points() {
   MapUnit(t, 500.0, 600.0, u, v); assert(u == 1.0 && v == 0.0);
 }
 
+static void map_unit_inverse() {                                               // klik na mapie (u, v) -> polozenie w metrach, odwrotnosc MapUnit
+  const WorldMapView t{100.0, 200.0, 400.0}; double e, n, u, v;
+  MapFromUnit(t, 0.0, 1.0, e, n); assert(e == 100.0 && n == 200.0);          // lewy dolny rog
+  MapFromUnit(t, 1.0, 0.0, e, n); assert(e == 500.0 && n == 600.0);          // prawy gorny rog
+  MapFromUnit(t, 0.25, 0.5, e, n); MapUnit(t, e, n, u, v); assert(near(u, 0.25, 1e-12) && near(v, 0.5, 1e-12));
+  MapFromUnit(t, 0.5, 0.5, e, n); assert(near(e, 300.0, 1e-9) && near(n, 400.0, 1e-9));
+}
+
 int main() {
+  map_unit_inverse();
   known_worlds_have_sets_and_unknown_do_not(); points_are_consistent(); merge_is_idempotent_and_keeps_user_points(); map_covers_all_points();
   std::puts("test_worldcontrol OK");
   return 0;

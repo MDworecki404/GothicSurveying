@@ -19,6 +19,8 @@ inline bool WorldMapFor(const std::string& world, WorldMapView& out) {
 
 // Polozenie (E, N) w metrach -> wspolrzedne tekstury u (w prawo) i v (w dol), 0..1.
 inline void MapUnit(const WorldMapView& m, double e, double n, double& u, double& v) { u = (e - m.e0) / m.side; v = 1.0 - (n - m.n0) / m.side; }
+// Odwrotnie: punkt mapy (u w prawo, v w dol, 0..1) -> polozenie (E, N) w metrach.
+inline void MapFromUnit(const WorldMapView& m, double u, double v, double& e, double& n) { e = m.e0 + u * m.side; n = m.n0 + (1.0 - v) * m.side; }
 
 // Punkty wzorcowe danego swiata (klucz swiata jak w ControlWorldKey); pusta lista, gdy dla swiata nie ma zestawu.
 inline std::vector<ControlPoint> WorldControlFor(const std::string& world) {

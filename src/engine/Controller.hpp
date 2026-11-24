@@ -394,6 +394,11 @@ namespace GOTHIC_NAMESPACE {
       else if ( id == "level" ) LevelOpen( gJob->GetLibella(), gJob->Kind() == JobKind::Leveling || gJob->Kind() == JobKind::Scan ? kLevelBubbleArcmin : kTachyLevelArcmin, gJob->Kind() == JobKind::Leveling ? "niwelatora" : gJob->Kind() == JobKind::Scan ? "skanera" : "tachimetru" );
       else if ( id == "map" ) MapOpen();
       else if ( id == "preview" ) MapOpenPlan( gJob->MapOverlay() );
+      else if ( id == "area_map" ) MapOpen( true, []( double e1, double n1, double e2, double n2 ) {   // wspolrzedne mapy (metry ukladu gry) -> siatka N/E
+        if ( !gJob ) return;
+        char b[160]; sprintf( b, "area_rect:%.3f:%.3f:%.3f:%.3f", n1 + GNSS_N0, e1 + GNSS_E0, n2 + GNSS_N0, e2 + GNSS_E0 );
+        gJob->OnMenu( b ); HudMessage( "Obszar zaznaczony na mapie" );
+      } );
       else if ( id == "tp" ) CtrlOpenTeleport( 0 );
       else if ( id == "abort" ) CtrlConfirmAbort();
       else {
