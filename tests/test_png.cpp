@@ -50,6 +50,15 @@ static void roundtrip_small_and_large() {
   }
 }
 
+static void read_png_matches_written_image() {                                    // ReadPng czyta pliki zapisane przez WritePng (te same piksele), odrzuca obce i uszkodzone
+  const int w = 50, h = 31; std::vector<unsigned char> img((size_t)w * h * 3); for (size_t i = 0; i < img.size(); i++) img[i] = (unsigned char)((i * 13 + i / 7) & 255);
+  const std::string path = (std::filesystem::temp_directory_path() / "png_read.png").string(); assert(WritePng(path, w, h, img));
+  int rw = 0, rh = 0; std::vector<unsigned char> back; assert(ReadPng(path, rw, rh, back) && rw == w && rh == h && back == img);
+  { std::ofstream f(path, std::ios::binary | std::ios::trunc); f << "to nie jest PNG"; } assert(!ReadPng(path, rw, rh, back));
+  assert(WritePng(path, w, h, img)); { std::fstream f(path, std::ios::binary | std::ios::in | std::ios::out); f.seekp(40); f.put((char)0x55); } assert(!ReadPng(path, rw, rh, back));   // uszkodzone dane: CRC
+  assert(!ReadPng((std::filesystem::temp_directory_path() / "png_brak.png").string(), rw, rh, back));
+}
+
 static void rejects_bad_input() {
   const std::vector<unsigned char> img(10);
   assert(!WritePng((std::filesystem::temp_directory_path() / "png_bad.png").string(), 4, 4, img));                            // za malo danych
@@ -57,6 +66,6 @@ static void rejects_bad_input() {
 }
 
 int main() {
-  known_checksums(); roundtrip_small_and_large(); rejects_bad_input();
+  known_checksums(); roundtrip_small_and_large(); read_png_matches_written_image(); rejects_bad_input();
   std::puts("test_png OK"); return 0;
 }
