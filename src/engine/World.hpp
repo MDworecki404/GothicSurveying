@@ -217,7 +217,9 @@ namespace GOTHIC_NAMESPACE {
             if ( gb && buf ) {
               memcpy( head, buf, 8 );
               unsigned char c3[3];
-              if ( TexDecodeTexel( fmt, (const unsigned char*)buf, pitch, sw, sh, (int)( tu * sw ), (int)( tv * sh ), c3 ) ) { rr = c3[0]; gg = c3[1]; bb = c3[2]; ok = true; }
+              int ew = TexEffectiveWidth( fmt, pitch ); if ( ew <= 0 || sw <= 0 ) ew = sw;      // szerokosc poziomu z pitch (rozmiar z info bywa rozmiarem odniesienia)
+              const int eh = ( std::max )( 1, sw > 0 ? (int)( (long long)sh * ew / sw ) : sh );
+              if ( TexDecodeTexel( fmt, (const unsigned char*)buf, pitch, ew, eh, (int)( tu * ew ), (int)( tv * eh ), c3 ) ) { rr = c3[0]; gg = c3[1]; bb = c3[2]; ok = true; }
             }
             tex->Unlock();
           }

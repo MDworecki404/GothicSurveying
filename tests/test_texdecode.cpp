@@ -25,6 +25,7 @@ int main() {
   const unsigned char r4444[2] = {0x0F, 0xFF};                                                       // 0xFF0F: A=F R=F G=0 B=F
   assert(TexDecodeTexel(TEXF_ARGB4444, r4444, 2, 1, 1, 0, 0, rgb) && rgb[0] == 255 && rgb[1] == 0 && rgb[2] == 255);
   assert(!TexDecodeTexel(TEXF_PAL8, argb, 8, 2, 1, 0, 0, rgb) && !TexDecodeTexel(TEXF_DXT1, nullptr, 0, 4, 4, 0, 0, rgb));
+  assert(TexEffectiveWidth(TEXF_DXT1, 64) == 32 && TexEffectiveWidth(TEXF_DXT5, 64) == 16 && TexEffectiveWidth(TEXF_ARGB8888, 512) == 128 && TexEffectiveWidth(TEXF_RGB565, 0) == 0);
   std::puts("test_texdecode OK");
   return 0;
 }
