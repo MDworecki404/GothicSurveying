@@ -256,7 +256,7 @@ z estymaty trajektorii (GNSS: szum + dryf, IMU: szum + bias, boresight nominalny
 (różnica wysokości w zakładkach, `meanDz` i rms dla par kolejnych szeregów; bez wyrównania) oraz **kontrolę na punktach osnowy** w obszarze (mediana dolnej ćwiartki H chmury w promieniu 2 m minus H punktu osnowy).
 Przy opcji prawdziwego błędu opis podaje też ukryty błąd boresightu. Punkty zapisują się strumieniowo.
 
-**Zapis gry w trakcie lotu:** zapisuje plan i ustawienia; po wczytaniu lot wznawia się od początku bieżącego szeregu (wcześniejsze szeregi zostają, trajektoria dojazdu po wznowieniu nie jest zapisywana).
+**Zapis gry w trakcie lotu:** zapisuje plan i ustawienia; po wczytaniu lot wznawia się od początku bieżącego szeregu (wcześniejsze szeregi zostają, trajektoria dojazdu po wznowieniu nie jest zapisywana; gdy plik roboczy lotu już nie pasuje do zapisu albo lot został dokończony, pozostałe szeregi trafiają do nowego folderu i nie nadpisują wyniku).
 Dron i jego śmigła to modele `LVL_DRONE.3DS` i `LVL_PROP.3DS` z `assets/make_models.py`. Plan i trajektoria są niezależne od sensora (`SensorSpec`), żeby później posłużyć fotogrametrii lotniczej.
 
 ## Poziomowanie instrumentu

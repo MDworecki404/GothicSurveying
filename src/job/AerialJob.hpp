@@ -19,7 +19,7 @@ class AerialJob : public Job {
   ~AerialJob() override { if (flying_) { raw_.Close(); traj_.close(); w_.RemoveDrone(); } }   // bez konwersji: wyniki powstaja tylko po locie albo przerwaniu
 
   // Haki testowe: limit impulsow na klatke (0 = budzet czasu), podmiana profilu bledow, wylaczenie szumu odleglosci.
-  void TestHooks(int pulseCap, const ErrorProfile* profile, bool rangeNoise) { pulseCap_ = pulseCap; haveOverride_ = profile != nullptr; if (profile) override_ = *profile; rangeNoise_ = rangeNoise; }
+  void TestHooks(int pulseCap, const ErrorProfile* profile, bool rangeNoise) { pulseCap_ = pulseCap; haveOverride_ = profile != nullptr; if (profile) override_ = *profile; rangeNoise_ = rangeNoise; idleStepS_ = pulseCap > 0 ? 1.0 : 0.0; }
 
   std::string Name() const override { return "Skaning lotniczy z drona"; }
   JobKind Kind() const override { return JobKind::Aerial; }
@@ -43,7 +43,7 @@ class AerialJob : public Job {
       {"profile", prof, "RTK dobry / PPK / slaby", !flying_}, {"preset", pre, "wiecej impulsow = gestsza chmura, dluzej w grze", !flying_},
       {"plan_csv", "Zapisz plan nalotu (CSV)", "najpierw zdefiniuj obszar", plan_.ok && !flying_},
       {"launch", "Start lotu", "", !flying_},
-      {"abort", "Przerwij lot", "trwa lot", flying_},
+      {"cancel", "Przerwij lot", "trwa lot", flying_},
       {"camera", camFollow_ ? "Kamera: za dronem (zmien)" : "Kamera: swobodna (zmien)", "widok z tylu drona w czasie lotu", flying_},
       {"finish", "Zakoncz robote", "najpierw wykonaj lot", flights_ > 0 && !flying_},
     };
@@ -76,7 +76,7 @@ class AerialJob : public Job {
     } else if (base == "preset") { preset_ = (preset_ + 1) % 4; params_.sensor.pulseHz = kAlsPresets[preset_].pulseHz; params_.sensor.lineHz = kAlsPresets[preset_].lineHz; Replan();
     } else if (base == "plan_csv") { SavePlanCsv();
     } else if (base == "launch") { Launch();
-    } else if (base == "abort") { FinishFlight(false); w_.Say("Lot przerwany");
+    } else if (base == "cancel") { FinishFlight(false, false); w_.Say("Lot przerwany");
     } else if (base == "camera") { camFollow_ = !camFollow_; w_.SetFollowCamera(camFollow_); }
   }
 
@@ -86,14 +86,20 @@ class AerialJob : public Job {
     const auto t0 = std::chrono::steady_clock::now();
     auto over = [&]() { return std::chrono::steady_clock::now() - t0 > std::chrono::milliseconds(kBudgetMs); };
     const double dtP = 1.0 / params_.sensor.pulseHz; int pulses = 0;
+    double idle = idleStepS_;                                               // czas lotu poza szeregiem przypadajacy na te klatke
+    if (idle <= 0) { idle = (std::min)(0.2, std::chrono::duration<double>(t0 - lastTick_).count()); if (idle < 0) idle = 0; }
+    lastTick_ = t0;
     while (tSim_ < path_->Duration()) {
       while (tSim_ >= t1_) AdvanceSample();
-      if (!(s0_.scanning && s1_.scanning)) { tSim_ = t1_; continue; }         // poza szeregiem nie ma impulsow: przeskok do nastepnej probki
+      if (!(s0_.scanning && s1_.scanning)) {                                // wznios, dolot, zakret, powrot: bez impulsow, ale dron leci
+        if (idle <= 1e-9) break;
+        const double step = (std::min)(idle, t1_ - tSim_); tSim_ += step; idle -= step; continue;
+      }
       if (s0_.strip != curStrip_) { curStrip_ = s0_.strip; raw_.Flush(); traj_.flush(); stripStartCount_ = raw_.Count(); stripStartTrajBytes_ = trajBytes_; stripStartSimT_ = tSim_ + clockOffset_; }
       EmitPulse(); tSim_ += dtP; pulses++;
       if ((pulseCap_ > 0 && pulses >= pulseCap_) || (pulseCap_ == 0 && (pulses & 63) == 0 && over())) break;
     }
-    if (tSim_ >= path_->Duration()) { FinishFlight(true); return; }
+    if (tSim_ >= path_->Duration()) { FinishFlight(true, false); return; }
     const TrajSample tr = Lerp(s0_, s1_, (tSim_ - t0_) / kSampleDt);
     w_.SetDronePose(GridPos{tr.pos.y, tr.pos.x, tr.pos.z}, tr.yawDeg, tr.pitchDeg, tr.rollDeg, std::fmod(tSim_ * 3000.0, 360.0));
   }
@@ -158,7 +164,7 @@ class AerialJob : public Job {
   std::vector<int> ActiveRodPoints() const override { return {}; }
   int RodPointFor(RodRole) const override { return -1; }
   bool OnReading(int, int) override { return false; }
-  FieldBook Finish(bool) override { return FieldBook{}; }
+  FieldBook Finish(bool) override { FinishFlight(false, true); return FieldBook{}; }   // lot w toku: wynik czesciowy; lot.raw zostaje (wczytanie zapisu moze wznowic lot)
 
  private:
   static constexpr int kMaxVertices = 12;
@@ -219,19 +225,29 @@ class AerialJob : public Job {
         if (!groundWarned_) { groundWarned_ = true; w_.Say("Brak wysokosci terenu: uzyto wysokosci punktu startu"); } return homeGroundH_; },
         params_.aglM, params_.speedMps, params_.followTerrain, homeGroundH_, home_);
     noise_ = std::make_unique<TrajectoryNoise>(seed_, prof); boreTrue_ = noise_->TrueBoresight();
-    if (!w_.PlaceDrone(GridPos{home_.n, home_.e, homeGroundH_})) { w_.Say("Nie mozna postawic drona"); path_.reset(); return false; }
     originN_ = area_[0].n; originE_ = area_[0].e; originH_ = homeGroundH_;
-    rawPath_ = outDir_ + "/lot.raw"; const std::string trajPath = outDir_ + "/trajektoria.csv";
-    bool append = resume && std::filesystem::exists(rawPath_) && std::filesystem::exists(trajPath);
-    if (resume && !append) w_.Say("Brak plikow poprzednich szeregow: wznowiony lot zapisze tylko pozostale szeregi");
+    rawPath_ = outDir_ + "/lot.raw"; std::string trajPath = outDir_ + "/trajektoria.csv";
     std::error_code ec;
+    bool append = resume;
+    if (resume) {                                                          // dopisujemy tylko do plikow zgodnych ze stanem (nie krotszych, nie po zakonczonym locie)
+      const auto rs = std::filesystem::file_size(rawPath_, ec); const bool r1 = !ec; const auto ts = std::filesystem::file_size(trajPath, ec); const bool r2 = !ec;
+      append = r1 && r2 && rs >= (std::uintmax_t)stripStartCount_ * 26 && ts >= (std::uintmax_t)stripStartTrajBytes_;
+      if (!append) {
+        const std::string nd = w_.AerialOutDir();
+        if (nd.empty()) { w_.Say("Nie mozna utworzyc folderu wynikow"); path_.reset(); return false; }
+        outDir_ = nd; rawPath_ = outDir_ + "/lot.raw"; trajPath = outDir_ + "/trajektoria.csv";
+        w_.Say("Wznowienie: poprzedni plik roboczy nie pasuje do zapisu (albo lot juz zakonczony); pozostale szeregi trafia do nowego folderu");
+      }
+    }
     if (append) { std::filesystem::resize_file(rawPath_, (std::uintmax_t)stripStartCount_ * 26, ec); std::filesystem::resize_file(trajPath, (std::uintmax_t)stripStartTrajBytes_, ec); }
-    raw_.Open(rawPath_, append);
+    if (!raw_.Open(rawPath_, append)) { w_.Say("Nie mozna otworzyc plikow lotu"); path_.reset(); return false; }
     traj_.open(trajPath, std::ios::binary | (append ? std::ios::app : std::ios::trunc)); trajBytes_ = append ? stripStartTrajBytes_ : 0;
+    if (!traj_.good()) { raw_.Close(); w_.Say("Nie mozna otworzyc plikow lotu"); path_.reset(); return false; }
     if (!append) { const std::string hd = "t;N_prawdziwe;E_prawdziwe;H_prawdziwe;N_gnss;E_gnss;H_gnss;roll;pitch;yaw;roll_imu;pitch_imu;yaw_imu;szereg\n"; traj_ << hd; trajBytes_ = (long long)hd.size(); }
+    if (!w_.PlaceDrone(GridPos{home_.n, home_.e, homeGroundH_})) { raw_.Close(); traj_.close(); w_.Say("Nie mozna postawic drona"); path_.reset(); return false; }
     resumed_ = append; clockOffset_ = append ? stripStartSimT_ - path_->FirstScanTime() : 0.0;
     tSim_ = 0; t0_ = 0; t1_ = kSampleDt; s0_ = path_->At(0); e0_ = noise_->Estimate(s0_); s1_ = path_->At(t1_); e1_ = noise_->Estimate(s1_); LogRow(s1_, e1_);
-    curStrip_ = -1; flying_ = true; return true;
+    curStrip_ = -1; lastTick_ = std::chrono::steady_clock::now(); flying_ = true; return true;
   }
 
   static double LerpAng(double a, double b, double f) { double d = std::fmod(b - a, 360.0); if (d > 180) d -= 360; if (d < -180) d += 360; return a + d * f; }
@@ -267,7 +283,7 @@ class AerialJob : public Job {
       if (((area_[i].n > n) != (area_[j].n > n)) && (e < (area_[j].e - area_[i].e) * (n - area_[i].n) / (area_[j].n - area_[i].n) + area_[i].e)) in = !in;
     return in;
   }
-  void FinishFlight(bool complete) {
+  void FinishFlight(bool complete, bool keepRaw) {
     if (!flying_) return;
     flying_ = false; raw_.Close(); traj_.close();
     const AlsStats st = AlsConvert(rawPath_, originN_, originE_, originH_, outDir_ + "/lot.pts", outDir_ + "/lot.las");
@@ -275,7 +291,7 @@ class AerialJob : public Job {
     std::vector<ControlPoint> cps; for (const ControlPoint& c : w_.ControlNearHero(1e9)) if (InArea(c.n, c.e)) cps.push_back(c);
     const std::vector<ControlQc> cq = AlsControlCheck(rawPath_, originN_, originE_, originH_, cps);
     WriteInfo(st, qc, cq, complete);
-    std::error_code ec; std::filesystem::remove(rawPath_, ec);
+    if (!keepRaw) { std::error_code ec; std::filesystem::remove(rawPath_, ec); }
     w_.RemoveDrone(); if (camFollow_) { camFollow_ = false; w_.SetFollowCamera(false); }
     flights_++; lastCount_ = st.count; path_.reset();
     char b[160];
@@ -310,6 +326,7 @@ class AerialJob : public Job {
   int azMode_ = 0, profile_ = 0, preset_ = 1, flights_ = 0; bool flying_ = false, home_set_ = false, camFollow_ = false; PlanPt home_{0, 0};
   // lot
   std::unique_ptr<FlightPath> path_; std::unique_ptr<TrajectoryNoise> noise_; ErrorProfile profile_used_{"", 0, 0, 0, 0, 0, 0}, override_{"", 0, 0, 0, 0, 0, 0};
+  std::chrono::steady_clock::time_point lastTick_ = std::chrono::steady_clock::now(); double idleStepS_ = 0;   // 0 = czas rzeczywisty klatki
   mutable AlsRawWriter raw_; mutable std::ofstream traj_; std::string outDir_, rawPath_;
   Vec3 lever_{0.0, 0.15, -0.30}; Rot3 boreNom_ = RotFromRpy(0, 0, 0), boreTrue_ = RotFromRpy(0, 0, 0);
   double tSim_ = 0, t0_ = 0, t1_ = kSampleDt, clockOffset_ = 0, stripStartSimT_ = 0, homeGroundH_ = 0, originN_ = 0, originE_ = 0, originH_ = 0;

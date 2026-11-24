@@ -107,7 +107,7 @@ class TrajectoryNoise {
   }
   TrajSample Estimate(const TrajSample& truth) {
     const double dt = first_ ? 0.0 : (std::max)(0.0, truth.t - last_); first_ = false; last_ = truth.t;
-    const double step = p_.driftMPerMin / 60.0 * std::sqrt(dt);
+    const double step = p_.driftMPerMin * std::sqrt(dt / 60.0);   // random walk: sigma po minucie = driftMPerMin
     for (int k = 0; k < 3; k++) drift_[k] += rng_.Normal() * step;
     TrajSample e = truth;
     e.pos.x += drift_[0] + rng_.Normal() * p_.gnssHSigmaM; e.pos.y += drift_[1] + rng_.Normal() * p_.gnssHSigmaM; e.pos.z += drift_[2] + rng_.Normal() * p_.gnssVSigmaM;

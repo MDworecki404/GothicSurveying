@@ -17,7 +17,7 @@ static const double N0 = 5500000.0, E0 = 6500000.0;
 // Swiat: plaski teren H = 100 m, bohater stoi tam, gdzie ustawi test.
 struct FakeAerial : IWorld {
   std::vector<std::string> said; std::string dir; GridPos hero{N0, E0, 100.0}; bool heroOk = true;
-  int placed = 0, removed = 0, poses = 0;
+  int placed = 0, removed = 0, poses = 0, outCalls = 0; bool dirOk = true; GridPos lastPose{0, 0, 0};
   bool PlaceMarker(int, MarkerKind) override { return true; }
   bool FeetWithinCm(int, double) const override { return true; }
   void PlaceRod(RodRole, int) override {}
@@ -33,8 +33,8 @@ struct FakeAerial : IWorld {
   bool GroundHeightM(double, double, double& h) const override { h = 100.0; return groundOk; }
   bool PlaceDrone(const GridPos&) override { placed++; return true; }
   void RemoveDrone() override { removed++; }
-  void SetDronePose(const GridPos&, double, double, double, double) override { poses++; }
-  std::string AerialOutDir() override { std::filesystem::create_directories(dir); return dir; }
+  void SetDronePose(const GridPos& p, double, double, double, double) override { poses++; lastPose = p; }
+  std::string AerialOutDir() override { std::string d = dir; if (outCalls++ > 0) d += "_" + std::to_string(outCalls); if (dirOk) std::filesystem::create_directories(d); return d; }
   std::vector<ControlPoint> ControlNearHero(double) const override { ControlPoint c; c.id = "G1"; c.n = N0 + 5; c.e = E0 + 7; c.h = 100.0; return {c}; }
   bool Said(const std::string& part) const { for (const std::string& s : said) if (has(s, part)) return true; return false; }
   int Count(const std::string& part) const { int n = 0; for (const std::string& s : said) if (has(s, part)) n++; return n; }
@@ -129,11 +129,11 @@ static long long LasCount(const std::string& dir) { const auto b = Slurp(dir + "
 static void Ready(Fx& f, int cap = 5000) {            // kwadrat 100 m, najrzadsze impulsy (2 kHz), limit impulsow na klatke
   f.Square(100); f.job->OnMenu("preset"); f.job->OnMenu("preset"); f.job->OnMenu("preset"); Air(f)->TestHooks(cap, nullptr, true);
 }
-static void Fly(Fx& f) { for (int i = 0; i < 100000 && f.enabled("abort"); i++) f.job->Tick(); assert(!f.enabled("abort")); }
+static void Fly(Fx& f) { for (int i = 0; i < 100000 && f.enabled("cancel"); i++) f.job->Tick(); assert(!f.enabled("cancel")); }
 
 static void flight_runs_to_end() {
-  Fx f; Ready(f); assert(!f.enabled("abort")); f.job->OnMenu("launch");
-  assert(f.w.placed == 1 && f.enabled("abort") && !f.enabled("area_here") && !f.job->CanFinish());
+  Fx f; Ready(f); assert(!f.enabled("cancel")); f.job->OnMenu("launch");
+  assert(f.w.placed == 1 && f.enabled("cancel") && !f.enabled("area_here") && !f.job->CanFinish());
   Fly(f);
   assert(f.w.removed == 1 && f.w.poses > 0 && f.job->CanFinish());
   for (const char* n : {"lot.las", "lot.pts", "trajektoria.csv", "lot_opis.txt"}) assert(std::filesystem::exists(f.w.dir + "/" + n));
@@ -177,24 +177,41 @@ static void ground_height_unavailable_falls_back() {
   assert(f.w.Count("wysokosci terenu") == 1 && LasCount(f.w.dir) > 100000);
 }
 
+static long long Pts(Fx& f) { long long n = 0; std::sscanf(f.job->Hud().c_str(), "Lot ALS: szereg %*d/%*d, %*d%%, %lld punktow", &n); return n; }
+static void TickUntilPts(Fx& f, long long n) { for (int i = 0; i < 100000 && Pts(f) < n; i++) f.job->Tick(); assert(Pts(f) >= n); }
+static void TickUntilStrip2(Fx& f) { for (int i = 0; i < 100000 && !has(f.job->Hud(), "szereg 2/3"); i++) f.job->Tick(); assert(has(f.job->Hud(), "szereg 2/3")); f.job->Tick(); f.job->Tick(); }
+
 static void abort_midflight_writes_partial() {
   Fx f; Ready(f); f.job->OnMenu("launch");
-  for (int i = 0; i < 10; i++) f.job->Tick();
-  f.job->OnMenu("abort");
-  assert(!f.enabled("abort") && f.w.removed == 1);
+  TickUntilPts(f, 1000);
+  f.job->OnMenu("cancel");
+  assert(!f.enabled("cancel") && f.w.removed == 1);
   const long long c = LasCount(f.w.dir); assert(c > 0 && c < 100000);
-  assert(has(Text(f.w.dir + "/lot_opis.txt"), "przerwany"));
+  assert(has(Text(f.w.dir + "/lot_opis.txt"), "przerwany") && !std::filesystem::exists(f.w.dir + "/lot.raw"));
+}
+
+static void idle_phases_are_flown() {                                           // wznios i dolot trwaja w czasie lotu, dron nie przeskakuje na szereg
+  Fx f; Ready(f); f.job->OnMenu("launch");
+  for (int i = 0; i < 3; i++) f.job->Tick();
+  assert(f.w.poses == 3 && f.w.lastPose.h > 100.5 && f.w.lastPose.h < 149.0 && Pts(f) == 0);
+}
+
+static void finish_false_midflight_converts_and_keeps_raw() {                    // kontroler (przerwanie roboty, zmiana swiata, wczytanie zapisu) wola Finish(false)
+  Fx f; Ready(f); f.job->OnMenu("launch");
+  TickUntilPts(f, 1000);
+  f.job->Finish(false);
+  assert(!f.enabled("cancel") && f.w.removed == 1 && LasCount(f.w.dir) > 0 && std::filesystem::exists(f.w.dir + "/lot.raw") && std::filesystem::exists(f.w.dir + "/lot_opis.txt"));
 }
 
 static void state_roundtrip() {
   Fx f; Ready(f); f.job->OnMenu("launch");
-  for (int i = 0; i < 12; i++) f.job->Tick();                                  // szereg 1 w toku
+  TickUntilStrip2(f);                                                           // szereg 1 w toku
   StateKV s; f.job->SaveState(s);
   f.job.reset();                                                                // jak po zamknieciu gry
   std::unique_ptr<Job> j2 = CreateAerialJob(f.w, JobOptions{TraverseKind::Open, CalcMode::Auto});
   assert(!j2->LoadState(StateKV{}));                                           // obcy stan
   assert(j2->LoadState(s)); f.job = std::move(j2);
-  assert(f.w.placed == 2 && f.enabled("abort") && has(f.job->Hud(), "Lot ALS: szereg 2/3"));
+  assert(f.w.placed == 2 && f.enabled("cancel") && has(f.job->Hud(), "Lot ALS: szereg 2/3") && f.w.outCalls == 1);
   Air(f)->TestHooks(5000, nullptr, true); Fly(f);
   Fx full; Ready(full); full.job->OnMenu("launch"); Fly(full);
   const long long a = LasCount(f.w.dir), b = LasCount(full.w.dir); assert(a > 0 && std::llabs(a - b) < b / 50);
@@ -202,11 +219,40 @@ static void state_roundtrip() {
   assert(st == (std::set<int>{0, 1, 2}));
 }
 
+static void resume_after_finished_flight_keeps_old_result() {                   // zapis A w locie, lot dokonczony, wczytanie A: pelny wynik nie moze zostac nadpisany
+  Fx f; Ready(f); f.job->OnMenu("launch");
+  TickUntilStrip2(f);
+  StateKV s; f.job->SaveState(s);
+  Fly(f); const long long done = LasCount(f.w.dir); const auto before = Slurp(f.w.dir + "/lot.las"); assert(done > 100000);
+  std::unique_ptr<Job> j2 = CreateAerialJob(f.w, JobOptions{TraverseKind::Open, CalcMode::Auto});
+  assert(j2->LoadState(s)); f.job = std::move(j2);
+  assert(f.w.outCalls == 2 && f.w.Said("nowego folderu"));
+  assert(Slurp(f.w.dir + "/lot.las") == before);                               // stary wynik nietkniety
+  Air(f)->TestHooks(5000, nullptr, true); Fly(f);
+  const long long rest = LasCount(f.w.dir + "_2"); assert(rest > 0 && rest < done);
+}
+
+static void resume_with_short_raw_uses_new_folder() {                           // plik roboczy krotszy niz licznik ze stanu: bez dopelniania zerami
+  Fx f; Ready(f); f.job->OnMenu("launch");
+  TickUntilStrip2(f);
+  StateKV s; f.job->SaveState(s); f.job.reset();
+  std::filesystem::resize_file(f.w.dir + "/lot.raw", 100);
+  std::unique_ptr<Job> j2 = CreateAerialJob(f.w, JobOptions{TraverseKind::Open, CalcMode::Auto});
+  assert(j2->LoadState(s)); f.job = std::move(j2);
+  assert(f.w.outCalls == 2 && f.w.Said("nowego folderu") && std::filesystem::file_size(f.w.dir + "/lot.raw") == 100);
+}
+
+static void open_failure_refuses_launch() {
+  Fx f; Ready(f); f.w.dirOk = false; f.w.dir = (std::filesystem::temp_directory_path() / "gs_missing_dir_xyz_1" / "sub").string();
+  f.job->OnMenu("launch");
+  assert(!f.enabled("cancel") && f.w.placed == 0 && f.w.Said("otworzyc"));
+}
+
 static void route_blocked_warns_but_flies() {
   Fx f; Ready(f); f.job->OnMenu("launch");
-  assert(f.w.routeChecks == 3 && !f.w.Said("przeszkod") && f.enabled("abort"));       // czysta trasa: 3 szeregi sprawdzone, bez ostrzezenia
+  assert(f.w.routeChecks == 3 && !f.w.Said("przeszkod") && f.enabled("cancel"));       // czysta trasa: 3 szeregi sprawdzone, bez ostrzezenia
   Fx g; Ready(g); g.w.blocked = true; g.job->OnMenu("launch");
-  assert(g.w.Said("3 z 3 szeregow") && g.w.Said("przeszkod") && g.enabled("abort"));       // ostrzezenie, lot sie zaczyna
+  assert(g.w.Said("3 z 3 szeregow") && g.w.Said("przeszkod") && g.enabled("cancel"));       // ostrzezenie, lot sie zaczyna
 }
 
 static void strip_and_control_report() {
@@ -217,7 +263,8 @@ static void strip_and_control_report() {
 
 int main() {
   flight_runs_to_end(); zero_error_profile_hits_truth(); points_have_strip_ids_and_time(); rays_miss_no_crash(); ground_height_unavailable_falls_back();
-  abort_midflight_writes_partial(); state_roundtrip(); strip_and_control_report(); route_blocked_warns_but_flies();
+  abort_midflight_writes_partial(); idle_phases_are_flown(); finish_false_midflight_converts_and_keeps_raw(); state_roundtrip();
+  resume_after_finished_flight_keeps_old_result(); resume_with_short_raw_uses_new_folder(); open_failure_refuses_launch(); strip_and_control_report(); route_blocked_warns_but_flies();
   registry_and_kind(); vertices_and_plan(); launch_needs_area(); launch_refused_when_battery(); area_clear_and_vertex_limit();
   ctrl_vertex_from_list(); params_change_plan(); plan_csv_written();
   std::puts("test_aerial_job OK"); return 0;

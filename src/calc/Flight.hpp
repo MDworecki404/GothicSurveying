@@ -60,9 +60,9 @@ inline FlightPlan PlanFlight(const FlightParams& p, PlanPt home) {
   }
   if (pl.strips.empty()) { pl.msg = "brak szeregow w obszarze"; return pl; }
   auto dist = [](PlanPt a, PlanPt b) { return std::hypot(a.n - b.n, a.e - b.e); };
-  double t = p.aglM / 3.0, prev = 0; PlanPt cur = home;            // wznios 3 m/s
+  double t = p.aglM / 3.0; PlanPt cur = home;            // wznios 3 m/s
   for (const Strip& s : pl.strips) {
-    t += dist(cur, s.a) / p.speedMps + s.lengthM / p.speedMps + 5.0; pl.scanTimeS += s.lengthM / p.speedMps; cur = s.b; (void)prev;
+    t += dist(cur, s.a) / p.speedMps + s.lengthM / p.speedMps + 5.0; pl.scanTimeS += s.lengthM / p.speedMps; cur = s.b;
   }
   t += dist(cur, home) / p.speedMps + p.aglM / 3.0;                // powrot i ladowanie
   pl.flightTimeS = t;

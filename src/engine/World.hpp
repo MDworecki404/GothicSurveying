@@ -382,7 +382,7 @@ namespace GOTHIC_NAMESPACE {
           }
           if ( !have ) c = 0x808080;
           const double k = 0.65 + 0.35 * cosInc;
-        rgbOut = ( (unsigned)( ( ( c >> 16 ) & 255 ) * k ) << 16 ) | ( (unsigned)( ( ( c >> 8 ) & 255 ) * k ) << 8 ) | (unsigned)( ( c & 255 ) * k );
+      rgbOut = ( (unsigned)( ( ( c >> 16 ) & 255 ) * k ) << 16 ) | ( (unsigned)( ( ( c >> 8 ) & 255 ) * k ) << 8 ) | (unsigned)( ( c & 255 ) * k );
       return rgbOut;
     }
     void ScanHead( double azTrueDeg ) override {                                   // glowica obraca sie za azymutem skanowanej kolumny

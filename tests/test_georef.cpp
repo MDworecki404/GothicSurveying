@@ -105,7 +105,18 @@ static void noise_deterministic_and_profile_ordering() {
   assert(std::hypot(d.x, d.y) <= 0.35 * PI / 180.0 + 1e-9 && d.z < 0);
 }
 
+static void drift_is_meters_per_minute() {                                      // random walk: odchylenie standardowe po 60 s = driftMPerMin
+  const ErrorProfile d{"dryf", 0, 0, 0.6, 0, 0, 0}; double sum2 = 0; const int n = 300;
+  for (int k = 0; k < n; k++) {
+    TrajectoryNoise tn(1000 + k, d); TrajSample t = Pose(0, 0, 0), e{};
+    for (int i = 0; i <= 600; i++) { t.t = i * 0.1; e = tn.Estimate(t); }
+    sum2 += e.pos.x * e.pos.x;
+  }
+  const double rms = std::sqrt(sum2 / n); assert(rms > 0.45 && rms < 0.75);
+}
+
 int main() {
+  drift_is_meters_per_minute();
   rpy_axes(); beam_dir(); mirror_sawtooth(); zero_error_roundtrip(); boresight_roll_bias_shift(); attitude_error_scales_with_range();
   flightpath_phases(); follow_terrain_tracks_slope(); noise_deterministic_and_profile_ordering();
   std::puts("test_georef OK"); return 0;
