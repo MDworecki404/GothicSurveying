@@ -10,11 +10,12 @@ namespace texdecode {
 inline void Rgb565(std::uint16_t c, int& r, int& g, int& b) { r = ((c >> 11) & 31) * 255 / 31; g = ((c >> 5) & 63) * 255 / 63; b = (c & 31) * 255 / 31; }
 }
 
-// Rzeczywista szerokosc poziomu w buforze wynika z pitch (silnik potrafi oddac pomniejszony poziom, a sizeX podaje rozmiar odniesienia): DXT - bloki w wierszu * 4,
-// reszta - bajty wiersza / bajty na piksel. 0 gdy nie da sie ustalic.
+// Szerokosc poziomu z pitch silnika: pitch = szerokosc * bajty na piksel (takze dla DXT: 0,5 B/px dla DXT1 i 1 B/px dla DXT2-5; nie rozmiar wiersza blokow).
+// Sprawdzone w grze: tekstura 128 px DXT1 ma pitch 64 na poziomie 0, potem 32, 16, 8, 4. 0 gdy nie da sie ustalic.
 inline int TexEffectiveWidth(int format, int pitch) {
   if (pitch <= 0) return 0;
-  if (format >= TEXF_DXT1 && format <= TEXF_DXT5) return pitch / (format == TEXF_DXT1 ? 8 : 16) * 4;
+  if (format == TEXF_DXT1) return pitch * 2;
+  if (format >= TEXF_DXT2 && format <= TEXF_DXT5) return pitch;
   const int bpp = (format <= TEXF_BGRA8888) ? 4 : (format <= TEXF_BGR888) ? 3 : (format <= TEXF_RGB565) ? 2 : 0;
   return bpp ? pitch / bpp : 0;
 }
@@ -27,6 +28,8 @@ inline bool TexDecodeTexel(int format, const unsigned char* buf, int pitch, int 
   if (format >= TEXF_DXT1 && format <= TEXF_DXT5) {
     const int blockSize = format == TEXF_DXT1 ? 8 : 16, bw = (w + 3) / 4;
     const unsigned char* blk = buf + ((size_t)(y / 4) * bw + (size_t)(x / 4)) * blockSize + (blockSize == 16 ? 8 : 0);   // blok koloru (dla DXT2-5 po 8 bajtach alfy)
+    bool zero = true; for (int k = 0; k < 8; k++) if (blk[k]) zero = false;
+    if (zero) return false;                                              // blok samych zer: dane tekstury nie sa w pamieci (nie czern)
     const std::uint16_t c0 = (std::uint16_t)(blk[0] | (blk[1] << 8)), c1 = (std::uint16_t)(blk[2] | (blk[3] << 8));
     int r[4], g[4], b[4];
     texdecode::Rgb565(c0, r[0], g[0], b[0]); texdecode::Rgb565(c1, r[1], g[1], b[1]);
