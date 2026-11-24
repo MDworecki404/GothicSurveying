@@ -18,10 +18,18 @@ class PolygonJob : public Job {
 
   std::string Name() const override { return "Ciag poligonowy"; }
   JobKind Kind() const override { return JobKind::Polygon; }
-  bool NeedsChoice(const std::string& menuId) const override { return menuId == "ref_n1" || menuId == "ref_a" || menuId == "ref_b" || menuId == "ref_n2"; }
+  bool NeedsChoice(const std::string& menuId) const override {
+    if (menuId == "redo") return ObsStationCount() >= 2;               // jedno stanowisko z pomiarami: powtarzamy je bez pytania
+    return menuId == "ref_n1" || menuId == "ref_a" || menuId == "ref_b" || menuId == "ref_n2";
+  }
 
   std::vector<MenuItem> TachyChoices(const std::string& menuId) const override {
     std::vector<MenuItem> out;
+    if (menuId == "redo") {
+      const std::vector<Pt> seq = Seq();
+      for (int i = 0; i < SCount(); i++) if (StnHasObs(i)) out.push_back({"redo:" + std::to_string(i), "Stanowisko " + seq[i].name + (StnDone(i) ? " (kat " + Fmt(StnBeta(i)) + " g)" : " (niekompletne)"), "", true});
+      return out;
+    }
     if (!NeedsChoice(menuId)) return out;
     for (const ControlPoint& c : w_.ControlNearHero(1e9)) {
       if (UsedRef(c.id, menuId)) continue;
@@ -92,13 +100,15 @@ class PolygonJob : public Job {
       prismIdx_ = (prismIdx_ + 1) % kPrismCount; w_.SetPrismHeightM(kPrism[prismIdx_]);
     } else if (base == "redo") {
       const int cur = Cur(), S = SCount(); int target = -1;
-      if (cur < S && StnHasObs(cur)) target = cur; else for (int i = (std::min)(cur, S) - 1; i >= 0; i--) if (StnHasObs(i)) { target = i; break; }
+      if (!arg.empty()) { const int k = std::atoi(arg.c_str()); if (k >= 0 && k < S && StnHasObs(k)) target = k; }
+      else if (cur < S && StnHasObs(cur)) target = cur; else for (int i = (std::min)(cur, S) - 1; i >= 0; i--) if (StnHasObs(i)) { target = i; break; }
       if (target >= 0) { stn_[target] = Stn{}; w_.Say("Stanowisko " + Seq()[target].name + " do ponownego pomiaru"); }
-      instUp_ = prismUp_ = false; prismRole_ = -1; lastMsg_.clear();
+      instUp_ = prismUp_ = false; prismRole_ = -1; lastMsg_.clear(); previewed_ = false;
     } else if (base == "calc") {
       PolygonReport r = BuildReport(true);
       const std::vector<std::string> lines = PolygonSummaryLines(r);
       for (size_t i = 0; i < lines.size() && i < 3; i++) w_.Say(lines[i]);
+      previewed_ = true;
     }
     // "view": kontroler otwiera lunete; "finish": FinishPolygon(true)
   }
@@ -157,7 +167,52 @@ class PolygonJob : public Job {
 
   bool CanFinish() const override { return AllDone(); }
 
-  PolygonReport FinishPolygon(bool complete) override { PolygonReport r = BuildReport(complete); return r; }
+  std::string NextStep() const override {
+    if (!hasN1_) return "ref_n1";
+    if (!hasA_) return "ref_a";
+    if (kind_ == TraverseKind::Anchored) { if (!hasB_) return "ref_b"; if (!hasN2_) return "ref_n2"; }
+    if (mid_.empty() || !Ready()) return "addpt";
+    if (AllDone()) return kind_ != TraverseKind::Open && !previewed_ ? "calc" : "";       // po podgladzie (albo bez kontroli) zostaje zakonczenie
+    const int cur = Cur();
+    if (!instUp_) return "inst";
+    auto missing = [&](int role) { return Need(cur, role) && !stn_[cur].o[role][face_ - 1].has; };
+    if (prismUp_ && prismRole_ >= 0 && missing(prismRole_)) return "view";
+    for (int role = 0; role < 3; role++) if (missing(role)) return role == 0 ? "prism_back" : role == 1 ? "prism_fore" : "prism_n1";
+    return prismUp_ ? "view" : "prism_back";                                              // komplet w tym polozeniu: przerzut lunety (K) w widoku lunety
+  }
+
+  std::vector<std::string> SummaryLines() const override { return PolygonSummaryLines(BuildReport(true)); }
+
+  PolygonReport FinishPolygon(bool complete) override { return BuildReport(complete); }
+
+  bool CanSaveState() const override { return true; }
+  void SaveState(StateKV& s) const override {
+    s.Int("kind", (int)kind_); s.Bool("hasN1", hasN1_); s.Bool("hasA", hasA_); s.Bool("hasB", hasB_); s.Bool("hasN2", hasN2_);
+    PutPt(s, "n1", n1_); PutPt(s, "a", a_); PutPt(s, "b", b_); PutPt(s, "n2", n2_);
+    s.Int("mid.n", (int)mid_.size()); for (size_t i = 0; i < mid_.size(); i++) PutPt(s, "mid." + std::to_string(i), mid_[i]);
+    for (size_t i = 0; i < stn_.size(); i++) for (int r = 0; r < 3; r++) for (int f = 0; f < 2; f++) {
+      const Obs& o = stn_[i].o[r][f]; const std::string k = "o." + std::to_string(i) + "." + std::to_string(r) + "." + std::to_string(f);
+      s.Bool(k + ".has", o.has); if (o.has) { s.Num(k + ".hz", o.hz); s.Num(k + ".v", o.v); s.Num(k + ".d", o.slope); }
+    }
+    s.Bool("instUp", instUp_); s.Bool("prismUp", prismUp_); s.Int("role", prismRole_); s.Int("pkind", prismKind_); s.Int("face", face_); s.Int("prismIdx", prismIdx_);
+    s.Num("coll", collGon_); s.Num("index", indexGon_); s.Num("az0", az0Deg_); s.Bool("previewed", previewed_); s.Num("lib.x", lib_.x); s.Num("lib.y", lib_.y);
+  }
+  bool LoadState(const StateKV& s) override {
+    if (s.GetInt("kind", -1) != (int)kind_) return false;
+    hasN1_ = s.GetBool("hasN1"); hasA_ = s.GetBool("hasA"); hasB_ = s.GetBool("hasB"); hasN2_ = s.GetBool("hasN2");
+    n1_ = GetPt(s, "n1"); a_ = GetPt(s, "a"); b_ = GetPt(s, "b"); n2_ = GetPt(s, "n2");
+    mid_.clear(); const int nm = (std::min)(s.GetInt("mid.n"), (int)kMaxMid); for (int i = 0; i < nm; i++) mid_.push_back(GetPt(s, "mid." + std::to_string(i)));
+    stn_.assign((size_t)SCount(), Stn{});
+    for (size_t i = 0; i < stn_.size(); i++) for (int r = 0; r < 3; r++) for (int f = 0; f < 2; f++) {
+      const std::string k = "o." + std::to_string(i) + "." + std::to_string(r) + "." + std::to_string(f); Obs& o = stn_[i].o[r][f];
+      o.has = s.GetBool(k + ".has"); if (o.has) { o.hz = s.GetNum(k + ".hz"); o.v = s.GetNum(k + ".v"); o.slope = s.GetNum(k + ".d"); }
+    }
+    instUp_ = s.GetBool("instUp"); prismUp_ = s.GetBool("prismUp"); prismRole_ = s.GetInt("role", -1); prismKind_ = s.GetInt("pkind"); face_ = s.GetInt("face", 1) == 2 ? 2 : 1;
+    prismIdx_ = s.GetInt("prismIdx") % kPrismCount; collGon_ = s.GetNum("coll"); indexGon_ = s.GetNum("index"); az0Deg_ = s.GetNum("az0"); previewed_ = s.GetBool("previewed");
+    lib_.x = s.GetNum("lib.x"); lib_.y = s.GetNum("lib.y"); lastMsg_.clear();
+    w_.SetPrismHeightM(kPrism[prismIdx_]);
+    return true;
+  }
 
   // Interfejs niwelacji: ta robota go nie uzywa.
   std::vector<int> ActiveRodPoints() const override { return {}; }
@@ -175,6 +230,17 @@ class PolygonJob : public Job {
   struct Obs { bool has = false; double hz = 0, v = 0, slope = 0; };
   struct Stn { Obs o[3][2]; };                                          // [rola: 0 tyl, 1 przod, 2 N1 (orientacja)][polozenie: 0 KL, 1 KP]
 
+  static std::string Fmt(double v) { char b[40]; std::snprintf(b, sizeof b, "%.4f", v); return b; }
+  int ObsStationCount() const { int c = 0; for (size_t i = 0; i < stn_.size(); i++) if (StnHasObs((int)i)) c++; return c; }
+  static void PutPt(StateKV& s, const std::string& k, const Pt& p) {
+    s.Str(k + ".name", p.name); s.Bool(k + ".ctl", p.control); s.Int(k + ".mk", p.marker); s.Num(k + ".n", p.n); s.Num(k + ".e", p.e);
+    s.Num(k + ".tn", p.truth.n); s.Num(k + ".te", p.truth.e); s.Num(k + ".th", p.truth.h); PutControl(s, k + ".cp", p.cp);
+  }
+  static Pt GetPt(const StateKV& s, const std::string& k) {
+    Pt p; p.name = s.GetStr(k + ".name"); p.control = s.GetBool(k + ".ctl"); p.marker = s.GetInt(k + ".mk"); p.n = s.GetNum(k + ".n"); p.e = s.GetNum(k + ".e");
+    p.truth = GridPos{s.GetNum(k + ".tn"), s.GetNum(k + ".te"), s.GetNum(k + ".th")}; p.cp = GetControl(s, k + ".cp");
+    return p;
+  }
   bool UsedRef(const std::string& cpId, const std::string& menuId) const {
     if (menuId != "ref_n1" && hasN1_ && n1_.name == cpId) return true;
     if (menuId != "ref_a" && hasA_ && a_.name == cpId) return true;
@@ -266,7 +332,7 @@ class PolygonJob : public Job {
   Pt n1_, a_, b_, n2_; bool hasN1_ = false, hasA_ = false, hasB_ = false, hasN2_ = false;
   std::vector<Pt> mid_; std::vector<Stn> stn_;
   bool instUp_ = false, prismUp_ = false; int prismRole_ = -1, prismKind_ = 0, face_ = 1, prismIdx_ = 0;   // prismKind_: 0 brak, 1 tyczka na znaku, 2 lustro nawiazania (slot 1)
-  double collGon_ = 0, indexGon_ = 0, az0Deg_ = 0;
+  double collGon_ = 0, indexGon_ = 0, az0Deg_ = 0; bool previewed_ = false;
   std::string lastMsg_;
 };
 

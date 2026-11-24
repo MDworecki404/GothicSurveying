@@ -139,9 +139,114 @@ static void redo_station_replaces_observations() {
   assert(f.job->FinishPolygon(false).stations.size() == 1);
 }
 
+static void RunAnchored(Fx& f) {                                  // pelny przebieg przykladu: stanowiska A, 1, 2, B
+  f.Station(A, N1, P1); f.Station(P1, A, P2); f.Station(P2, P1, B); f.Station(B, P2, N2);
+}
+
+static void full_anchored_matches_truth() {
+  Fx f(TraverseKind::Anchored, true); f.Refs(); f.AddPoint(P1); f.AddPoint(P2);
+  assert(!f.job->CanFinish() && !f.enabled("finish") && !f.enabled("calc"));
+  RunAnchored(f);
+  assert(f.job->CanFinish() && f.enabled("finish") && f.enabled("calc"));
+  const PolygonReport r = f.job->FinishPolygon(true);
+  assert(r.res.valid && r.res.n == 4 && r.stations.size() == 4 && r.sides.size() == 3);
+  assert(std::fabs(r.res.fBetaGon) < 1e-6 && r.res.fd < 1e-5 && r.res.angleOk && r.res.linearOk);   // dane dokladne: odchylki zerowe
+  assert(std::fabs(r.res.x[1] - P1.n) < 1e-6 && std::fabs(r.res.y[1] - P1.e) < 1e-6 && std::fabs(r.res.x[2] - P2.n) < 1e-6 && std::fabs(r.res.y[2] - P2.e) < 1e-6);
+  assert(r.showTrueError && r.trueN.size() == 4 && std::fabs(r.trueN[1] - P1.n) < 1e-9);
+  assert(!f.job->SummaryLines().empty());
+}
+
+static void calc_preview_before_finish() {
+  Fx f(TraverseKind::Anchored); f.Refs(); f.AddPoint(P1); f.AddPoint(P2);
+  RunAnchored(f);
+  f.w.said.clear(); f.job->OnMenu("calc");
+  bool beta = false, dist = false; for (const std::string& s : f.w.said) { if (has(s, "f_beta")) beta = true; if (has(s, "f_d")) dist = true; } assert(beta && dist);
+}
+
+static void bad_angle_flagged_then_redo_fixes() {
+  Fx f(TraverseKind::Anchored); f.Refs(); f.AddPoint(P1); f.AddPoint(P2);
+  f.Station(A, N1, P1);
+  f.P->SetNoise(TachyNoise{20000.0, 0, 0}); f.Station(P1, A, P2); f.P->SetNoise(TachyNoise{0, 0, 0});     // zly kat na stanowisku 1 (ok. 5 g bledu)
+  f.Station(P2, P1, B); f.Station(B, P2, N2);
+  PolygonReport r = f.job->FinishPolygon(true);
+  assert(r.res.valid && !r.res.angleOk);
+  f.w.said.clear(); f.job->OnMenu("calc"); bool exceeded = false; for (const std::string& s : f.w.said) if (has(s, "PRZEKROCZONE")) exceeded = true; assert(exceeded);
+  assert(f.job->NeedsChoice("redo") && f.job->TachyChoices("redo").size() == 4);                     // wiele stanowisk: wybor z listy
+  f.job->OnMenu("redo:1");
+  assert(!f.job->CanFinish());
+  f.Station(P1, A, P2);                                                                              // poprawny pomiar tego samego stanowiska
+  r = f.job->FinishPolygon(true);
+  assert(r.res.valid && r.res.angleOk && std::fabs(r.res.fBetaGon) < 1e-6);
+}
+
+static const GridPos C1{1200, 1120, 100}, C2{1260, 1230, 100}, C3{1180, 1320, 100};   // poligon A-C1-C2-C3 (A = (1100,1200))
+
+static double Area(const std::vector<GridPos>& p) { double a = 0; for (size_t i = 0; i < p.size(); i++) { const size_t j = (i + 1) % p.size(); a += p[i].n * p[j].e - p[j].n * p[i].e; } return a; }
+
+static void closed_and_hanging_flows() {
+  Fx c(TraverseKind::Closed); c.job->OnMenu("ref_n1:N1"); c.job->OnMenu("ref_a:A");
+  c.AddPoint(C1); c.AddPoint(C2); c.AddPoint(C3);
+  const GridPos pts[4] = {A, C1, C2, C3};
+  for (int i = 0; i < 4; i++) {
+    const GridPos &st = pts[i], &bk = pts[(i + 3) % 4], &fr = pts[(i + 1) % 4];
+    c.job->OnMenu("inst");
+    c.job->OnMenu("prism_back"); c.Shoot(st, bk); c.job->OnMenu("prism_fore"); c.Shoot(st, fr);
+    if (i == 0) { c.job->OnMenu("prism_n1"); c.Shoot(st, N1); }                                      // orientacja na N1 w KL
+    c.job->TachyFlip();
+    if (i == 0) { c.Shoot(st, N1); }
+    c.job->OnMenu("prism_fore"); c.Shoot(st, fr); c.job->OnMenu("prism_back"); c.Shoot(st, bk);
+  }
+  assert(c.job->CanFinish());
+  const PolygonReport r = c.job->FinishPolygon(true);
+  assert(r.res.valid && r.res.clockwise == (Area({A, C1, C2, C3}) > 0) && std::fabs(r.res.fBetaGon) < 1e-6 && r.res.fd < 1e-5 && r.res.angleOk && r.res.linearOk);
+  assert(r.sides.size() == 4 && r.sides[3].from == "3" && r.sides[3].to == "A" && r.sides[3].hasFwd && r.sides[3].hasBack);   // bok zamykajacy mierzony z obu koncow
+  assert(std::fabs(r.res.x[1] - C1.n) < 1e-6 && std::fabs(r.res.y[2] - C2.e) < 1e-6);
+
+  Fx h(TraverseKind::Open); h.Refs(false); h.AddPoint(P1); h.AddPoint(P2);
+  h.Station(A, N1, P1); h.Station(P1, A, P2);                                                         // stanowiska A i 1 (P2 to koniec ciagu bez stanowiska)
+  assert(h.job->CanFinish() && h.enabled("finish"));
+  const PolygonReport hr = h.job->FinishPolygon(true);
+  assert(hr.res.valid && !hr.res.hasAngleCheck && hr.res.x.size() == 3 && std::fabs(hr.res.x[1] - P1.n) < 1e-6 && std::fabs(hr.res.y[2] - P2.e) < 1e-6);
+  assert(hr.sides.size() == 2 && hr.sides[1].hasFwd && !hr.sides[1].hasBack);
+}
+
+static void save_load_midstation() {
+  Fx a(TraverseKind::Anchored); a.Refs(); a.AddPoint(P1); a.AddPoint(P2);
+  a.Station(A, N1, P1);
+  a.job->OnMenu("inst"); a.job->OnMenu("prism_back"); a.Shoot(P1, A); a.job->OnMenu("prism_fore"); a.Shoot(P1, P2);    // 2 z 4 obserwacji stanowiska 1
+  StateKV kv; a.job->SaveState(kv);
+  Fx b(TraverseKind::Anchored);                                                                         // nowa robota, ten sam swiat (w grze swiat przywraca gWorld.LoadState)
+  b.w.controls = a.w.controls; b.w.controlTruth = a.w.controlTruth; b.w.marker = a.w.marker; b.w.station = a.w.station; b.w.pole = a.w.pole; b.w.bs = a.w.bs;
+  assert(b.job->LoadState(StateKV::FromText(kv.ToText())));
+  b.job->TachyFlip(); b.Shoot(P1, P2); b.job->OnMenu("prism_back"); b.Shoot(P1, A);                    // dokonczenie stanowiska 1 w KP
+  b.Station(P2, P1, B); b.Station(B, P2, N2);
+  Fx ref(TraverseKind::Anchored); ref.Refs(); ref.AddPoint(P1); ref.AddPoint(P2); RunAnchored(ref);
+  const PolygonReport rb = b.job->FinishPolygon(true), rr = ref.job->FinishPolygon(true);
+  assert(rb.res.valid && rb.stations.size() == 4 && std::fabs(rb.res.fBetaGon - rr.res.fBetaGon) < 1e-6 && std::fabs(rb.res.x[2] - rr.res.x[2]) < 1e-6);
+  Fx other(TraverseKind::Closed); assert(!other.job->LoadState(StateKV::FromText(kv.ToText())));       // inny rodzaj ciagu: stan nie pasuje
+  assert(a.job->CanSaveState());
+}
+
+static void nextstep_always_enabled_or_special() {
+  Fx f(TraverseKind::Anchored);
+  auto ok = [&]() { const std::string id = f.job->NextStep(); assert(!id.empty()); bool found = false; for (const MenuItem& m : f.job->Menu()) if (m.id == id) { found = true; assert(m.enabled); } assert(found); return id; };
+  assert(ok() == "ref_n1"); f.job->OnMenu("ref_n1:N1"); assert(ok() == "ref_a"); f.job->OnMenu("ref_a:A"); assert(ok() == "ref_b");
+  f.job->OnMenu("ref_b:B"); assert(ok() == "ref_n2"); f.job->OnMenu("ref_n2:N2"); assert(ok() == "addpt");
+  f.AddPoint(P1); f.AddPoint(P2); assert(ok() == "inst");
+  f.job->OnMenu("inst"); assert(ok() == "prism_back");
+  f.job->OnMenu("prism_back"); assert(ok() == "view"); f.Shoot(A, N1);
+  assert(ok() == "prism_fore"); f.job->OnMenu("prism_fore"); assert(ok() == "view"); f.Shoot(A, P1);
+  assert(ok() == "view");                                                                          // komplet w KL: przerzut klawiszem K w lunecie
+  f.job->TachyFlip(); assert(ok() == "view"); f.Shoot(A, P1); assert(ok() == "prism_back"); f.job->OnMenu("prism_back"); f.Shoot(A, N1);
+  assert(ok() == "inst");
+  f.Station(P1, A, P2); f.Station(P2, P1, B); f.Station(B, P2, N2);
+  assert(ok() == "calc"); f.job->OnMenu("calc"); assert(f.job->NextStep().empty());                // po podgladzie: tylko zakonczenie (linia DALEJ spadnie na "finish")
+}
+
 int main() {
   registry_and_kind(); setup_refs_by_kind(); addpt_places_marker_and_names_points(); station_collects_four_observations(); refuses_bad_shots();
   sides_measured_from_both_ends(); redo_station_replaces_observations();
+  full_anchored_matches_truth(); calc_preview_before_finish(); bad_angle_flagged_then_redo_fixes(); closed_and_hanging_flows(); save_load_midstation(); nextstep_always_enabled_or_special();
   std::puts("test_polygon_job OK");
   return 0;
 }
