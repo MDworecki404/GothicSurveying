@@ -383,6 +383,9 @@ namespace GOTHIC_NAMESPACE {
     v.items.push_back( { "map", "Mapa osnowy", "", true } );
     v.items.push_back( { "tp", "Teleport do punktu osnowy", "", true } );
     v.items.push_back( { "abort", "Przerwij robote (bez dziennika)", "", true } );
+    v.items = Arrange( gJob->Kind(), v.items );                   // sekcje, stala kolejnosc, powody niedostepnosci; "Przerwij" zawsze ostatnie
+    const Next nx = NextLine( v.items, gJob->NextStep() );        // rekomendowany krok
+    v.nextText = nx.text; v.nextId = nx.id; v.crumbs = "GEODEZJA > Pomiar";
     MenuOpen( v, []( const std::string& id ) {
       if ( !gJob ) return;
       if ( id == "finish" ) CtrlFinish();

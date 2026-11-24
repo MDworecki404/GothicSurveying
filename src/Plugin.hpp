@@ -1,5 +1,7 @@
 #include "Keys.hpp"
 #include "job/Jobs.hpp"
+#include "job/Workflow.hpp"
+#include "job/MenuLayout.hpp"
 #include "calc/Docx.hpp"
 #include "calc/TexDecode.hpp"
 #include "calc/TexColors.hpp"
