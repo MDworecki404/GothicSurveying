@@ -7,6 +7,7 @@
 #include "calc/TexDecode.hpp"
 #include "calc/TexColors.hpp"
 #include "calc/UiSettings.hpp"
+#include "calc/ProjectReport.hpp"
 #include "job/Help.hpp"
 
 // Kolejność ma znaczenie: moduły silnika nie includują siebie nawzajem (bez strażników include).

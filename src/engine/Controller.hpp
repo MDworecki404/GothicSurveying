@@ -26,6 +26,15 @@ namespace GOTHIC_NAMESPACE {
   }
   inline std::string CtrlFirst( const std::vector<std::string>& v ) { return v.empty() ? std::string() : v[0]; }
 
+  // Punkty wysokosciowe pomiaru (nazwa, N, E, H) do projekty/<nazwa>/pomiar_<id>.csv: z nich zamkniecie projektu liczy porownanie wysokosci.
+  inline void CtrlStorePoints( const std::vector<PointH>& pts ) {
+    if ( gJobMeasId.empty() || pts.empty() ) return;
+    const std::string file = "pomiar_" + gJobMeasId + ".csv", dir = ProjRoot() + "/projekty/" + gProject.name;
+    std::error_code ec; std::filesystem::create_directories( dir, ec );
+    WriteBytes( dir + "/" + file, PointsCsv( pts ) );
+    for ( Measurement& m : gProject.items ) if ( m.id == gJobMeasId ) m.pointsFile = file;
+  }
+
   inline FieldBook          gPendingFb;               // dziennik oczekujący na wpisy gracza (tryb samodzielny)
 
   inline zCView*            gStatusPanel = nullptr;  // panel odbiornika GNSS (linie ze Job::StatusLines)
@@ -115,6 +124,7 @@ namespace GOTHIC_NAMESPACE {
     }
     TextPanelShow( r.trig ? "Niwelacja trygonometryczna - podsumowanie" : "Tachimetria - podsumowanie", lines, ok ? "Zapisano w folderze: " + gJobDir : "BLAD ZAPISU plikow dziennika" );
     SvTrace( "Tachimetria zakonczona" );
+    CtrlStorePoints( PointsOf( r ) );
     CtrlMarkEnd( MeasState::Done, gJobDir, CtrlFirst( lines ) );
     CtrlEndJob();
   }
@@ -162,6 +172,7 @@ namespace GOTHIC_NAMESPACE {
     }
     TextPanelShow( "Pomiar GNSS - podsumowanie", lines, ok ? "Zapisano w folderze: " + gJobDir : "BLAD ZAPISU plikow dziennika" );
     SvTrace( "Pomiar GNSS zakonczony" );
+    CtrlStorePoints( PointsOf( r ) );
     CtrlMarkEnd( MeasState::Done, gJobDir, CtrlFirst( lines ) );
     CtrlEndJob();
   }
@@ -176,7 +187,7 @@ namespace GOTHIC_NAMESPACE {
     gJobDir = MakeJobDir();                            // nazwa folderu = czas zakończenia roboty
     MoveReadingLog( gReadingLog, gJobDir );
     if ( fb.mode == CalcMode::Manual ) {               // tryb samodzielny: gracz sam liczy dziennik w edytorze
-      gPendingFb = fb; CtrlMarkEnd( MeasState::Done, gJobDir, "dziennik w trybie samodzielnym: " + std::to_string( (int)fb.rows.size() ) + " stan." ); CtrlEndJob(); FieldBookEditStart( fb );
+      gPendingFb = fb; CtrlStorePoints( PointsOf( fb ) ); CtrlMarkEnd( MeasState::Done, gJobDir, "dziennik w trybie samodzielnym: " + std::to_string( (int)fb.rows.size() ) + " stan." ); CtrlEndJob(); FieldBookEditStart( fb );
       return;
     }
     char b[200];
@@ -187,6 +198,7 @@ namespace GOTHIC_NAMESPACE {
     const bool ok = ExportFieldBook( fb, gJobDir, false );
     FieldBookShow( fb, ok ? "Zapisano w folderze: " + gJobDir : "BLAD ZAPISU plikow dziennika" );
     SvTrace( b );
+    CtrlStorePoints( PointsOf( fb ) );
     CtrlMarkEnd( MeasState::Done, gJobDir, b );
     CtrlEndJob();
   }
