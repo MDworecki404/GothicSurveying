@@ -12,7 +12,8 @@
 
 enum class RodRole { Back, Fore };
 enum class MarkerKind { Reper, Turning };
-enum class JobKind { Leveling, Gnss, Tachy, Scan };
+enum class JobKind { Leveling, Gnss, Tachy, Scan, Aerial };
+struct MapLine { double n1, e1, n2, e2; int color; };   // nakladka na mape osnowy: 0 obszar, 1 szereg, 2 dojazd
 
 struct MenuItem { std::string id, label, hint; bool enabled; };
 struct JobOptions { TraverseKind kind; CalcMode mode; bool showTrueError = false; };
@@ -67,6 +68,16 @@ class IWorld {
   virtual bool     TraceSight(double camAzDeg, double camPitchDeg, GridPos& hit, double& slopeM) const { (void)camAzDeg; (void)camPitchDeg; (void)hit; (void)slopeM; return false; }   // pomiar bezlustrowy: pierwszy trafiony punkt
   virtual bool     PlacePrism() { return false; }                              // tyczka z lustrem (w miejscu tyczki GNSS); false = brak gruntu
   virtual bool     LineClear(bool toPrism, int slot = 1) const { (void)toPrism; (void)slot; return true; }   // linia celowa od oka do lustra (tyczki) albo do lustra nawiazania nr slot niezaslonieta
+  // Nalot ALS (dron)
+  virtual bool     AerialRay(const GridPos& from, double azDeg, double elevDeg, double maxM, double& distM, double& cosInc, bool& isVob, unsigned* rgb = nullptr) const { (void)from; (void)azDeg; (void)elevDeg; (void)maxM; (void)distM; (void)cosInc; (void)isVob; (void)rgb; return false; }   // promien z dowolnego punktu; false = brak trafienia
+  virtual bool     GroundHeightM(double n, double e, double& h) const { (void)n; (void)e; (void)h; return false; }   // wysokosc terenu statycznego w (N, E); false = brak
+  virtual bool     HeroGround(GridPos& g) const { (void)g; return false; }                  // grunt pod stopami bohatera
+  virtual bool     PlaceDrone(const GridPos& pos) { (void)pos; return false; }
+  virtual void     RemoveDrone() {}
+  virtual void     SetDronePose(const GridPos& pos, double yawDeg, double pitchDeg, double rollDeg, double propPhaseDeg) { (void)pos; (void)yawDeg; (void)pitchDeg; (void)rollDeg; (void)propPhaseDeg; }
+  virtual void     SetFollowCamera(bool on) { (void)on; }                                    // kamera za dronem
+  virtual bool     RouteBlocked(const GridPos& a, const GridPos& b) const { (void)a; (void)b; return false; }   // przeszkoda na trasie (ostrzezenie)
+  virtual std::string AerialOutDir() { return ""; }                                         // folder wynikow lotu (tworzy); "" = blad
 };
 
 class Job {
@@ -97,6 +108,7 @@ class Job {
   virtual GnssReport FinishGnss(bool complete) { (void)complete; return GnssReport{}; }
   virtual void Tick() {}                                          // co klatke (symulacje czasu rzeczywistego)
   virtual std::vector<std::string> StatusLines() const { return {}; }   // panel statusu (ASCII); pusty = brak panelu
+  virtual std::vector<MapLine> MapOverlay() const { return {}; }        // linie do narysowania na mapie osnowy (plan nalotu)
 };
 
-struct JobType { std::string id, name; std::unique_ptr<Job> (*create)(IWorld&, const JobOptions&); bool gnss = false, tachy = false, scan = false; };
+struct JobType { std::string id, name; std::unique_ptr<Job> (*create)(IWorld&, const JobOptions&); bool gnss = false, tachy = false, scan = false, aerial = false; };
