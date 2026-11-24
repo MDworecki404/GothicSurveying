@@ -43,6 +43,12 @@ inline Measurement& AddMeasurement(Project& p, const std::string& typeId, const 
   return p.items.back();
 }
 
+// Folder wynikow z manifestu to dane nieufne (reka edytowany/udostepniony plik): tylko GothicSurveying/<...> bez "..", ':' i '\'.
+inline bool SafeResultDir(const std::string& d) {
+  if (d.compare(0, 16, "GothicSurveying/") != 0 || d.size() == 16) return false;
+  return d.find("..") == std::string::npos && d.find(':') == std::string::npos && d.find('\\') == std::string::npos;
+}
+
 inline const Measurement* RunningMeasurement(const Project& p) {
   for (const Measurement& m : p.items) if (m.state == MeasState::Running) return &m;
   return nullptr;
@@ -56,6 +62,13 @@ inline bool CanAddMeasurement(const Project& p, std::string& why) {
 
 inline void SetState(Project& p, const std::string& id, MeasState s, const std::string& dir = "", const std::string& summary = "") {
   for (Measurement& m : p.items) if (m.id == id) { m.state = s; if (!dir.empty()) m.dir = dir; if (!summary.empty()) m.summary = summary; }
+}
+
+// Wznowienie roboty z zapisu gry: pomiar o tym id wraca do "w toku", chyba ze juz jest gotowy (wynik zostaje nietkniety) albo go nie ma - wtedy nowy pomiar.
+inline std::string AttachRestored(Project& p, const std::string& pid, const std::string& typeId, const std::string& typeName) {
+  for (Measurement& m : p.items) if (!pid.empty() && m.id == pid && m.state != MeasState::Done) { m.state = MeasState::Running; return m.id; }
+  Measurement& m = AddMeasurement(p, typeId, typeName); m.state = MeasState::Running;
+  return m.id;
 }
 
 // Pomiar "w toku" bez aktywnej roboty (np. wczytano starszy zapis) nie moze blokowac nowych: staje sie przerwanym.
@@ -91,10 +104,13 @@ inline Project ProjectFromText(const std::string& text, bool& ok) {
   const int n = (std::max)(0, (std::min)(s.GetInt("m.n"), 1000));
   for (int i = 1; i <= n; i++) {
     const std::string k = "m." + std::to_string(i) + ".";
-    if (s.GetStr(k + "id").empty()) continue;           // pozycja uszkodzona albo uciete: pomijamy
+    if (!ProjectNameOk(s.GetStr(k + "id"))) continue;   // pozycja uszkodzona, uciete albo id nie do uzycia w nazwie pliku: pomijamy
     Measurement m; m.id = s.GetStr(k + "id"); m.type = s.GetStr(k + "type"); m.name = s.GetStr(k + "name"); m.dir = s.GetStr(k + "dir");
     m.params = s.GetStr(k + "params"); m.summary = s.GetStr(k + "summary"); m.pointsFile = s.GetStr(k + "points");
     m.state = (MeasState)(std::max)(0, (std::min)(s.GetInt(k + "state"), 3)); m.guided = s.GetBool(k + "guided");
+    const std::string& pf = m.pointsFile;                // nazwa pliku w folderze projektu, bez sciezki
+    if (pf.find('/') != std::string::npos || pf.find('\\') != std::string::npos || pf.find("..") != std::string::npos) m.pointsFile.clear();
+    if (!m.dir.empty() && !SafeResultDir(m.dir)) m.dir.clear();
     p.items.push_back(m);
   }
   return p;

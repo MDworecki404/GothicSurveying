@@ -24,7 +24,9 @@ namespace GOTHIC_NAMESPACE {
   inline void ProjUiOpenHome();
 
   inline void ProjUiOpenFolder( const std::string& dir ) {
+    if ( !SafeResultDir( dir ) ) { HudMessage( "Nie otwieram: folder poza GothicSurveying" ); return; }      // sciezka z manifestu jest nieufna
     std::error_code ec; const std::string abs = std::filesystem::absolute( dir, ec ).string();
+    if ( !std::filesystem::is_directory( abs, ec ) ) { HudMessage( "Folder nie istnieje" ); return; }
     SvTrace( ( "otwieram folder: " + abs ).c_str() );
     ShellExecuteA( nullptr, "open", abs.c_str(), nullptr, nullptr, SW_SHOWNORMAL );
   }
@@ -147,7 +149,7 @@ namespace GOTHIC_NAMESPACE {
         gProject = ProjMake( ProjAutoName() ); ProjSave(); UiRememberProject( gProject.name );
         HudMessage( ( "Nowy projekt: " + gProject.name ).c_str() );
       } else if ( id.compare( 0, 2, "p:" ) == 0 ) {
-        Project p; if ( LoadProject( ProjRoot(), id.substr( 2 ), p ) ) { gProject = p; UiRememberProject( gProject.name ); HudMessage( ( "Projekt: " + gProject.name ).c_str() ); }
+        Project p; if ( LoadProject( ProjRoot(), id.substr( 2 ), p ) ) { gProject = p; ProjReconcile(); UiRememberProject( gProject.name ); HudMessage( ( "Projekt: " + gProject.name ).c_str() ); }
       }
       ProjUiOpenHome();
     }, []() { ProjUiOpenHome(); } );

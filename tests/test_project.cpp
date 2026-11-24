@@ -100,25 +100,50 @@ static void save_load_list_on_temp_dir() {
 }
 
 static void settings_roundtrip() {
-  UiSettings u; u.lastProject = "Kolonia_1"; u.cursor["home"] = 3; u.cursor["job:aerial"] = 12;
+  UiSettings u; u.lastByWorld["newworld"] = "Kolonia_1"; u.cursor["home"] = 3; u.cursor["job:aerial"] = 12;
   const UiSettings r = UiSettingsFromText(UiSettingsToText(u));
-  assert(r.lastProject == "Kolonia_1" && r.cursor.size() == 2 && r.cursor.at("home") == 3 && r.cursor.at("job:aerial") == 12);
+  assert(r.lastByWorld.at("newworld") == "Kolonia_1" && r.cursor.size() == 2 && r.cursor.at("home") == 3 && r.cursor.at("job:aerial") == 12);
 }
 
 static void settings_garbage_gives_defaults() {
   for (const char* g : {"", "to nie jest ustawienie", "c.home=abc\nlast=\n", "\xFF\xFE\x01"}) {
     const UiSettings r = UiSettingsFromText(g);
-    assert(r.lastProject.empty() || ProjectNameOk(r.lastProject));
+    for (const auto& kv : r.lastByWorld) assert(ProjectNameOk(kv.second));
     for (const auto& kv : r.cursor) assert(kv.second >= 0 && kv.second < 1000);
   }
   UiSettings bad = UiSettingsFromText("last=../zly\nc.home=-5\nc.x=99999\n");
-  assert(bad.lastProject.empty() && bad.cursor.at("home") == 0 && bad.cursor.at("x") == 999);      // zla nazwa odrzucona, kursory przycinane do 0..999
+  assert(bad.lastByWorld.empty() && bad.cursor.at("home") == 0 && bad.cursor.at("x") == 999);      // zla nazwa odrzucona, kursory przycinane do 0..999
+}
+
+static void attach_restored_reuses_unfinished_but_not_done() {
+  Project p = Fresh(); AddMeasurement(p, "traverse", "Ciag niwelacyjny"); SetState(p, "m1", MeasState::Running);
+  assert(AttachRestored(p, "m1", "traverse", "Ciag niwelacyjny") == "m1" && p.items.size() == 1 && p.items[0].state == MeasState::Running);
+  SetState(p, "m1", MeasState::Done, "GothicSurveying/x");                       // zapis sprzed zakonczenia: wynik Done nie moze wrocic do "w toku"
+  const std::string id = AttachRestored(p, "m1", "traverse", "Ciag niwelacyjny");
+  assert(id != "m1" && p.items.size() == 2 && p.items[0].state == MeasState::Done && p.items[0].dir == "GothicSurveying/x" && p.items[1].state == MeasState::Running);
+  assert(AttachRestored(p, "nie_ma", "tachy", "Tachimetria") != "nie_ma" && p.items.size() == 3);           // nieznany id: nowy pomiar
+  assert(!AttachRestored(p, "", "tachy", "Tachimetria").empty() && p.items.size() == 4);                      // brak id (stary zapis): nowy pomiar
+}
+
+static void safe_result_dir_and_untrusted_manifest_fields() {
+  assert(SafeResultDir("GothicSurveying/2026-11-24_10-00-00") && SafeResultDir("GothicSurveying/2026-11-24_10-00-00_2"));
+  assert(!SafeResultDir("") && !SafeResultDir("C:/Windows/System32") && !SafeResultDir("/etc") && !SafeResultDir("\\\\serwer\\udzial") && !SafeResultDir("GothicSurveying/../system") && !SafeResultDir("..") && !SafeResultDir("x.exe"));
+  bool ok = false;
+  const Project q = ProjectFromText("ver=1\nname=X\nm.n=3\nm.1.id=m1\nm.1.points=..\\evil.csv\nm.2.id=../zly\nm.3.id=m3\nm.3.points=pomiar_m3.csv\n", ok);
+  assert(ok && q.items.size() == 2 && q.items[0].id == "m1" && q.items[0].pointsFile.empty() && q.items[1].id == "m3" && q.items[1].pointsFile == "pomiar_m3.csv");   // id z ukosnikiem pomijany, points ze sciezka czyszczony
+}
+
+static void settings_last_project_is_per_world() {
+  UiSettings u; u.lastByWorld["newworld"] = "Kolonia_1"; u.lastByWorld["oldworld"] = "Dolina_2";
+  const UiSettings r = UiSettingsFromText(UiSettingsToText(u));
+  assert(r.lastByWorld.size() == 2 && r.lastByWorld.at("newworld") == "Kolonia_1" && r.lastByWorld.at("oldworld") == "Dolina_2");
+  assert(UiSettingsFromText("w.newworld=../zly\nw.x=Dobry\n").lastByWorld.count("newworld") == 0);               // zla nazwa odrzucona, dobra zostaje
 }
 
 int main() {
   name_validation(); add_numbers_per_type(); cannot_add_while_running_or_closed(); roundtrip_text(); corrupt_manifest_rejected();
   reconcile_marks_stale_running_aborted(); close_refused_while_running(); save_load_list_on_temp_dir();
-  settings_roundtrip(); settings_garbage_gives_defaults();
+  settings_roundtrip(); settings_garbage_gives_defaults(); attach_restored_reuses_unfinished_but_not_done(); safe_result_dir_and_untrusted_manifest_fields(); settings_last_project_is_per_world();
   std::puts("test_project OK");
   return 0;
 }

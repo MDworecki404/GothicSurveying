@@ -126,10 +126,21 @@ static void help_has_lines_for_every_context() {
   assert(HelpContextFor(JobKind::Photo) == "job:photo" && HelpContextFor(JobKind::Leveling) == "job:leveling");
 }
 
+static void guided_items_include_finish_and_end_of_traverse() {
+  std::vector<MenuItem> items = { {"reper_a", "A", "", true}, {"rod_fore_turn", "Wprzod obrotowy", "", true}, {"rod_fore_end", "Wprzod koniec", "", true},
+                                  {"level", "Poziomuj", "", true}, {"finish", "Zakoncz", "", true}, {"map", "Mapa", "", true}, {"abort", "Przerwij", "", true} };
+  auto ids = [](const std::vector<MenuItem>& v) { std::string s; for (auto& m : v) s += m.id + ","; return s; };
+  assert(ids(GuidedItems(items, "rod_fore_turn")) == "rod_fore_turn,rod_fore_end,level,finish,showall,abort,");   // koniec ciagu i Zakoncz zawsze dostepne
+  items[4].enabled = false; items[2].enabled = false;
+  assert(ids(GuidedItems(items, "rod_fore_turn")) == "rod_fore_turn,level,showall,abort,");                      // niedostepne nie wchodza
+  assert(ids(GuidedItems(items, "reper_a")) == "reper_a,level,showall,abort,");
+  assert(ids(GuidedItems(items, "finish")) == "level,showall,abort,");                                           // niedostepny krok nie jest dublowany ani dodawany
+}
+
 int main() {
   every_menu_id_has_a_section(); abort_is_last(); disabled_items_have_reason(); order_is_stable_across_kinds(); unknown_id_goes_to_advanced(); hint_becomes_reason_else_table();
   gnss_prefix_follows_base_item(); no_project_recommends_create(); running_measurement_recommends_continue_with_name(); empty_project_recommends_new();
-  all_done_recommends_new_or_close(); closed_project_recommends_reopen(); help_has_lines_for_every_context();
+  all_done_recommends_new_or_close(); closed_project_recommends_reopen(); help_has_lines_for_every_context(); guided_items_include_finish_and_end_of_traverse();
   FakeWorld w; (void)KindOf;
   std::puts("test_workflow OK");
   return 0;

@@ -6,6 +6,7 @@
 
 namespace GOTHIC_NAMESPACE {
   inline Project gProject;                                      // pusty (name == "") = jeszcze nie wczytany
+  inline std::string gJobMeasId;                                // id pomiaru w gProject, ktory realizuje biezaca robota ("" = brak)
   inline UiSettings gUi; inline bool gUiLoaded = false;         // GothicSurveying/ustawienia.txt: ostatni projekt, kursory
 
   inline std::string UiPath() { return std::string( LV_OUT_DIR ) + "/ustawienia.txt"; }
@@ -21,7 +22,6 @@ namespace GOTHIC_NAMESPACE {
     std::ofstream f( UiPath(), std::ios::binary | std::ios::trunc );
     if ( f ) f.write( t.data(), (std::streamsize)t.size() );
   }
-  inline void UiRememberProject( const std::string& name ) { UiEnsure(); if ( gUi.lastProject != name ) { gUi.lastProject = name; UiSave(); } }
 
   inline std::string ProjRoot() { return LV_OUT_DIR; }
   inline std::string ProjWorldKey() { return ControlWorldKey( ControlWorldName() ); }
@@ -37,6 +37,19 @@ namespace GOTHIC_NAMESPACE {
     const bool ok = SaveProject( gProject, ProjRoot() );
     if ( !ok ) SvTrace( ( "projekt: BLAD zapisu " + gProject.name ).c_str() );
     return ok;
+  }
+
+  inline void UiRememberProject( const std::string& name ) {      // ostatni projekt jest pamietany osobno dla kazdego swiata
+    UiEnsure(); std::string& cur = gUi.lastByWorld[ProjWorldKey()];
+    if ( cur != name ) { cur = name; UiSave(); }
+  }
+
+  // "W toku" w manifescie bez trwajacej roboty (awaria gry, wczytany starszy zapis, przelaczenie projektu) jest nieaktualne: oznacz jako przerwane.
+  inline void ProjReconcile() {
+    if ( gProject.name.empty() ) return;
+    const std::string before = ProjectToText( gProject );
+    Reconcile( gProject, gJobMeasId );
+    if ( ProjectToText( gProject ) != before ) ProjSave();
   }
 
   inline Project ProjMake( const std::string& name ) {
@@ -67,7 +80,8 @@ namespace GOTHIC_NAMESPACE {
     const std::vector<Project> all = ProjListForWorld();
     if ( !all.empty() ) {
       UiEnsure(); gProject = all.back();                         // ostatnio uzywany projekt tego swiata, a bez niego najnowszy
-      for ( const Project& p : all ) if ( p.name == gUi.lastProject ) gProject = p;
+      for ( const Project& p : all ) if ( p.name == gUi.lastByWorld[key] ) gProject = p;
+      ProjReconcile();
       SvTrace( ( "projekt: wczytany " + gProject.name ).c_str() ); return;
     }
     gProject = ProjMake( "Luzem_" + ProjSanitize( key, 24 ) );

@@ -75,6 +75,21 @@ inline std::vector<MenuItem> Arrange(JobKind kind, std::vector<MenuItem> items) 
 
 struct Next { std::string id, text; };
 
+// Menu w trybie prowadzonym: nastepny krok, jego towarzysze (koniec ciagu, poziomowanie, zakonczenie), "Pokaz wszystko" i Przerwij.
+// Bez towarzyszy gracz w prowadzonym menu nie mialby jak zakonczyc ciagu (rod_fore_end) ani pomiaru (finish).
+inline std::vector<MenuItem> GuidedItems(const std::vector<MenuItem>& items, const std::string& nextId) {
+  std::vector<MenuItem> g; auto add = [&](const std::string& id) {
+    for (const MenuItem& m : g) if (m.id == id) return;
+    for (const MenuItem& m : items) if (m.id == id && m.enabled) { g.push_back(m); return; }
+  };
+  add(nextId);
+  if (nextId == "rod_fore_turn") add("rod_fore_end");
+  add("level"); add("finish");
+  { MenuItem it{ "showall", "Pokaz wszystkie pozycje (tryb zaawansowany)", "wylacza tryb prowadzony dla tego pomiaru", true }; it.section = "Pozostale"; g.push_back(it); }
+  for (const MenuItem& m : items) if (m.id == "abort") g.push_back(m);
+  return g;
+}
+
 // Linia "DALEJ" dla aktywnej roboty: krok z Job::NextStep, a gdy go brak albo jest niedostepny - zakonczenie, jesli mozliwe.
 inline Next NextLine(const std::vector<MenuItem>& items, const std::string& stepId) {
   for (const MenuItem& m : items) if (!stepId.empty() && m.id == stepId && m.enabled) return { m.id, "DALEJ: " + m.label };

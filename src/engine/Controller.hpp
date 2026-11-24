@@ -14,7 +14,6 @@ namespace GOTHIC_NAMESPACE {
   inline std::string        gReadingLog;              // GothicSurveying/odczyty_biezace.csv: log odczytów bieżącej roboty (po końcu trafia do folderu roboty)
   inline std::string        gJobDir;                  // folder zakończonej roboty: GothicSurveying/<data_godzina>
 
-  inline std::string        gJobMeasId;               // id pomiaru w gProject, ktory realizuje biezaca robota ("" = brak)
   inline bool               gStartGuided = false;     // czy nastepny pomiar startuje w trybie prowadzonym (kreator)
 
   // Rejestracja konca pomiaru w projekcie (zakonczenie / przerwanie / zmiana swiata); wolac przed CtrlEndJob.
@@ -426,13 +425,7 @@ namespace GOTHIC_NAMESPACE {
     v.nextText = nx.text; v.nextId = nx.id; v.crumbs = "GEODEZJA > Projekt: " + gProject.name + " > Pomiar";
     v.helpContext = HelpContextFor( gJob->Kind() ); v.screenKey = v.helpContext;
     bool guided = false; for ( const Measurement& m : gProject.items ) if ( m.id == gJobMeasId ) guided = m.guided;
-    if ( guided && !nx.id.empty() ) {                              // tryb prowadzony: tylko nastepny krok, "Pokaz wszystko" i Przerwij
-      std::vector<MenuItem> g;
-      for ( const MenuItem& it : v.items ) if ( it.id == nx.id ) g.push_back( it );
-      { MenuItem it{ "showall", "Pokaz wszystkie pozycje (tryb zaawansowany)", "wylacza tryb prowadzony dla tego pomiaru", true }; it.section = "Pozostale"; g.push_back( it ); }
-      for ( const MenuItem& it : v.items ) if ( it.id == "abort" ) g.push_back( it );
-      v.items = g;
-    }
+    if ( guided && !nx.id.empty() ) v.items = GuidedItems( v.items, nx.id );   // tryb prowadzony: nastepny krok + zakonczenie/koniec ciagu, "Pokaz wszystko", Przerwij
     MenuOpen( v, []( const std::string& id ) {
       if ( !gJob ) return;
       if ( id == "showall" ) { for ( Measurement& m : gProject.items ) if ( m.id == gJobMeasId ) m.guided = false; ProjSave(); CtrlOpenMenu(); return; }
@@ -520,12 +513,11 @@ namespace GOTHIC_NAMESPACE {
     {                                                   // projekt: zapis wskazuje projekt i pomiar; stare zapisy (bez kluczy) trafiaja do projektu "Luzem_<swiat>"
       const std::string pname = top.GetStr( "project" ), pid = top.GetStr( "pomiar" );
       Project p; bool found = false;
-      if ( !pname.empty() && LoadProject( ProjRoot(), pname, p ) && p.world == ProjWorldKey() ) found = true;
+      if ( !pname.empty() && LoadProject( ProjRoot(), pname, p ) && p.world == ProjWorldKey() && !p.closed ) found = true;   // zamkniety projekt nie przyjmuje wznowionego pomiaru
       if ( !found && !LoadProject( ProjRoot(), "Luzem_" + ProjSanitize( ProjWorldKey(), 24 ), p ) ) p = ProjMake( "Luzem_" + ProjSanitize( ProjWorldKey(), 24 ) );
-      gProject = p; gJobMeasId.clear();
-      for ( const Measurement& m : gProject.items ) if ( found && m.id == pid ) gJobMeasId = pid;
-      if ( gJobMeasId.empty() ) { Measurement& m = AddMeasurement( gProject, JobTypes()[idx].id, JobTypes()[idx].name ); gJobMeasId = m.id; }
-      SetState( gProject, gJobMeasId, MeasState::Running ); Reconcile( gProject, gJobMeasId ); ProjSave();
+      gProject = p;
+      gJobMeasId = AttachRestored( gProject, found ? pid : std::string(), JobTypes()[idx].id, JobTypes()[idx].name );   // gotowy pomiar nie wraca do "w toku": powstaje nowy
+      Reconcile( gProject, gJobMeasId ); ProjSave(); UiRememberProject( gProject.name );
     }
     gWorld.LoadState( StateKV::FromText( top.GetStr( "wld" ) ) );
     gReadingLog = PrepareReadingLog();
@@ -547,7 +539,7 @@ namespace GOTHIC_NAMESPACE {
         CtrlMarkEnd( MeasState::Aborted, dir.empty() ? gJob->ResultDir() : dir, "" );
       }
       if ( FieldBookEditActive() ) { gPendingFb.complete = false; ExportFieldBook( gPendingFb, gJobDir, true ); }
-      FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); MapClose(); LevelClose(); CtrlForgetJob(); gCtrlWorld = w;
+      gMenuAfterPanel = nullptr; FieldBookEditCancel(); TextPanelClose(); FieldBookClose(); MapClose(); LevelClose(); CtrlForgetJob(); gCtrlWorld = w;
       if ( loadSlot != -2 && w ) CtrlRestoreJobState( loadSlot );
       if ( w && !gJob ) { gProject = Project(); ProjEnsure(); Reconcile( gProject, "" ); ProjSave(); }   // brak roboty po zmianie swiata/zapisu: "w toku" w manifescie jest nieaktualne
     }
@@ -571,6 +563,7 @@ namespace GOTHIC_NAMESPACE {
     if ( MapActive() ) { MapTick(); return; }
     if ( LevelActive() ) { LevelTick(); return; }
     if ( TextPanelVisible() ) { TextPanelTick(); return; }
+    if ( gMenuAfterPanel && !FieldBookVisible() ) { auto reopen = gMenuAfterPanel; gMenuAfterPanel = nullptr; reopen(); return; }   // panel z menu (F1, lista plikow) zamkniety: wroc do menu
     if ( FieldBookVisible() ) { FieldBookTick(); return; }
     if ( MenuIsOpen() ) { MenuTick(); return; }
     if ( zinput->KeyToggled( LV_KEY_MENU ) ) { CtrlOpenMenu(); return; }

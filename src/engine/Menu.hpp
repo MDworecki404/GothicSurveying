@@ -17,6 +17,7 @@ namespace GOTHIC_NAMESPACE {
   inline zCView*   gMenuPanel = nullptr;
   inline std::function<void( const std::string& )> gMenuChoose;
   inline std::function<void()> gMenuBack;
+  inline std::function<void()> gMenuAfterPanel;                    // wywolywane po zamknieciu panelu otwartego z menu (F1): odtwarza menu; ControllerTick
   inline std::function<void( const std::string& )> gMenuHelpFn;   // F1: ustawia ProjectUi (TextPanelShow jest zdefiniowany pozniej)
   inline std::function<void( const std::string&, int )> gMenuRemember;   // zapamietanie pozycji kursora (screenKey, indeks)
   inline std::function<int( const std::string& )> gMenuRecall;           // odczyt zapamietanej pozycji (-1 = brak)
@@ -120,7 +121,15 @@ namespace GOTHIC_NAMESPACE {
       back();
       return;
     }
-    if ( !gMenu.helpContext.empty() && zinput->KeyToggled( LV_KEY_HELP ) ) { SvTrace( "menu: F1 (pomoc)" ); if ( gMenuHelpFn ) gMenuHelpFn( gMenu.helpContext ); return; }
+    if ( !gMenu.helpContext.empty() && zinput->KeyToggled( LV_KEY_HELP ) ) {
+      SvTrace( "menu: F1 (pomoc)" );
+      if ( !gMenuHelpFn ) return;
+      const MenuView view = gMenu; const std::function<void( const std::string& )> choose = gMenuChoose; const std::function<void()> onBack = gMenuBack; const int cur = gMenuCursor; const std::string ctx = gMenu.helpContext;
+      MenuClose();                                   // panel pomocy zatrzymuje gre sam; menu wraca po jego zamknieciu (bez zagniezdzonego Pause)
+      gMenuAfterPanel = [view, choose, onBack, cur]() { MenuOpen( view, choose, onBack ); gMenuCursor = cur; MenuRedraw(); };
+      gMenuHelpFn( ctx );
+      return;
+    }
     if ( gMenu.digits ) {                              // cyfry 1-9: skrot do pozycji o tym numerze (tylko aktywnej)
       static const int digitKeys[9] = { KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9 };
       for ( int d = 0; d < 9 && d < (int)gMenu.items.size(); d++ )
