@@ -117,6 +117,7 @@ class AerialJob : public Job {
     if (idle <= 0) { idle = (std::min)(0.2, std::chrono::duration<double>(t0 - lastTick_).count()); if (idle < 0) idle = 0; }
     lastTick_ = t0;
     while (tSim_ < path_->Duration()) {
+      if (ShotBusy()) { StepShot(t0); if (ShotBusy()) break; }
       while (tSim_ >= t1_) AdvanceSample();
       if (!(s0_.scanning && s1_.scanning)) {                                // wznios, dolot, zakret, powrot: bez impulsow, ale dron leci
         if (idle <= 1e-9) break;
@@ -126,7 +127,7 @@ class AerialJob : public Job {
       EmitPulse(); tSim_ += dtP; pulses++;
       if ((pulseCap_ > 0 && pulses >= pulseCap_) || (pulseCap_ == 0 && (pulses & 63) == 0 && over())) break;
     }
-    if (tSim_ >= path_->Duration()) { FinishFlight(true, false); return; }
+    if (tSim_ >= path_->Duration() && !ShotBusy()) { FinishFlight(true, false); return; }
     const TrajSample tr = Lerp(s0_, s1_, (tSim_ - t0_) / kSampleDt);
     w_.SetDronePose(GridPos{tr.pos.y, tr.pos.x, tr.pos.z}, tr.yawDeg, tr.pitchDeg, tr.rollDeg, std::fmod(tSim_ * 3000.0, 360.0));
   }
@@ -196,7 +197,10 @@ class AerialJob : public Job {
   bool OnReading(int, int) override { return false; }
   FieldBook Finish(bool) override { FinishFlight(false, true); return FieldBook{}; }   // lot w toku: wynik czesciowy; lot.raw zostaje (wczytanie zapisu moze wznowic lot)
 
- private:
+ protected:                                                            // haki dla robot pochodnych (fotogrametria: PhotoJob)
+  virtual void ApplySensor() { params_.sensor.pulseHz = kAlsPresets[preset_].pulseHz; params_.sensor.lineHz = kAlsPresets[preset_].lineHz; }   // parametry sensora w planie (LiDAR: gestosc impulsow)
+  virtual bool ShotBusy() const { return false; }                      // trwa przetwarzanie jednego "strzalu" (zdjecie): czas lotu stoi
+  virtual void StepShot(std::chrono::steady_clock::time_point t0) { (void)t0; }
   static constexpr int kMaxVertices = 12;
   static constexpr double kAgl[5] = {30, 50, 80, 100, 150}, kSpeed[4] = {3, 5, 6, 8}, kSidelap[3] = {20, 30, 40}, kBattery[5] = {5, 10, 15, 25, 40}, kAzChoices[5] = {0, 0, 45, 90, 135};   // [0] = automatycznie
 
@@ -218,7 +222,7 @@ class AerialJob : public Job {
     return az;
   }
   void Replan() {
-    params_.area = area_; params_.stripAzDeg = azMode_ == 0 ? AutoAzimuth() : kAzChoices[azMode_];
+    ApplySensor(); params_.area = area_; params_.stripAzDeg = azMode_ == 0 ? AutoAzimuth() : kAzChoices[azMode_];
     plan_ = area_.size() >= 3 ? PlanFlight(params_, PlanHome()) : FlightPlan{};
   }
   void SavePlanCsv() {
@@ -293,7 +297,7 @@ class AerialJob : public Job {
                                              t.rollDeg, t.pitchDeg, t.yawDeg, e.rollDeg, e.pitchDeg, e.yawDeg, t.scanning ? t.strip : -1);
     traj_.write(b, n); trajBytes_ += n;
   }
-  void EmitPulse() {
+  virtual void EmitPulse() {
     const double f = (tSim_ - t0_) / kSampleDt; const TrajSample truth = Lerp(s0_, s1_, f), est = Lerp(e0_, e1_, f);
     const double theta = MirrorThetaDeg(tSim_, params_.sensor); const AlsRay r = TrueRay(truth, boreTrue_, lever_, theta);
     const double pi = 3.14159265358979323846; double az = std::atan2(r.dir.x, r.dir.y) * 180.0 / pi; if (az < 0) az += 360.0;
@@ -316,6 +320,12 @@ class AerialJob : public Job {
   void FinishFlight(bool complete, bool keepRaw) {
     if (!flying_) return;
     flying_ = false; raw_.Close(); traj_.close(); w_.AerialBeam(GridPos{0, 0, 0}, 0, 0, -1);
+    lastCount_ = ProduceResults(complete, keepRaw);
+    w_.RemoveDrone(); if (camFollow_) { camFollow_ = false; w_.SetFollowCamera(false); }
+    flights_++; path_.reset();
+  }
+  // Wyniki po locie ALS: LAS/PTS, kontrole, opis (zwraca liczbe punktow); fotogrametria nadpisuje ten krok.
+  virtual long long ProduceResults(bool complete, bool keepRaw) {
     const AlsStats st = AlsConvert(rawPath_, originN_, originE_, originH_, outDir_ + "/lot.pts", outDir_ + "/lot.las");
     const std::vector<StripQc> qc = AlsStripCheck(rawPath_);
     std::vector<ControlPoint> cps; for (const ControlPoint& c : w_.ControlNearHero(1e9)) if (InArea(c.n, c.e)) cps.push_back(c);
@@ -324,11 +334,10 @@ class AerialJob : public Job {
     if (!keepRaw) {                                                        // surowe dane zostaja jako lot_surowy.bin (wejscie do wyrownania), lot.raw nie sluzy juz do wznowienia
       std::error_code ec; const std::string kept = outDir_ + "/lot_surowy.bin"; std::filesystem::remove(kept, ec); std::filesystem::rename(rawPath_, kept, ec);
     }
-    w_.RemoveDrone(); if (camFollow_) { camFollow_ = false; w_.SetFollowCamera(false); }
-    flights_++; lastCount_ = st.count; path_.reset();
     char b[160];
     if (st.count == 0) w_.Say("Lot zakonczony: brak punktow (promienie nie trafily w teren)");
     else { std::snprintf(b, sizeof b, "Lot %s: %lld punktow, wyniki w folderze lotu", complete ? "zakonczony" : "przerwany", st.count); w_.Say(b); }
+    return st.count;
   }
   void WriteInfo(const AlsStats& st, const std::vector<StripQc>& qc, const std::vector<ControlQc>& cq, bool complete) {
     std::ofstream f(outDir_ + "/lot_opis.txt"); char b[260];
