@@ -250,7 +250,7 @@ class ScanJob : public Job {
     f << "Skan " << s.name << "\nPunkty: " << s.points << "\nRozdzielczosc: " << kScanPresets[preset_].name << "\nZasieg: " << kScanMinRangeM << " - " << kScanMaxRangeM
       << " m\nSzum odleglosci: 1,5 mm + 10 ppm\nStanowisko: " << s.source << "\nOs skanera " << kInstrH << " m nad gruntem\n"
       << (s.local ? "Uklad: lokalny skanera (X = wschod, Y = polnoc wg zera skanera, Z = w gore), srodek skanera w (0,0,0)\n" : "Uklad: X = E, Y = N, Z = H (m), siatka\n")
-      << "Intensywnosc 0-255 (255 = kula referencyjna); kolor RGB: " << (rgbOn_ ? "srednia barwa tekstury powierzchni" : "wylaczony (szarosc z intensywnosci)") << "\n";
+      << "Intensywnosc 0-255 (255 = kula referencyjna); kolor RGB: " << (rgbOn_ ? "piksel tekstury w miejscu trafienia (voby: srednia z materialow)" : "wylaczony (szarosc z intensywnosci)") << "\n";
   }
 
   void AbortScan() {
