@@ -13,6 +13,7 @@ inline std::string HelpContextFor(JobKind k) {
     case JobKind::Scan: return "job:scan";
     case JobKind::Aerial: return "job:aerial";
     case JobKind::Photo: return "job:photo";
+    case JobKind::Polygon: return "job:polygon";
   }
   return "home";
 }

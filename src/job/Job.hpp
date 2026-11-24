@@ -7,12 +7,13 @@
 #include "calc/Control.hpp"
 #include "calc/GnssReport.hpp"
 #include "calc/Libella.hpp"
+#include "calc/PolygonReport.hpp"
 #include "calc/State.hpp"
 #include "calc/TachyReport.hpp"
 
 enum class RodRole { Back, Fore };
 enum class MarkerKind { Reper, Turning };
-enum class JobKind { Leveling, Gnss, Tachy, Scan, Aerial, Photo };
+enum class JobKind { Leveling, Gnss, Tachy, Scan, Aerial, Photo, Polygon };
 struct MapLine { double n1, e1, n2, e2; int color; };   // nakladka na mape osnowy: 0 obszar, 1 szereg, 2 dojazd
 
 struct MenuItem { std::string id, label, hint; bool enabled; std::string section = "", why = ""; };   // section/why: wypelnia Arrange (job/Workflow.hpp)
@@ -108,6 +109,7 @@ class Job {
   virtual std::string TachyFire(double camAzDeg, double camPitchDeg) { (void)camAzDeg; (void)camPitchDeg; return ""; }   // Enter w lunecie; komunikat ASCII
   virtual std::string TachyFlip() { return ""; }                  // klawisz przerzutu lunety (KL <-> KP); komunikat ASCII
   virtual std::vector<std::string> TachyPanel(double camAzDeg, double camPitchDeg) const { (void)camAzDeg; (void)camPitchDeg; return {}; }
+  virtual PolygonReport FinishPolygon(bool complete) { (void)complete; return PolygonReport{}; }   // ciag poligonowy: raport z rachunkiem (po zakonczeniu) albo czesciowy
   virtual GnssReport FinishGnss(bool complete) { (void)complete; return GnssReport{}; }
   virtual void Tick() {}                                          // co klatke (symulacje czasu rzeczywistego)
   virtual std::vector<std::string> StatusLines() const { return {}; }   // panel statusu (ASCII); pusty = brak panelu
