@@ -15,6 +15,11 @@ namespace GOTHIC_NAMESPACE {
       pts_[pointId] = pt;
       return true;
     }
+    void RemoveMarker( int pointId ) override {
+      auto it = pts_.find( pointId );
+      if ( it == pts_.end() ) return;
+      RemoveVobSafe( it->second.marker ); pts_.erase( it );
+    }
     bool FeetWithinCm( int pointId, double cm ) const override {
       auto it = pts_.find( pointId );
       if ( it == pts_.end() || !player ) return false;
@@ -59,7 +64,7 @@ namespace GOTHIC_NAMESPACE {
     bool PlaceBase( GridPos& g ) override {            // stacja bazowa RTK: model tripodu, jedna naraz
       zVEC3 p;
       if ( !FeetGround( p ) ) return false;
-      RemoveVobSafe( base_ ); base_ = SpawnVob( LV_VIS_INSTR, p ); baseGround_ = p; hasBase_ = true;
+      RemoveVobSafe( base_ ); base_ = SpawnVob( LV_VIS_GNSSTRI, p ); baseGround_ = p; hasBase_ = true;
       g = GnssToGrid( p[VX], p[VY], p[VZ] );
       return true;
     }
@@ -67,7 +72,14 @@ namespace GOTHIC_NAMESPACE {
       zVEC3 p;
       if ( !FeetGround( p ) ) return false;
       RemoveVobSafe( pole_ );
-      pole_ = SpawnVob( LV_VIS_POLE, p ); poleGround_ = p; hasPole_ = true; poleIsPrism_ = false;
+      pole_ = SpawnVob( LV_VIS_POLE, p ); poleGround_ = p; hasPole_ = true; poleIsPrism_ = false; poleTripod_ = false;
+      return true;
+    }
+    bool PlaceGnssTripod() override {                  // statyka: odbiornik na statywie w slocie tyczki
+      zVEC3 p;
+      if ( !FeetGround( p ) ) return false;
+      RemoveVobSafe( pole_ );
+      pole_ = SpawnVob( LV_VIS_GNSSTRI, p ); poleGround_ = p; hasPole_ = true; poleIsPrism_ = false; poleTripod_ = true;
       return true;
     }
     bool PlacePrism() override {                       // ten sam slot co tyczka GNSS (jedna tyczka naraz), inny model
@@ -672,7 +684,7 @@ namespace GOTHIC_NAMESPACE {
       for ( const auto& kv : pts_ ) { const std::string p = "pts." + std::to_string( i++ ); s.Int( p + ".id", kv.first ); PutPos( s, p, kv.second.pos ); s.Bool( p + ".reper", kv.second.reper ); }
       s.Int( "rod0", rodPoint_[0] ); s.Int( "rod1", rodPoint_[1] );
       s.Bool( "instr", hasInstr_ ); s.Int( "instrKind", instrKind_ ); PutPos( s, "instrPos", instrGround_ );
-      s.Bool( "pole", hasPole_ ); s.Bool( "poleIsPrism", poleIsPrism_ ); PutPos( s, "polePos", poleGround_ );
+      s.Bool( "pole", hasPole_ ); s.Bool( "poleIsPrism", poleIsPrism_ ); s.Bool( "poleTripod", poleTripod_ ); PutPos( s, "polePos", poleGround_ );
       for ( int k = 0; k < 5; k++ ) { const std::string p = "back" + std::to_string( k ); s.Bool( p + ".up", back_[k].up ); s.Bool( p + ".marker", back_[k].marker != nullptr ); PutPos( s, p, back_[k].pos ); }
       s.Bool( "base", hasBase_ ); PutPos( s, "basePos", baseGround_ );
       for ( int k = 0; k < 6; k++ ) { const std::string p = "sct" + std::to_string( k ); s.Bool( p + ".up", scanTgt_[k].up ); PutPos( s, p, scanTgt_[k].pos ); }
@@ -693,7 +705,8 @@ namespace GOTHIC_NAMESPACE {
       for ( int r = 0; r < 2; r++ ) { const int id = s.GetInt( r ? "rod1" : "rod0", -1 ); if ( id >= 0 ) PlaceRod( r ? RodRole::Fore : RodRole::Back, id ); }
       if ( s.GetBool( "pole" ) ) {
         poleIsPrism_ = s.GetBool( "poleIsPrism" ); poleGround_ = GetPos( s, "polePos" ); hasPole_ = true;
-        pole_ = SpawnVob( poleIsPrism_ ? PrismModel( prismH_ ) : LV_VIS_POLE, poleGround_ );
+        poleTripod_ = s.GetBool( "poleTripod" );
+        pole_ = SpawnVob( poleIsPrism_ ? PrismModel( prismH_ ) : poleTripod_ ? LV_VIS_GNSSTRI : LV_VIS_POLE, poleGround_ );
         if ( poleIsPrism_ ) FaceInstrument( pole_ );
       }
       for ( int k = 0; k < 5; k++ ) {
@@ -701,7 +714,7 @@ namespace GOTHIC_NAMESPACE {
         if ( s.GetBool( p + ".up" ) ) PlaceBacksightPos( k + 1, GetPos( s, p ), s.GetBool( p + ".marker" ) );
       }
       for ( int k = 0; k < 6; k++ ) { const std::string p = "sct" + std::to_string( k ); if ( s.GetBool( p + ".up" ) ) { scanTgt_[k].pos = GetPos( s, p ); scanTgt_[k].up = true; scanTgt_[k].vob = SpawnVob( LV_VIS_SPHERE, scanTgt_[k].pos ); } }
-      if ( s.GetBool( "base" ) ) { baseGround_ = GetPos( s, "basePos" ); hasBase_ = true; base_ = SpawnVob( LV_VIS_INSTR, baseGround_ ); }
+      if ( s.GetBool( "base" ) ) { baseGround_ = GetPos( s, "basePos" ); hasBase_ = true; base_ = SpawnVob( LV_VIS_GNSSTRI, baseGround_ ); }
     }
 
    private:
@@ -730,7 +743,7 @@ namespace GOTHIC_NAMESPACE {
     zCVob* rod_[2] = { nullptr, nullptr };
     int rodPoint_[2] = { -1, -1 };
     zCVob* instr_ = nullptr; zVEC3 instrGround_; bool hasInstr_ = false;
-    double prismH_ = 1.5; bool poleIsPrism_ = false;   // tachimetria: wysokosc lustra i rodzaj tyczki w slocie pole_
+    double prismH_ = 1.5; bool poleIsPrism_ = false, poleTripod_ = false;   // tachimetria: wysokosc lustra i rodzaj tyczki w slocie pole_
     struct Back { zVEC3 pos; zCVob* marker = nullptr; zCVob* prism = nullptr; bool up = false; };   // nawiazanie: znak + lustro
     Back back_[5];
     bool ScanTargetsStale() const { for ( const ScanTgt& t : scanTgt_ ) if ( VobIsStale( t.vob ) ) return true; return false; }

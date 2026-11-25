@@ -15,6 +15,7 @@ struct FakePoly : IWorld {
   std::map<std::string, GridPos> controlTruth; std::vector<ControlPoint> controls;
   GridPos hero{0, 0, 100}, station{0, 0, 100}, pole{0, 0, 100}, bs{0, 0, 100}; bool heroOk = true, clear = true;
   std::map<int, GridPos> marker; std::vector<std::string> said, placed;
+  void RemoveMarker(int id) override { marker.erase(id); placed.push_back("unmarker" + std::to_string(id)); }
   bool PlaceMarker(int id, MarkerKind) override { if (!heroOk) return false; marker[id] = hero; placed.push_back("marker" + std::to_string(id)); return true; }
   bool FeetWithinCm(int, double) const override { return true; }
   void PlaceRod(RodRole, int) override {}
@@ -31,7 +32,8 @@ struct FakePoly : IWorld {
   bool PlaceTachymeterOnPoint(int id) override { station = marker[id]; placed.push_back("tachymeter-on-" + std::to_string(id)); return true; }
   bool PlaceBacksightAt(int, const ControlPoint& cp) override { bs = controlTruth[cp.id]; placed.push_back("prism@" + cp.id); return true; }
   bool PlacePrismOnPoint(int id) override { pole = marker[id]; placed.push_back("prism-on-" + std::to_string(id)); return true; }
-  void RemoveBacksight(int) override {}
+  void RemoveBacksight(int) override { placed.push_back("unbacksight"); }
+  void RemovePole() override { placed.push_back("unpole"); }
   std::vector<ControlPoint> ControlNearHero(double) const override { return controls; }
   GridPos StationGrid() const override { return station; }
   GridPos PoleGroundGrid() const override { return pole; }
@@ -98,6 +100,46 @@ static void addpt_places_marker_and_names_points() {
   assert(f.w.placed.size() == 2 && f.w.placed[0] == "marker1" && f.w.placed[1] == "marker2");
   f.w.heroOk = false; f.w.said.clear(); f.job->OnMenu("addpt"); assert(f.w.placed.size() == 2 && !f.w.said.empty());   // brak gruntu
   const PolygonReport r = f.job->FinishPolygon(false); assert(r.names.size() == 4 && r.names[0] == "A" && r.names[1] == "1" && r.names[2] == "2" && r.names[3] == "B");
+}
+
+static void delpt_removes_last_mid_point_only() {
+  Fx f(TraverseKind::Anchored); f.Refs();
+  assert(!f.enabled("delpt"));                                                                // brak punktow ciagu
+  f.AddPoint(P1); f.AddPoint(P2); assert(f.enabled("delpt"));
+  f.job->OnMenu("delpt");
+  assert(f.w.placed.back() == "unmarker2" && f.w.marker.count(1) && !f.w.marker.count(2));
+  PolygonReport r = f.job->FinishPolygon(false); assert(r.names.size() == 3 && r.names[1] == "1" && r.names[2] == "B");   // osnowa (A, B) zostaje
+  f.AddPoint(P2); assert(f.w.placed.back() == "marker2");                                      // numeracja wraca do 2
+  f.job->OnMenu("delpt"); f.job->OnMenu("delpt"); assert(!f.enabled("delpt"));                // pusto: A i B nietkniete
+  r = f.job->FinishPolygon(false); assert(r.names.size() == 2 && r.names[0] == "A" && r.names[1] == "B");
+}
+
+static void prism_is_removed_when_instrument_moves() {
+  Fx f(TraverseKind::Anchored); f.Refs(); f.AddPoint(P1);
+  f.job->OnMenu("inst"); f.job->OnMenu("prism_fore");                                          // lustro na punkcie 1
+  const size_t n = f.w.placed.size();
+  f.job->OnMenu("prism_back"); assert(f.w.placed.back() == "prism@N1" && f.w.placed[n] == "unpole");   // z tyczki na osnowe: tyczka znika
+  f.job->OnMenu("prism_fore"); assert(f.w.placed.back() == "prism-on-1");
+  f.job->OnMenu("inst");                                                                      // stanowisko na A (jeszcze bez pomiaru), lustro z punktu 1 znika (tyczka na znaku)
+  assert(f.w.placed.back() == "unpole");
+  assert(!f.enabled("view"));                                                                 // lustro trzeba postawic na nowo
+}
+
+static void points_can_be_added_during_measurement() {
+  Fx f(TraverseKind::Anchored); f.Refs(); f.AddPoint(P1);
+  f.Station(A, N1, P1);                                                                        // zmierzone A: bok A-1 nie zmieni sie przy dodaniu 2
+  assert(f.enabled("addpt") && !f.enabled("delpt"));                                           // dodac mozna, usunac 1 nie (zmienilby przod A)
+  f.AddPoint(P2); assert(f.w.marker.count(2));
+  assert(f.enabled("addpt") && f.enabled("delpt"));                                            // stanowisko 1 (przod 2) niezmierzone: 2 mozna jeszcze usunac
+  f.Station(P1, A, P2);
+  assert(f.enabled("addpt") && !f.enabled("delpt"));                                           // dodanie 3 nie zmienia zmierzonego stanowiska 1
+  f.AddPoint(B); assert(f.w.marker.count(3));
+  Fx g(TraverseKind::Anchored); g.Refs(); g.AddPoint(P1); g.AddPoint(P2);
+  g.Station(A, N1, P1); g.Station(P1, A, P2); g.Station(P2, P1, B);                            // zmierzone P2 (przod B): dodanie 3 zmienilo by jego przod
+  assert(!g.enabled("addpt") && !g.enabled("delpt"));
+  Fx h(TraverseKind::Closed); h.Refs(false); h.AddPoint(P1); h.AddPoint(P2);
+  h.Station(A, P2, P1);                          // poligon zamkniety: po pierwszym pomiarze bez zmian
+  assert(!h.enabled("addpt") && !h.enabled("delpt"));
 }
 
 static void station_collects_four_observations() {
@@ -269,7 +311,7 @@ static void reinstalling_instrument_starts_station_over() {       // nowe postaw
 }
 
 int main() {
-  registry_and_kind(); setup_refs_by_kind(); addpt_places_marker_and_names_points(); station_collects_four_observations(); refuses_bad_shots();
+  registry_and_kind(); setup_refs_by_kind(); addpt_places_marker_and_names_points(); delpt_removes_last_mid_point_only(); prism_is_removed_when_instrument_moves(); points_can_be_added_during_measurement(); station_collects_four_observations(); refuses_bad_shots();
   sides_measured_from_both_ends(); redo_station_replaces_observations();
   full_anchored_matches_truth(); calc_preview_before_finish(); bad_angle_flagged_then_redo_fixes(); closed_and_hanging_flows(); save_load_midstation(); nextstep_always_enabled_or_special();
   aiming_within_tolerance_does_not_spoil_angle(); reinstalling_instrument_starts_station_over();

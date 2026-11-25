@@ -24,6 +24,7 @@ class IWorld {
  public:
   virtual ~IWorld() = default;
   virtual bool   PlaceMarker(int pointId, MarkerKind kind) = 0;   // pod stopami bohatera; false = brak gruntu
+  virtual void   RemoveMarker(int pointId) { (void)pointId; }      // usuwa znak postawiony przez PlaceMarker
   virtual bool   FeetWithinCm(int pointId, double cm) const = 0;
   virtual void   PlaceRod(RodRole role, int pointId) = 0;         // przenosi obiekt łaty na punkt
   virtual void   RemoveRod(RodRole role) = 0;
@@ -49,6 +50,7 @@ class IWorld {
   virtual void     RemoveScanTarget(int slot) { (void)slot; }
   virtual std::string ScanOutDir() { return ""; }                                    // folder wynikow skanu (tworzy); "" = blad
   virtual bool     PlacePole() { return false; }                  // tyczka z antena pod stopami; false = brak gruntu
+  virtual bool     PlaceGnssTripod() { return PlacePole(); }       // odbiornik na statywie (statyka); to samo miejsce i antena co tyczka, inny model
   virtual void     RemovePole() {}
   virtual SkyMask  SkyHorizon() const { return SkyMask{}; }       // maska horyzontu z promieni ku niebu z miejsca tyczki
   virtual GridPos  PoleGroundGrid() const { return GridPos{0, 0, 0}; }   // prawdziwe wspolrzedne gruntu pod tyczka

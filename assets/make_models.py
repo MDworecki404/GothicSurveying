@@ -116,6 +116,18 @@ def build_pole():
     return m
 
 
+def build_gnss_tripod():
+    """Odbiornik GNSS na statywie (statyka i stacja bazowa): trzy nogi, glowica, antena z pierscieniem; srodek anteny 200 cm nad gruntem."""
+    m = Mesh()
+    for ang in (90, 210, 330):
+        a = math.radians(ang)
+        prism(m, (55 * math.cos(a), 55 * math.sin(a), 0), (3 * math.cos(a), 3 * math.sin(a), 192), 2.2, 4, block(0))
+    prism(m, (0, 0, 190), (0, 0, 196), 9.0, 12, block(1))           # glowica statywu ze spodarka
+    prism(m, (0, 0, 196), (0, 0, 204), 9.5, 12, block(1))           # odbiornik z antena
+    prism(m, (0, 0, 204), (0, 0, 206), 10.5, 12, block(3))          # pierscien (pomaranczowy)
+    return m
+
+
 def build_prism_pole(h_cm):
     """Tyczka z lustrem (pryzmatem) na wysokosci h_cm: pret, oprawa i tarcza lustra zwrocona w +Y (ku tachimetrowi). Poczatek = grunt."""
     m = Mesh()
@@ -420,6 +432,7 @@ def main():
                               ("LVL_INSTR", build_instrument(), one),
                               ("LVL_PLATE", build_plate(), one),
                               ("LVL_POLE", build_pole(), one),
+                              ("LVL_GNSSTRI", build_gnss_tripod(), one),
                               ("LVL_TACHY", build_tachy(), one),
                               ("LVL_PRISM13", build_prism_pole(130.0), one),
                               ("LVL_PRISM15", build_prism_pole(150.0), one),

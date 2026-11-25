@@ -27,7 +27,7 @@ struct Slot { const char* id; Section sec; };
 // Jedna wspolna tabela dla wszystkich robot: kolejnosc w tabeli = kolejnosc w sekcji; te same pozycje sa w tych samych miejscach.
 inline const std::vector<Slot>& Table() {
   static const std::vector<Slot> t = {
-    {"reper_a", Section::Prep}, {"ref_n1", Section::Prep}, {"ref_a", Section::Prep}, {"ref_b", Section::Prep}, {"ref_n2", Section::Prep}, {"addpt", Section::Prep}, {"src", Section::Prep}, {"station", Section::Prep}, {"newst", Section::Prep}, {"free", Section::Prep},
+    {"reper_a", Section::Prep}, {"ref_n1", Section::Prep}, {"ref_a", Section::Prep}, {"ref_b", Section::Prep}, {"ref_n2", Section::Prep}, {"addpt", Section::Prep}, {"delpt", Section::Prep}, {"src", Section::Prep}, {"station", Section::Prep}, {"newst", Section::Prep}, {"free", Section::Prep},
     {"backsight", Section::Prep}, {"unback", Section::Prep}, {"prism", Section::Prep}, {"prism_back", Section::Prep}, {"prism_fore", Section::Prep}, {"prism_n1", Section::Prep}, {"inst", Section::Prep}, {"instrument", Section::Prep},
     {"pole", Section::Prep}, {"fine", Section::Prep}, {"antenna", Section::Prep}, {"base", Section::Prep}, {"target", Section::Prep}, {"untarget", Section::Prep},
     {"area_here", Section::Prep}, {"area_ctrl", Section::Prep}, {"area_map", Section::Prep}, {"area_clear", Section::Prep}, {"plan_csv", Section::Prep}, {"cam", Section::Prep},

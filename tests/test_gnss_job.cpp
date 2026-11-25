@@ -20,7 +20,9 @@ struct FakeGnss : IWorld {
   double Random01() override { return 0.5; }
   void ShiftInstrumentMm(double) override {}
   void Say(const std::string& t) override { said.push_back(t); }
-  bool PlacePole() override { return ground; }
+  int poles = 0, tripods = 0;
+  bool PlacePole() override { poles++; return ground; }
+  bool PlaceGnssTripod() override { tripods++; return ground; }
   GridPos baseAt{5500100.0, 6500150.0, 12.0}; bool controlNear = false;
   bool PlaceBase(GridPos& g) override { g = baseAt; return ground; }
   std::vector<ControlPoint> ControlNearHero(double) const override { return controlNear ? std::vector<ControlPoint>{ControlPoint{}} : std::vector<ControlPoint>{}; }
@@ -204,6 +206,11 @@ static void static_is_separate_job_needing_30_minutes() {
   assert(has(f.job->FinishGnss(true).points[0].note, "statyka"));
 }
 
+static void static_uses_tripod_rtk_uses_pole() {
+  Fx s(false, true); s.menu("pole"); assert(s.w.tripods == 1 && s.w.poles == 0 && has(s.label("pole"), "statywie"));
+  Fx r; r.menu("pole"); assert(r.w.poles == 1 && r.w.tripods == 0);
+}
+
 static void rtk_has_no_static_switch() { Fx f; assert(f.enabled("corr") && f.label("mode").empty()); }
 
 static void state_roundtrip_gnss() {
@@ -222,7 +229,7 @@ int main() {
   store_without_fix_is_flagged(); blocked_sky_never_enables_store(); clock_frozen_means_no_epochs();
   antenna_presets_cycle_and_bias_height(); true_error_columns_when_enabled(); abort_returns_partial_report(); discard_clears_measurement();
   control_requires_fix_and_30_minutes(); control_stores_point_and_report(); control_failure_does_not_store();
-  own_base_needed_for_corrections(); base_on_control_point_is_accurate_arbitrary_base_shifts_all(); static_is_separate_job_needing_30_minutes(); rtk_has_no_static_switch();
+  own_base_needed_for_corrections(); base_on_control_point_is_accurate_arbitrary_base_shifts_all(); static_is_separate_job_needing_30_minutes(); rtk_has_no_static_switch(); static_uses_tripod_rtk_uses_pole();
   state_roundtrip_gnss();
   std::puts("test_gnss_job OK");
   return 0;

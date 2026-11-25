@@ -136,10 +136,17 @@ static void stakeout_decomposes_along_and_cross() {
   assert(near(s.along, -2.0, 1e-9) && near(s.cross, 0.0, 1e-9));
 }
 
+static void precise_turn_is_smooth_and_zoom_scaled() {
+  assert(PreciseTurnRateDegS(0, 20) > 0.0099 && PreciseTurnRateDegS(0, 20) < 0.0101);          // start: bardzo wolno
+  assert(std::fabs(PreciseTurnRateDegS(2, 20) - 0.4) < 1e-9 && std::fabs(PreciseTurnRateDegS(9, 20) - 0.4) < 1e-9);   // nasycenie
+  double prev = PreciseTurnRateDegS(0, 20); for (int i = 0; i <= 200; i++) { const double r = PreciseTurnRateDegS(i * 0.01, 20); assert(r >= prev - 1e-12 && r - prev < 0.01); prev = r; }   // monotonicznie, bez skokow
+  assert(PreciseTurnRateDegS(2, 40) < PreciseTurnRateDegS(2, 20) && PreciseTurnRateDegS(2, 3) > PreciseTurnRateDegS(2, 20));    // wieksze powiekszenie = wolniej
+}
+
 int main() {
   conversions(); azimuth_directions(); polar_east_level(); polar_sloped_north(); orientation_zeroes_hz();
   extreme_pitch_stays_finite(); aim_error_and_limits(); aim_tolerance_is_angular(); angle_diff_and_circular_mean(); noise_statistics();
-  resection_recovers_station_and_rotation(); stakeout_decomposes_along_and_cross();
+  resection_recovers_station_and_rotation(); stakeout_decomposes_along_and_cross(); precise_turn_is_smooth_and_zoom_scaled();
   two_faces_cancel_instrument_errors();
   std::puts("test_tachy OK");
   return 0;

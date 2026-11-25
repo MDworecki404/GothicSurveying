@@ -49,7 +49,8 @@ class PolygonJob : public Job {
     ref("ref_n1", kind_ == TraverseKind::Closed ? "punkt orientacji N1" : "nawiazanie poczatkowe N1", n1_, hasN1_);
     ref("ref_a", "pierwszy punkt ciagu A", a_, hasA_);
     if (anch) { ref("ref_b", "ostatni punkt ciagu B", b_, hasB_); ref("ref_n2", "nawiazanie koncowe N2", n2_, hasN2_); }
-    m.push_back({"addpt", "Postaw punkt ciagu (pod stopami)", "najpierw nawiazania; punkty zakladasz po kolei od A; nie po zmierzeniu pierwszego stanowiska", hasA_ && fresh && mid_.size() < kMaxMid && (!anch || (hasB_ && hasN2_))});
+    m.push_back({"addpt", "Postaw punkt ciagu (pod stopami)", "najpierw nawiazania; punkty zakladasz po kolei od A, takze w trakcie pomiaru (nie po stanowisku, ktorego bok by sie zmienil)", hasA_ && CanAdd() && mid_.size() < kMaxMid && (!anch || (hasB_ && hasN2_))});
+    m.push_back({"delpt", mid_.empty() ? "Usun ostatni punkt ciagu" : "Usun ostatni punkt ciagu (" + mid_.back().name + ")", "brak punktow ciagu; nie po zmierzeniu stanowiska, ktorego bok by sie zmienil; punkty osnowy zostaja", !mid_.empty() && CanDel()});
     const int cur = Cur(), S = SCount();
     const std::string curName = ready && cur < S ? Seq()[cur].name : "?";
     m.push_back({"inst", instUp_ ? "Przestaw tachimetr na punkcie " + curName : "Postaw tachimetr na punkcie " + curName, "najpierw nawiazania i punkty ciagu; nie po zmierzeniu wszystkich stanowisk", ready && cur < S});
@@ -83,9 +84,16 @@ class PolygonJob : public Job {
       if (!w_.PlaceMarker(mk, MarkerKind::Turning)) { w_.Say("Brak gruntu pod stopami"); return; }
       Pt p; p.name = std::to_string(mk); p.marker = mk; p.truth = g; mid_.push_back(p); Sync();
       char b[80]; std::snprintf(b, sizeof b, "Punkt ciagu %s zalozony", p.name.c_str()); w_.Say(b);
+    } else if (base == "delpt") {
+      w_.RemoveMarker(mid_.back().marker);
+      w_.Say("Punkt ciagu " + mid_.back().name + " usuniety");
+      mid_.pop_back(); Sync();
+      RemovePrism();                                                                     // lustro moglo stac na usunietym znaku
+      prismUp_ = false; prismRole_ = -1; previewed_ = false; lastMsg_.clear();
     } else if (base == "inst") {
       const Pt s = Seq()[Cur()];
       if (!(s.control ? w_.PlaceTachymeterAt(s.cp) : w_.PlaceTachymeterOnPoint(s.marker))) { w_.Say("Nie mozna postawic tachimetru na punkcie " + s.name); return; }
+      RemovePrism();                                       // lustro z poprzedniego stanowiska nie moze stac przed lunetą (np. na punkcie, na ktorym teraz stoi tachimetr)
       instUp_ = true; prismUp_ = false; prismRole_ = -1; face_ = 1; lastMsg_.clear(); stn_[Cur()] = Stn{};   // nowe zero kola i bledy instrumentu: poprzednie obserwacje tego stanowiska sa niewazne
       collGon_ = (rng_.Uniform() < 0.5 ? -1 : 1) * (0.003 + 0.005 * rng_.Uniform());      // ukryte bledy instrumentu: kolimacja, indeks, zero kola poziomego
       indexGon_ = (rng_.Uniform() < 0.5 ? -1 : 1) * (0.003 + 0.005 * rng_.Uniform());
@@ -94,7 +102,7 @@ class PolygonJob : public Job {
     } else if (base == "prism_back" || base == "prism_fore" || base == "prism_n1") {
       const int role = base == "prism_back" ? 0 : base == "prism_fore" ? 1 : 2, cur = Cur();
       const Pt t = role == 0 ? BackOf(cur) : role == 1 ? ForeOf(cur) : n1_;
-      if (t.control) { if (!w_.PlaceBacksightAt(1, t.cp)) { w_.Say("Nie mozna postawic lustra na punkcie " + t.name); return; } prismKind_ = 2; }
+      if (t.control) { if (prismKind_ == 1) w_.RemovePole(); if (!w_.PlaceBacksightAt(1, t.cp)) { w_.Say("Nie mozna postawic lustra na punkcie " + t.name); return; } prismKind_ = 2; }
       else { if (prismKind_ == 2) w_.RemoveBacksight(1); if (!w_.PlacePrismOnPoint(t.marker)) { w_.Say("Nie mozna postawic lustra na punkcie " + t.name); return; } prismKind_ = 1; }
       prismUp_ = true; prismRole_ = role; lastMsg_.clear();
     } else if (base == "prismh") {
@@ -104,7 +112,7 @@ class PolygonJob : public Job {
       if (!arg.empty()) { const int k = std::atoi(arg.c_str()); if (k >= 0 && k < S && StnHasObs(k)) target = k; }
       else if (cur < S && StnHasObs(cur)) target = cur; else for (int i = (std::min)(cur, S) - 1; i >= 0; i--) if (StnHasObs(i)) { target = i; break; }
       if (target >= 0) { stn_[target] = Stn{}; w_.Say("Stanowisko " + Seq()[target].name + " do ponownego pomiaru"); }
-      instUp_ = prismUp_ = false; prismRole_ = -1; lastMsg_.clear(); previewed_ = false;
+      RemovePrism(); instUp_ = prismUp_ = false; prismRole_ = -1; lastMsg_.clear(); previewed_ = false;
     } else if (base == "calc") {
       PolygonReport r = BuildReport(true);
       const std::vector<std::string> lines = PolygonSummaryLines(r);
@@ -263,6 +271,12 @@ class PolygonJob : public Job {
     w_.Say("Brak takiego punktu osnowy");
   }
 
+  // Punkty ciagu mozna dokladac/usuwac w trakcie pomiaru, dopoki nie zmieni sie sasiad zmierzonego stanowiska.
+  // Nawiazany: dokladany punkt zmienia przod ostatniego punktu i tyl B (stanowiska od numeru k = liczba punktow); wiszacy: nowe stanowisko na koncu; zamkniety: zmienia tyl A, wiec tylko przed pierwszym pomiarem.
+  bool ObsFrom(int idx) const { for (size_t i = (size_t)(std::max)(0, idx); i < stn_.size(); i++) if (StnHasObs((int)i)) return true; return false; }
+  bool CanAdd() const { return kind_ == TraverseKind::Closed ? !AnyObs() : kind_ == TraverseKind::Open ? true : !ObsFrom((int)mid_.size()); }
+  bool CanDel() const { return kind_ == TraverseKind::Closed ? !AnyObs() : !ObsFrom((int)mid_.size() - 1); }
+  void RemovePrism() { if (prismKind_ == 2) w_.RemoveBacksight(1); else if (prismKind_ == 1) w_.RemovePole(); prismKind_ = 0; }
   bool Ready() const {
     if (!hasN1_ || !hasA_) return false;
     if (kind_ == TraverseKind::Anchored) return hasB_ && hasN2_;

@@ -18,7 +18,7 @@ class GnssRover : public Job {
   std::vector<MenuItem> Menu() const override {
     char ant[64]; std::snprintf(ant, sizeof ant, "Wysokosc anteny: %.3f m (zmien)", kAntenna[antIdx_]);
     std::vector<MenuItem> items = {
-      {"pole", poleUp_ ? "Przestaw tyczke z odbiornikiem" : "Postaw tyczke z odbiornikiem", "nie w trakcie pomiaru punktu", !measuring_},
+      {"pole", static_ ? (poleUp_ ? "Przestaw odbiornik na statywie" : "Postaw odbiornik na statywie") : poleUp_ ? "Przestaw tyczke z odbiornikiem" : "Postaw tyczke z odbiornikiem", "nie w trakcie pomiaru punktu", !measuring_},
       {"fine", "Precyzyjne ustawienie tyczki (milimetry)", "najpierw postaw tyczke; nie w trakcie pomiaru punktu", poleUp_ && !measuring_},   // obsluguje kontroler
       {"antenna", ant, "nie w trakcie pomiaru punktu", !measuring_},
       {"corr", ownBase_ ? "Poprawki RTK: wlasna baza (zmien)" : "Poprawki RTK: siec (zmien)", "nie w trakcie pomiaru punktu; wlasna baza = stawiasz stacje bazowa", !measuring_},
@@ -36,7 +36,7 @@ class GnssRover : public Job {
   void OnMenu(const std::string& id) override {
     for (const MenuItem& m : Menu()) if (m.id == id && !m.enabled) return;
     if (id == "pole") {
-      if (!w_.PlacePole()) { w_.Say("Brak gruntu pod stopami"); return; }
+      if (!(static_ ? w_.PlaceGnssTripod() : w_.PlacePole())) { w_.Say("Brak gruntu pod stopami"); return; }
       poleUp_ = true;
     } else if (id == "corr") {
       ownBase_ = !ownBase_;
@@ -88,8 +88,8 @@ class GnssRover : public Job {
   std::vector<std::string> StatusLines() const override {
     if (!measuring_ || !session_) {
       if (!poleUp_) return ownBase_ && !static_ && !baseUp_ ? std::vector<std::string>{"Wlasna baza nie stoi - bez poprawek wynik autonomiczny"} : std::vector<std::string>{};
-      if (static_ && !baseUp_) return {"Statyka: postaw baze na znanym punkcie, bez niej wynik autonomiczny"};
-      return {std::string("Tyczka stoi. ") + LV_KEYNAME_MENU + " - Rozpocznij pomiar punktu"};
+      if (static_ && !baseUp_) return {"Statyka: postaw baze (statyw) na znanym punkcie, bez niej wynik autonomiczny"};
+      return {std::string(static_ ? "Odbiornik stoi. " : "Tyczka stoi. ") + LV_KEYNAME_MENU + " - Rozpocznij pomiar punktu"};
     }
     const GnssFix& f = session_->Fix();
     char b[128]; std::vector<std::string> out;
@@ -106,7 +106,7 @@ class GnssRover : public Job {
   }
 
   std::string Hud() const override {
-    if (!poleUp_) return std::string("Postaw tyczke z odbiornikiem (") + LV_KEYNAME_MENU + " - menu)";
+    if (!poleUp_) return std::string(static_ ? "Postaw odbiornik na statywie (" : "Postaw tyczke z odbiornikiem (") + LV_KEYNAME_MENU + " - menu)";
     if (measuring_) return CanStore() ? std::string("Mozna zapisac punkt (") + LV_KEYNAME_MENU + " - menu)" : std::string("Pomiar punktu trwa - czekaj na rozwiazanie");
     return points_.empty() ? std::string("Rozpocznij pomiar punktu (") + LV_KEYNAME_MENU + " - menu)"
                            : std::string("Punkt zapisany. Nastepny punkt lub zakoncz robote (") + LV_KEYNAME_MENU + " - menu)";

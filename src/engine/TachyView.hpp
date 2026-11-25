@@ -1,5 +1,6 @@
 // Widok przez lunete tachimetru: kamera w osi lunety, obrot w poziomie i pochylanie w pionie, krzyz, zblizenie, panel z odczytami Hz/V.
 // Enter = wykonaj (orientacja albo pomiar, wg robota), klawisz lunety wychodzi. Dolaczane raz z Plugin.hpp po World.hpp, bez straznika include.
+#include <chrono>
 #include <cmath>
 #include <functional>
 #include <string>
@@ -15,7 +16,8 @@ namespace GOTHIC_NAMESPACE {
 
   inline bool       gTachyOn = false, gTachyFovSaved = false;
   inline float      gTachyAz = 0, gTachyPitch = 0, gTachyFovX = 0, gTachyFovY = 0;   // azymut i pochylenie osi lunety [rad]
-  inline DWORD      gTachyLast = 0;
+  inline std::chrono::steady_clock::time_point gTachyLast;   // zegar o duzej rozdzielczosci (GetTickCount ma ok. 15 ms ziarno => szarpany obrot przy malych predkosciach)
+  inline float      gTachyHold = 0;                                // jak dlugo trzymana jest strzalka obrotu [s] (narasta predkosc w trybie dokladnym)
   inline zVEC3      gTachyGround;
   inline zCView     *gTachyReticle = nullptr, *gTachyPanel = nullptr;
   inline std::string gTachyText;
@@ -75,20 +77,22 @@ namespace GOTHIC_NAMESPACE {
     gTachyReticle->SetAlphaBlendFunc( zRND_ALPHA_FUNC_BLEND );
     screen->InsertItem( gTachyReticle );
     ViewOpenNow( gTachyReticle );
-    gTachyOn = true; gTachyLast = GetTickCount();
+    gTachyOn = true; gTachyLast = std::chrono::steady_clock::now(); gTachyHold = 0;
     ogame->Pause();
     TachyViewRedraw();
-    HudMessage( LV_KEYNAME_AIM " - szybkie najechanie na lustro, " LV_KEYNAME_ZOOM " - powiekszenie" );
+    HudMessage( LV_KEYNAME_AIM " - najechanie na lustro, " LV_KEYNAME_ZOOM " - powiekszenie, Shift - tryb dokladny" );
   }
 
   inline void TachyViewTick() {
     TachyApplyZoom();
     if ( !gTachyOn ) return;
-    const DWORD now = GetTickCount();
-    float dt = ( now - gTachyLast ) / 1000.0f; gTachyLast = now;
+    const auto now = std::chrono::steady_clock::now();
+    float dt = std::chrono::duration<float>( now - gTachyLast ).count(); gTachyLast = now;
     if ( dt > 0.1f ) dt = 0.1f;
     if ( zinput->KeyToggled( LV_KEY_SCOPE ) ) { TachyViewLeave(); return; }
-    const float rate = ( zinput->KeyPressed( KEY_LSHIFT ) ? LV_TURN_SLOW : LV_TURN_FAST ) * 3.14159265f / 180.0f;
+    const bool turning = zinput->KeyPressed( KEY_LEFT ) || zinput->KeyPressed( KEY_RIGHT ) || zinput->KeyPressed( KEY_UP ) || zinput->KeyPressed( KEY_DOWN );
+    gTachyHold = turning ? gTachyHold + dt : 0.0f;                                    // puszczenie strzalki zeruje narastanie predkosci
+    const float rate = ( zinput->KeyPressed( KEY_LSHIFT ) ? (float)PreciseTurnRateDegS( gTachyHold, gZoom ) : LV_TURN_FAST ) * 3.14159265f / 180.0f;
     if ( zinput->KeyPressed( KEY_LEFT ) )  gTachyAz -= rate * dt;
     if ( zinput->KeyPressed( KEY_RIGHT ) ) gTachyAz += rate * dt;
     if ( zinput->KeyPressed( KEY_UP ) )    gTachyPitch += rate * dt;

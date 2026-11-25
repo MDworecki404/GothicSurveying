@@ -1,5 +1,9 @@
 # GothicSurveying - notatki dla Claude
 
+## Gdzie jest gra (instalacja pluginu)
+Gothic II (Steam) jest w `C:\Program Files (x86)\Steam\steamapps\common\Gothic II` (nie w `C:\GothicII`). Instalacja po zbudowaniu (`scripts/build.ps1`):
+`.\scripts\install.ps1 -Game "C:\Program Files (x86)\Steam\steamapps\common\Gothic II"`
+
 ## Przewodnik PDF „Pomiary geodezyjne - jak wykonywać i obliczać (przewodnik krok po kroku)" (Downloads, 9 s., 2026-11-24)
 
 Sprawdzone 2026-11-24: wszystkie wzory, kolejność etapów i **wszystkie przykłady liczbowe są poprawne** (przeliczone niezależnie, zgodność do 1 mm / 0,0001 g).

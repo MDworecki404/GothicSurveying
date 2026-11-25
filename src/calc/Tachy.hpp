@@ -120,6 +120,14 @@ inline TachyStakeout TachyStakeoutCalc(double stN, double stE, double pN, double
   return {dn * std::cos(az) + de * std::sin(az), -dn * std::sin(az) + de * std::cos(az), std::hypot(dn, de)};
 }
 
+// Tryb dokladny (Shift w lunecie tachimetru): predkosc obrotu rosnie plynnie od bardzo malej (0,01 st/s) do 0,4 st/s w 2 s trzymania klawisza
+// (smoothstep, bez skokow), a przy wiekszym powiekszeniu jest proporcjonalnie mniejsza. holdSec = jak dlugo trzymana jest strzalka.
+inline double PreciseTurnRateDegS(double holdSec, double zoom) {
+  const double t = (std::min)(1.0, (std::max)(0.0, holdSec / 2.0)), s = t * t * (3.0 - 2.0 * t);
+  const double zs = (std::min)(3.0, (std::max)(0.5, 20.0 / (std::max)(1.0, zoom)));
+  return (0.01 + (0.4 - 0.01) * s) * zs;
+}
+
 struct TachyAim { double lateralM, verticalM, distM; bool ok; };
 
 // Różnica kątów a - b zawinięta do [-180, 180] stopni.

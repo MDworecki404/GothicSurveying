@@ -13,6 +13,7 @@ namespace GOTHIC_NAMESPACE {
   // Tyczka z lustrem: model o wysokosci srodka lustra h (1,3 / 1,5 / 1,8 / 2,0 m).
   inline const char* PrismModel( double h ) { return h < 1.4 ? "LVL_PRISM13.3DS" : h < 1.65 ? "LVL_PRISM15.3DS" : h < 1.9 ? "LVL_PRISM18.3DS" : "LVL_PRISM20.3DS"; }
   inline const char*  LV_VIS_POLE  = "LVL_POLE.3DS";     // tyczka z odbiornikiem GNSS (2,00 m + antena)
+  inline const char*  LV_VIS_GNSSTRI = "LVL_GNSSTRI.3DS";   // odbiornik GNSS na statywie (statyka, stacja bazowa); antena na tej samej wysokosci co tyczka
   inline const float  LV_POLE_H    = 200.0f;             // wysokość tyczki [cm]; promienie do nieba idą od jej szczytu
   inline const char*  LV_VIS_HELMET = "LVL_HELMET.3DS";   // kask i kamizelka odblaskowa bohatera (doczepiane do węzłów szkieletu)
   inline const char*  LV_VIS_VEST  = "LVL_VEST.3DS";
