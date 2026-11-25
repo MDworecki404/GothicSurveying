@@ -73,7 +73,8 @@ class PolygonJob : public Job {
   void OnMenu(const std::string& id) override {
     const size_t colon = id.find(':');
     const std::string base = colon == std::string::npos ? id : id.substr(0, colon), arg = colon == std::string::npos ? "" : id.substr(colon + 1);
-    for (const MenuItem& m : Menu()) if (m.id == base && !m.enabled) return;
+    bool listed = false; for (const MenuItem& m : Menu()) if (m.id == base) { listed = true; if (!m.enabled) return; }
+    if (!listed) return;                                                  // np. prism_n1 poza poligonem
     if (base == "ref_n1" || base == "ref_a" || base == "ref_b" || base == "ref_n2") { SetRef(base, arg); return; }
     if (base == "addpt") {
       GridPos g;
@@ -85,7 +86,7 @@ class PolygonJob : public Job {
     } else if (base == "inst") {
       const Pt s = Seq()[Cur()];
       if (!(s.control ? w_.PlaceTachymeterAt(s.cp) : w_.PlaceTachymeterOnPoint(s.marker))) { w_.Say("Nie mozna postawic tachimetru na punkcie " + s.name); return; }
-      instUp_ = true; prismUp_ = false; prismRole_ = -1; face_ = 1; lastMsg_.clear();
+      instUp_ = true; prismUp_ = false; prismRole_ = -1; face_ = 1; lastMsg_.clear(); stn_[Cur()] = Stn{};   // nowe zero kola i bledy instrumentu: poprzednie obserwacje tego stanowiska sa niewazne
       collGon_ = (rng_.Uniform() < 0.5 ? -1 : 1) * (0.003 + 0.005 * rng_.Uniform());      // ukryte bledy instrumentu: kolimacja, indeks, zero kola poziomego
       indexGon_ = (rng_.Uniform() < 0.5 ? -1 : 1) * (0.003 + 0.005 * rng_.Uniform());
       az0Deg_ = rng_.Uniform() * 360.0;
@@ -125,7 +126,9 @@ class PolygonJob : public Job {
     if (!w_.LineClear(prismKind_ == 1, 1)) return lastMsg_ = "Linia celowa zaslonieta";
     Obs& ob = stn_[i].o[prismRole_][face_ - 1];
     if (ob.has) return lastMsg_ = "To lustro w tym polozeniu lunety juz zmierzone (przerzut: " LV_KEYNAME_FLIP " albo inne lustro)";
-    const TachyReading r = TachyMeasureFace(camAzDeg, camPitchDeg, az0Deg_, a.distM, noise_, rng_, face_, collGon_, indexGon_);
+    const double hd = std::hypot(g.n - s.n, g.e - s.e), trueAz = std::atan2(g.e - s.e, g.n - s.n) * 180.0 / TACHY_PI, truePitch = std::atan2((g.h + ph) - (s.h + kInstrH), hd) * 180.0 / TACHY_PI;
+    // celowanie w tolerancji jest "trafione": kierunek bierzemy prawdziwy, a bledy daje tylko instrument (inaczej bledy celowania > limity z dokladnosci instrumentu)
+    const TachyReading r = TachyMeasureFace(trueAz, truePitch, az0Deg_, a.distM, noise_, rng_, face_, collGon_, indexGon_);
     ob.has = true; ob.hz = r.hzGon; ob.v = r.vGon; ob.slope = r.slopeM;
     char b[200];
     if (StnDone(i)) {
@@ -207,8 +210,8 @@ class PolygonJob : public Job {
       const std::string k = "o." + std::to_string(i) + "." + std::to_string(r) + "." + std::to_string(f); Obs& o = stn_[i].o[r][f];
       o.has = s.GetBool(k + ".has"); if (o.has) { o.hz = s.GetNum(k + ".hz"); o.v = s.GetNum(k + ".v"); o.slope = s.GetNum(k + ".d"); }
     }
-    instUp_ = s.GetBool("instUp"); prismUp_ = s.GetBool("prismUp"); prismRole_ = s.GetInt("role", -1); prismKind_ = s.GetInt("pkind"); face_ = s.GetInt("face", 1) == 2 ? 2 : 1;
-    prismIdx_ = s.GetInt("prismIdx") % kPrismCount; collGon_ = s.GetNum("coll"); indexGon_ = s.GetNum("index"); az0Deg_ = s.GetNum("az0"); previewed_ = s.GetBool("previewed");
+    instUp_ = s.GetBool("instUp"); prismUp_ = s.GetBool("prismUp"); prismRole_ = (std::min)(2, (std::max)(-1, s.GetInt("role", -1))); prismKind_ = s.GetInt("pkind"); face_ = s.GetInt("face", 1) == 2 ? 2 : 1;
+    prismIdx_ = ((s.GetInt("prismIdx") % kPrismCount) + kPrismCount) % kPrismCount; collGon_ = s.GetNum("coll"); indexGon_ = s.GetNum("index"); az0Deg_ = s.GetNum("az0"); previewed_ = s.GetBool("previewed");
     lib_.x = s.GetNum("lib.x"); lib_.y = s.GetNum("lib.y"); lastMsg_.clear();
     w_.SetPrismHeightM(kPrism[prismIdx_]);
     return true;

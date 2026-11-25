@@ -85,7 +85,7 @@ inline std::vector<MenuItem> GuidedItems(const std::vector<MenuItem>& items, con
   add(nextId);
   if (nextId == "rod_fore_turn") add("rod_fore_end");
   if (nextId == "inst" || nextId == "addpt") add("addpt");                    // ciag poligonowy: kolejne punkty ciagu
-  add("level"); add("finish");
+  add("level"); add("redo"); add("finish");
   { MenuItem it{ "showall", "Pokaz wszystkie pozycje (tryb zaawansowany)", "wylacza tryb prowadzony dla tego pomiaru", true }; it.section = "Pozostale"; g.push_back(it); }
   for (const MenuItem& m : items) if (m.id == "abort") g.push_back(m);
   return g;

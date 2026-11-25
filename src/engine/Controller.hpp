@@ -159,6 +159,7 @@ namespace GOTHIC_NAMESPACE {
       const std::string msg = gJob->TachyFire( az, pitch );
       const TachyReport r = gJob->FinishTachy( false );
       if ( r.points.size() > before ) AppendTachyLog( gReadingLog, r.points.back(), (int)r.points.size(), r.showTrueError );   // punkt od razu do logu
+      if ( gJob->Kind() == JobKind::Polygon && msg.compare( 0, 11, "Stanowisko " ) == 0 ) { std::ofstream lf( gReadingLog, std::ios::app ); lf << gWorld.TimeText() << ";" << msg << "\n"; }   // obserwacja ciagu od razu do logu (przetrwa awarie)
       return msg;
     };
     cb.flip = []() { return gJob ? gJob->TachyFlip() : std::string(); };

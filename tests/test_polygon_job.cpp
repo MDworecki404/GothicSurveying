@@ -245,10 +245,34 @@ static void nextstep_always_enabled_or_special() {
   assert(ok() == "calc"); f.job->OnMenu("calc"); assert(f.job->NextStep().empty());                // po podgladzie: tylko zakonczenie (linia DALEJ spadnie na "finish")
 }
 
+static void aiming_within_tolerance_does_not_spoil_angle() {      // celowanie w granicach tolerancji (0.01 st. = ok. 3 cm na 170 m) nie moze psuc kata: bledy daje tylko instrument
+  Fx f(TraverseKind::Anchored); f.Refs(); f.AddPoint(P1); f.AddPoint(P2);
+  f.job->OnMenu("inst");
+  auto shootOff = [&](const GridPos& to, double dAz) {
+    const double dn = to.n - A.n, de = to.e - A.e;
+    return f.job->TachyFire(std::atan2(de, dn) * 180.0 / kPi + dAz, 0.0);
+  };
+  f.job->OnMenu("prism_back"); assert(!has(shootOff(N1, +0.01), "celujesz")); f.job->OnMenu("prism_fore"); assert(!has(shootOff(P1, -0.01), "celujesz"));
+  f.job->TachyFlip(); assert(!has(shootOff(P1, +0.008), "celujesz")); f.job->OnMenu("prism_back"); assert(!has(shootOff(N1, -0.008), "celujesz"));
+  assert(std::fabs(f.job->FinishPolygon(false).stations.at(0).betaGon - LeftAngle(A, N1, P1)) < 1e-6);
+}
+
+static void reinstalling_instrument_starts_station_over() {       // nowe postawienie tachimetru = nowe zero kola i bledy: stare obserwacje stanowiska nie moga zostac
+  Fx f(TraverseKind::Anchored); f.Refs(); f.AddPoint(P1); f.AddPoint(P2);
+  f.job->OnMenu("inst"); f.job->OnMenu("prism_back"); f.Shoot(A, N1);
+  assert(f.enabled("redo"));
+  f.job->OnMenu("inst");
+  assert(!f.enabled("redo"));
+  f.Station(A, N1, P1);
+  assert(std::fabs(f.job->FinishPolygon(false).stations.at(0).betaGon - LeftAngle(A, N1, P1)) < 1e-6);
+  f.job->OnMenu("prism_n1"); assert(!f.enabled("redo") || f.job->FinishPolygon(false).stations.size() == 1);   // prism_n1 nie istnieje poza poligonem: ignorowane
+}
+
 int main() {
   registry_and_kind(); setup_refs_by_kind(); addpt_places_marker_and_names_points(); station_collects_four_observations(); refuses_bad_shots();
   sides_measured_from_both_ends(); redo_station_replaces_observations();
   full_anchored_matches_truth(); calc_preview_before_finish(); bad_angle_flagged_then_redo_fixes(); closed_and_hanging_flows(); save_load_midstation(); nextstep_always_enabled_or_special();
+  aiming_within_tolerance_does_not_spoil_angle(); reinstalling_instrument_starts_station_over();
   std::puts("test_polygon_job OK");
   return 0;
 }
