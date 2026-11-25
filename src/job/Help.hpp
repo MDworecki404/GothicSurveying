@@ -45,6 +45,7 @@ inline std::vector<std::string> HelpLines(const std::string& context) {
   };
   else if (context == "job:scan") extra = {
     "Kolejnosc: stanowisko skanera, wypoziomowanie, kule (min. 3 przy rejestracji), skan.",
+    "Zakres: pelne 360 st. albo okno z lunety (Enter: lewy dolny, potem prawy gorny rog).",
     "Wynik: pliki .pts i .las w folderze skanu.",
   };
   else if (context == "job:aerial") extra = {

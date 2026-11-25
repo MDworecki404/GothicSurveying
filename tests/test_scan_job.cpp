@@ -179,7 +179,27 @@ static void leveling_blocks_scan() {
   assert(scanOn && job->InstrumentBlock().empty());
 }
 
+static void window_scan_covers_only_pointed_range() {
+  Fx f; assert(!f.enabled("area_set") && !f.enabled("area_full"));                           // najpierw stanowisko
+  f.job->OnMenu("station"); f.res(3);                                                        // gruby krok 1 st.
+  assert(f.enabled("area_set") && !f.enabled("area_full"));
+  f.job->OnMenu("area_set");
+  assert(has(f.job->TachyFire(340.0, 10.0), "Lewy dolny"));                                  // V = 80
+  assert(has(f.job->TachyFire(340.0, 40.0), "Prawy gorny rog musi"));                          // ten sam azymut (zerowa szerokosc): odrzucone, zaczyna od nowa
+  f.job->OnMenu("area_set"); f.job->TachyFire(340.0, 10.0);
+  assert(has(f.job->TachyFire(20.0, 40.0), "Zakres ustawiony") && f.enabled("area_full"));   // V = 50, Hz 340..20
+  f.runScan();
+  std::ifstream pts(f.w.dir + "/skan01.pts"); std::string first; std::getline(pts, first);
+  assert(std::stoll(first) == 41LL * 31);                                                    // sciana na polnocy trafiona w calym oknie
+  std::ifstream info(f.w.dir + "/skan01_opis.txt"); std::string all((std::istreambuf_iterator<char>(info)), std::istreambuf_iterator<char>());
+  assert(has(all, "Zakres: okno"));
+  f.job->OnMenu("area_full"); assert(!f.enabled("area_full"));                               // powrot do pelnego skanu
+  f.job->OnMenu("area_set"); f.job->TachyFire(340.0, 10.0); f.job->TachyFire(20.0, 40.0); assert(f.enabled("area_full"));
+  f.job->OnMenu("station"); assert(!f.enabled("area_full"));                                 // nowe stanowisko kasuje okno
+}
+
 int main() {
+  window_scan_covers_only_pointed_range();
   registry_and_menu_flow(); full_scan_writes_cloud_of_floor_and_wall(); station_on_control_point_uses_its_coordinates(); cancel_removes_temp_file_and_state_roundtrip(); leveling_blocks_scan(); rgb_off_writes_grey_from_intensity(); registration_recovers_station_and_rotation(); registration_failure_keeps_local_cloud();
   std::puts("test_scan_job OK");
   return 0;

@@ -21,15 +21,24 @@ inline const int kScanPresetCount = 4;
 inline const double kScanMinRangeM = 0.5, kScanMaxRangeM = 120.0;   // zasieg skanera
 inline const double kScanVMaxDeg = 125.0;                           // martwe pole pod statywem: V od 0 (zenit) do 125 st. (35 st. ponizej poziomu)
 
-struct ScanGrid { int nHz = 0, nV = 0; double stepDeg = 1.0; long long Total() const { return (long long)nHz * nV; } };
+// az0/v0 = poczatek siatki (pelny skan: 0 i 0); okno wskazane lunetą ma wlasne poczatki i rozpietosci.
+struct ScanGrid { int nHz = 0, nV = 0; double stepDeg = 1.0, az0Deg = 0.0, v0Deg = 0.0; long long Total() const { return (long long)nHz * nV; } };
 inline ScanGrid ScanGridFor(double stepDeg) {
   ScanGrid g; g.stepDeg = stepDeg;
   g.nHz = (int)std::floor(360.0 / stepDeg + 0.5); g.nV = (int)std::floor(kScanVMaxDeg / stepDeg + 0.5) + 1;
   return g;
 }
+// Okno skanu: azymut od az0 o azSpan (zgodnie z ruchem wskazowek zegara), V od vMin (gora) do vMax (dol), oba konce wlacznie; V ograniczone do 0..kScanVMaxDeg.
+inline ScanGrid ScanGridWindow(double stepDeg, double az0Deg, double azSpanDeg, double vMinDeg, double vMaxDeg) {
+  ScanGrid g; g.stepDeg = stepDeg; g.az0Deg = az0Deg; g.v0Deg = (std::max)(0.0, vMinDeg);
+  const double vHi = (std::min)(kScanVMaxDeg, vMaxDeg);
+  g.nHz = (int)std::floor((std::min)(360.0, (std::max)(0.0, azSpanDeg)) / stepDeg + 0.5) + 1;
+  g.nV = vHi > g.v0Deg ? (int)std::floor((vHi - g.v0Deg) / stepDeg + 0.5) + 1 : 1;
+  return g;
+}
 // Kierunek punktu o numerze idx: kolumnami (jak obrot glowicy): dla kazdego azymutu pelny przeciag od zenitu w dol.
 inline void ScanDirection(const ScanGrid& g, long long idx, double& azDeg, double& vDeg) {
-  azDeg = (double)(idx / g.nV) * g.stepDeg; vDeg = (double)(idx % g.nV) * g.stepDeg;
+  azDeg = g.az0Deg + (double)(idx / g.nV) * g.stepDeg; vDeg = g.v0Deg + (double)(idx % g.nV) * g.stepDeg;
 }
 
 // Szum odleglosci (1 sigma) [m]: 1,5 mm + 10 ppm odleglosci.

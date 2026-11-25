@@ -56,7 +56,18 @@ static void convert_applies_rotation() {
   assert(st.ok && near(st.minX, 6500010.0, 1e-4) && near(st.minY, 5500000.0, 1e-4));       // obrot o 90 st. w prawo: polnoc -> wschod
 }
 
+static void window_grid_covers_only_requested_range() {
+  const ScanGrid g = ScanGridWindow(1.0, 340.0, 40.0, 50.0, 80.0);                           // Hz 340..380 (przez polnoc), V 50..80
+  assert(g.nHz == 41 && g.nV == 31 && g.Total() == 41LL * 31);
+  double az, v; ScanDirection(g, 0, az, v); assert(std::fabs(az - 340.0) < 1e-9 && std::fabs(v - 50.0) < 1e-9);
+  ScanDirection(g, g.Total() - 1, az, v); assert(std::fabs(az - 380.0) < 1e-9 && std::fabs(v - 80.0) < 1e-9);
+  const ScanGrid lo = ScanGridWindow(1.0, 0.0, 10.0, 100.0, 170.0);                          // V ograniczone do martwego pola 125 st.
+  ScanDirection(lo, lo.Total() - 1, az, v); assert(v <= kScanVMaxDeg + 1e-9);
+  const ScanGrid full = ScanGridFor(1.0); ScanDirection(full, 0, az, v); assert(az == 0.0 && v == 0.0);   // pelny skan bez zmian
+}
+
 int main() {
+  window_grid_covers_only_requested_range();
   grid_counts_and_directions(); polar_to_local_axes(); noise_and_intensity(); convert_writes_pts_and_las(); convert_applies_rotation();
   std::puts("test_scan OK");
   return 0;

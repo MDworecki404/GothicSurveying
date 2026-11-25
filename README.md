@@ -245,6 +245,8 @@ Ograniczenia: tylko sytuacja (bez wysokości), bez redukcji do układu odwzorowa
 
 ## Skaner laserowy naziemny
 
+**Zakres skanu.** Domyślnie skan obejmuje pełne 360° w poziomie i V od 0° do 125° (martwe pole pod statywem). Pozycja **„Wskaż zakres skanu w lunecie”** otwiera lunetę (jak w tachimetrze: strzałki, Shift = tryb dokładny, PgUp/PgDn powiększenie): **Enter** ustawia najpierw **lewy dolny**, potem **prawy gorny** róg okna (prawy musi leżeć na prawo i wyżej; okno liczy się zgodnie z ruchem wskazówek od lewego rogu). Panel pokazuje Hz i V osi lunety (w gradach), a po drugim Enter rozmiar okna; kolejny Enter zaczyna wskazywanie od nowa, F10 wychodzi. Skan obejmuje wtedy tylko okno (krok i liczba kierunków jak w wybranej rozdzielczości, liczba kierunków w podpowiedzi „Rozdzielczość”); „Zakres skanu: okno (przywróć pełne 360°)” wraca do pełnego skanu, a nowe stanowisko kasuje okno. Okno zapisane jest w opisie skanu (`*_opis.txt`). Przy rejestracji okno musi obejmować co najmniej 3 kule referencyjne.
+
 „Rozpocznij robotę” → „Skaner laserowy”. **Postaw skaner (stanowisko)** (pod stopami; stając przy znaku osnowy dziedziczy jego współrzędne GNSS, inaczej używa prawdziwych),
 **wypoziomuj** go (menu „Poziomuj instrument”, jak niwelator: babelek w kółku ≤ 8′), wybierz **rozdzielczość** i **Rozpocznij skan**. Skaner wykonuje siatkę promieni jak prawdziwy:
 360° w poziomie, kąt zenitalny V od 0° do 125° (martwe pole pod statywem), kolumna po kolumnie; każdy promień trafia w teren albo w voby świata (z kolizją; bez postaci)

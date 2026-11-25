@@ -31,7 +31,7 @@ inline const std::vector<Slot>& Table() {
     {"backsight", Section::Prep}, {"unback", Section::Prep}, {"prism", Section::Prep}, {"prism_back", Section::Prep}, {"prism_fore", Section::Prep}, {"prism_n1", Section::Prep}, {"inst", Section::Prep}, {"instrument", Section::Prep},
     {"pole", Section::Prep}, {"fine", Section::Prep}, {"antenna", Section::Prep}, {"base", Section::Prep}, {"target", Section::Prep}, {"untarget", Section::Prep},
     {"area_here", Section::Prep}, {"area_ctrl", Section::Prep}, {"area_map", Section::Prep}, {"area_clear", Section::Prep}, {"plan_csv", Section::Prep}, {"cam", Section::Prep},
-    {"agl", Section::Params}, {"speed", Section::Params}, {"sidelap", Section::Params}, {"preset", Section::Params}, {"res", Section::Params},
+    {"agl", Section::Params}, {"speed", Section::Params}, {"sidelap", Section::Params}, {"preset", Section::Params}, {"res", Section::Params}, {"area_set", Section::Params}, {"area_full", Section::Params},
     {"fwd", Section::Params}, {"side", Section::Params}, {"rodlen", Section::Params}, {"lvl", Section::Params},
     {"rod_back", Section::Measure}, {"rod_fore_turn", Section::Measure}, {"rod_fore_end", Section::Measure}, {"move_next", Section::Measure},
     {"obsadzka", Section::Measure}, {"redo", Section::Measure}, {"redo_readings", Section::Measure}, {"meas", Section::Measure}, {"view", Section::Measure},

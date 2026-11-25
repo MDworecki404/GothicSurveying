@@ -10,6 +10,7 @@
 #include "Job.hpp"
 #include "Keys.hpp"
 #include "calc/Scan.hpp"
+#include "calc/Tachy.hpp"
 #include "calc/ScanReg.hpp"
 
 class ScanJob : public Job {
@@ -29,7 +30,8 @@ class ScanJob : public Job {
   std::vector<MenuItem> Menu() const override {
     char res[160]; std::snprintf(res, sizeof res, "Rozdzielczosc: %s (zmien)", kScanPresets[preset_].name);
     const ScanGrid g = ScanGridFor(kScanPresets[preset_].stepDeg);
-    char ph[96]; std::snprintf(ph, sizeof ph, "przed skanem; skan ma %lld kierunkow", g.Total());
+    const ScanGrid gg = win_ ? ScanGridWindow(kScanPresets[preset_].stepDeg, azLL_, WinSpan(), vUR_, vLL_) : g;
+    char ph[96]; std::snprintf(ph, sizeof ph, "przed skanem; skan ma %lld kierunkow", gg.Total());
     const bool regOk = !regOn_ || targets_.size() >= 3;
     return {
       {"station", stationUp_ ? "Przestaw skaner (stanowisko)" : "Postaw skaner (stanowisko)", "nie w trakcie skanu", !scanning_},
@@ -39,6 +41,8 @@ class ScanJob : public Job {
        "wlaczona: skan w ukladzie lokalnym, stanowisko z kul na punktach osnowy; nie w trakcie skanu", !scanning_},
       {"target", "Dodaj kule referencyjna (punkt osnowy)", "max 6; punkt osnowy do 150 m od ciebie, kula staje nad znakiem", !scanning_ && targets_.size() < 6},
       {"untarget", "Usun ostatnia kule", "brak kul", !scanning_ && !targets_.empty()},
+      {"area_set", "Wskaz zakres skanu w lunecie (lewy dolny, prawy gorny rog)", "najpierw postaw skaner; Enter w lunecie: najpierw lewy dolny, potem prawy gorny rog; nie w trakcie skanu", stationUp_ && !scanning_},
+      {"area_full", win_ ? "Zakres skanu: okno (przywroc pelne 360 st.)" : "Zakres skanu: pelne 360 st.", "brak okna: skan jest pelny; okno wskazujesz w lunecie", win_ && !scanning_},
       {"scan", "Rozpocznij skan", regOk ? "najpierw postaw i wypoziomuj skaner" : "rejestracja wymaga min. 3 kul (albo wylacz rejestracje)",
        stationUp_ && !scanning_ && lib_.Within(kLevelBubbleArcmin) && regOk},
       {"cancel", "Przerwij skan", "trwa skan", scanning_},
@@ -66,6 +70,11 @@ class ScanJob : public Job {
       if (!w_.PlaceScanner()) { w_.Say("Brak gruntu pod stopami"); return; }
       stationUp_ = true;
       if (lib_.enabled) { const double u1 = w_.Random01(), u2 = w_.Random01(); lib_.Reset(u1, u2); }
+      win_ = false; pick_ = 0;                          // nowe stanowisko: stare okno (azymuty z poprzedniego miejsca) przestaje obowiazywac
+    } else if (base == "area_set") {
+      pick_ = 1;                                         // kontroler otwiera lunete; Enter: lewy dolny, potem prawy gorny rog
+    } else if (base == "area_full") {
+      win_ = false; pick_ = 0; w_.Say("Zakres skanu: pelne 360 st.");
     } else if (base == "res") {
       preset_ = (preset_ + 1) % kScanPresetCount;
     } else if (base == "rgb") {
@@ -87,6 +96,30 @@ class ScanJob : public Job {
     } else if (base == "cancel") {
       AbortScan(); w_.Say("Skan przerwany");
     }
+  }
+
+  // Luneta skanera: Enter najpierw ustawia lewy dolny, potem prawy gorny rog okna skanu (kierunek osi lunety); kolejny Enter zaczyna od nowa.
+  std::string TachyFire(double camAzDeg, double camPitchDeg) override {
+    if (pick_ == 0) return "Najpierw wybierz w menu: Wskaz zakres skanu";
+    const double az = NormDeg(camAzDeg), v = (std::min)(kScanVMaxDeg, (std::max)(0.0, 90.0 - camPitchDeg));
+    char b[200];
+    if (pick_ == 1) {
+      azLL_ = az; vLL_ = v; win_ = false; pick_ = 2;
+      std::snprintf(b, sizeof b, "Lewy dolny rog: Hz %.4f g, V %.4f g. Teraz wskaz prawy gorny rog i Enter", DegToGon(az), DegToGon(v)); return b;
+    }
+    const double step = kScanPresets[preset_].stepDeg, span = std::fmod(az - azLL_ + 720.0, 360.0);
+    if (!(v < vLL_ - step) || span < step) { pick_ = 1; return "Prawy gorny rog musi lezec na prawo i wyzej od lewego dolnego. Wskaz lewy dolny rog od nowa"; }
+    azUR_ = az; vUR_ = v; win_ = true; pick_ = 1;
+    const ScanGrid g = ScanGridWindow(step, azLL_, span, vUR_, vLL_);
+    std::snprintf(b, sizeof b, "Zakres ustawiony: Hz %.2f g, V %.2f g, %lld kierunkow. Enter - wskaz od nowa, F10 - wyjscie", DegToGon(span), DegToGon(vLL_ - vUR_), g.Total()); return b;
+  }
+  std::vector<std::string> TachyPanel(double camAzDeg, double camPitchDeg) const override {
+    char b[160]; std::vector<std::string> out;
+    std::snprintf(b, sizeof b, "Hz: %.4f g   V: %.4f g", DegToGon(NormDeg(camAzDeg)), DegToGon((std::min)(kScanVMaxDeg, (std::max)(0.0, 90.0 - camPitchDeg)))); out.push_back(b);
+    out.push_back(pick_ == 1 ? "Enter: LEWY DOLNY rog zakresu" : pick_ == 2 ? "Enter: PRAWY GORNY rog zakresu" : "Zakres: wybierz w menu");
+    if (pick_ == 2 || win_) { std::snprintf(b, sizeof b, "Lewy dolny: Hz %.4f g, V %.4f g", DegToGon(azLL_), DegToGon(vLL_)); out.push_back(b); }
+    if (win_) { std::snprintf(b, sizeof b, "Okno: %.2f g x %.2f g", DegToGon(WinSpan()), DegToGon(vLL_ - vUR_)); out.push_back(b); }
+    return out;
   }
 
   // Skan w czasie gry: promienie w budzecie czasu klatki (faza 1: skan glowny, faza 2: gesto kule referencyjne).
@@ -167,7 +200,7 @@ class ScanJob : public Job {
   }
 
   void SaveState(StateKV& s) const override {                          // trwajacy skan nie jest wznawiany; zapisane skany i kule zostaja
-    s.Bool("stationUp", stationUp_); s.Int("preset", preset_); s.Bool("regOn", regOn_); s.Bool("rgbOn", rgbOn_); s.Str("outDir", outDir_); s.Num("lib.x", lib_.x); s.Num("lib.y", lib_.y);
+    s.Bool("stationUp", stationUp_); s.Int("preset", preset_); s.Bool("regOn", regOn_); s.Bool("rgbOn", rgbOn_); s.Str("outDir", outDir_); s.Bool("win", win_); s.Num("win.azLL", azLL_); s.Num("win.vLL", vLL_); s.Num("win.azUR", azUR_); s.Num("win.vUR", vUR_); s.Num("lib.x", lib_.x); s.Num("lib.y", lib_.y);
     s.Int("targets.n", (long long)targets_.size());
     for (size_t i = 0; i < targets_.size(); i++) { const std::string p = "targets." + std::to_string(i); s.Str(p + ".id", targets_[i].id); s.Int(p + ".slot", targets_[i].slot); PutControl(s, p + ".cp", targets_[i].cp); }
     s.Int("scans.n", (long long)scans_.size());
@@ -177,7 +210,7 @@ class ScanJob : public Job {
     }
   }
   bool LoadState(const StateKV& s) override {
-    AbortScan(); stationUp_ = s.GetBool("stationUp"); preset_ = s.GetInt("preset") % kScanPresetCount; regOn_ = s.GetBool("regOn"); rgbOn_ = s.GetBool("rgbOn", true); outDir_ = s.GetStr("outDir");
+    AbortScan(); stationUp_ = s.GetBool("stationUp"); preset_ = s.GetInt("preset") % kScanPresetCount; regOn_ = s.GetBool("regOn"); rgbOn_ = s.GetBool("rgbOn", true); outDir_ = s.GetStr("outDir"); win_ = s.GetBool("win"); azLL_ = s.GetNum("win.azLL"); vLL_ = s.GetNum("win.vLL"); azUR_ = s.GetNum("win.azUR"); vUR_ = s.GetNum("win.vUR"); pick_ = 0;
     lib_.x = s.GetNum("lib.x"); lib_.y = s.GetNum("lib.y");
     targets_.clear(); const int nt = s.GetInt("targets.n");
     for (int i = 0; i < nt; i++) { const std::string p = "targets." + std::to_string(i); targets_.push_back({s.GetStr(p + ".id"), GetControl(s, p + ".cp"), s.GetInt(p + ".slot")}); }
@@ -215,9 +248,12 @@ class ScanJob : public Job {
     brightDir_.clear(); brightLoc_.clear(); windows_.clear();
     rawPath_ = outDir_ + "/" + curName_ + ".tmp";
     if (!raw_.Open(rawPath_)) { w_.Say("Blad zapisu skanu"); return; }
-    grid_ = ScanGridFor(kScanPresets[preset_].stepDeg); idx_ = 0; scanning_ = true; phase_ = 1;
+    grid_ = win_ ? ScanGridWindow(kScanPresets[preset_].stepDeg, std::fmod(azLL_ - psi_ + 720.0, 360.0), WinSpan(), vUR_, vLL_) : ScanGridFor(kScanPresets[preset_].stepDeg);
+    idx_ = 0; scanning_ = true; phase_ = 1;
     w_.Say("Skan rozpoczety");
   }
+
+  double WinSpan() const { return std::fmod(azUR_ - azLL_ + 720.0, 360.0); }   // rozpietosc okna w azymucie, zgodnie z ruchem wskazowek od lewego dolnego rogu
 
   void FinishScan() {
     raw_.Close(); scanning_ = false; phase_ = 0; w_.ScanBeam(0, 0, -1);
@@ -256,7 +292,7 @@ class ScanJob : public Job {
   void WriteInfo(const Scan& s, const std::string& files) {              // opis skanu obok plikow
     std::ofstream f(outDir_ + "/" + files + "_opis.txt");
     f << "Skan " << s.name << "\nPunkty: " << s.points << "\nRozdzielczosc: " << kScanPresets[preset_].name << "\nZasieg: " << kScanMinRangeM << " - " << kScanMaxRangeM
-      << " m\nSzum odleglosci: 1,5 mm + 10 ppm\nStanowisko: " << s.source << "\nOs skanera " << kInstrH << " m nad gruntem\n"
+      << " m\nSzum odleglosci: 1,5 mm + 10 ppm\n" << (win_ ? std::string("Zakres: okno Hz ") + std::to_string(azLL_) + " st. + " + std::to_string(WinSpan()) + " st., V " + std::to_string(vUR_) + " - " + std::to_string(vLL_) + " st. (zenital)\n" : std::string("Zakres: pelne 360 st.\n")) << "Stanowisko: " << s.source << "\nOs skanera " << kInstrH << " m nad gruntem\n"
       << (s.local ? "Uklad: lokalny skanera (X = wschod, Y = polnoc wg zera skanera, Z = w gore), srodek skanera w (0,0,0)\n" : "Uklad: X = E, Y = N, Z = H (m), siatka\n")
       << "Intensywnosc 0-255 (255 = kula referencyjna); kolor RGB: " << (rgbOn_ ? "piksel tekstury w miejscu trafienia (voby: srednia z materialow)" : "wylaczony (szarosc z intensywnosci)") << "\n";
   }
@@ -269,7 +305,8 @@ class ScanJob : public Job {
   }
 
   IWorld& w_; JobOptions opt_; GnssRng rng_; Libella lib_;
-  bool stationUp_ = false, scanning_ = false, regOn_ = false, rgbOn_ = true; int preset_ = 1, phase_ = 0;
+  bool stationUp_ = false, scanning_ = false, regOn_ = false, rgbOn_ = true, win_ = false; int preset_ = 1, phase_ = 0, pick_ = 0;   // win_: okno wskazane w lunecie; pick_: 0 brak, 1 czeka lewy dolny, 2 czeka prawy gorny
+  double azLL_ = 0, vLL_ = 0, azUR_ = 0, vUR_ = 0;                                      // rogi okna: azymut prawdziwy [st.] i kat zenitalny V [st.]
   ScanGrid grid_; long long idx_ = 0; ScanRawWriter raw_; std::string rawPath_, outDir_, curName_, source_; double stN_ = 0, stE_ = 0, stH_ = 0, psi_ = 0;
   std::vector<ScanBrightHit> brightDir_; std::vector<P3> brightLoc_; std::vector<ScanWindow> windows_; size_t wi_ = 0; long long wIdx_ = 0;
   std::vector<Tgt> targets_; std::vector<Scan> scans_;

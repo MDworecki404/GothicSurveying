@@ -468,7 +468,7 @@ namespace GOTHIC_NAMESPACE {
       if ( id == "finish" ) CtrlFinish();
       else if ( id == "scope" ) CtrlEnterScope();
       else if ( id == "fine" ) PoleFineEnter();
-      else if ( id == "view" ) { gJob->OnMenu( id ); CtrlEnterTachyView(); }
+      else if ( id == "view" || id == "area_set" ) { gJob->OnMenu( id ); CtrlEnterTachyView(); }
       else if ( gJob->NeedsChoice( id ) ) CtrlOpenChoice( id );
       else if ( id == "rodlen" ) { gRodLenCm = gRodLenCm >= 500.0f ? 300.0f : gRodLenCm + 100.0f; gWorld.RefreshRods(); HudMessage( ( "Lata wysunieta na " + std::to_string( (int)( gRodLenCm / 100.0f ) ) + " m" ).c_str() ); }
       else if ( id == "level" ) LevelOpen( gJob->GetLibella(), gJob->Kind() == JobKind::Leveling || gJob->Kind() == JobKind::Scan ? kLevelBubbleArcmin : kTachyLevelArcmin, gJob->Kind() == JobKind::Leveling ? "niwelatora" : gJob->Kind() == JobKind::Scan ? "skanera" : "tachimetru" );
