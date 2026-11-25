@@ -198,9 +198,10 @@ static void static_is_separate_job_needing_30_minutes() {
   for (const JobType& t : JobTypes()) if (t.id == "gnss_static") found = t.gnss && t.name == "Statyka GNSS (osnowa)";
   assert(found);
   Fx f(false, true);
-  assert(!f.enabled("corr") && f.job->Name() == "Statyka GNSS (osnowa)");        // statyka zawsze z baza, bez przelacznika
-  f.menu("pole"); f.menu("base"); f.menu("start"); f.advance(10);                  // 1 s gry = 1 min obserwacji
+  assert(f.enabled("corr") && has(f.label("corr"), "siec") && f.job->Name() == "Statyka GNSS (osnowa)");   // domyslnie poprawki z sieci, bez bazy
+  f.menu("pole"); f.menu("start"); f.advance(10);                                   // 1 s gry = 1 min obserwacji, bez bazy
   assert(has(f.status(), "min") && !f.enabled("store") && !f.enabled("control"));
+  Fx g(false, true); assert(!g.enabled("base")); g.menu("corr"); assert(has(g.label("corr"), "wlasna baza") && g.enabled("base"));   // wlasna baza opcjonalna
   f.advance(25); assert(f.enabled("store") && f.enabled("control"));
   f.menu("store");
   assert(has(f.job->FinishGnss(true).points[0].note, "statyka"));

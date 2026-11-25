@@ -9,8 +9,8 @@
 
 class GnssRover : public Job {
  public:
-  // isStatic: osobna robota "Statyka GNSS (osnowa)": zawsze wlasna baza, sesja w minutach (1 s gry = 1 min obserwacji), min. 30 min do zapisu.
-  GnssRover(IWorld& w, const JobOptions& o, bool isStatic = false) : w_(w), opt_(o), static_(isStatic), ownBase_(isStatic) {}
+  // isStatic: osobna robota "Statyka GNSS (osnowa)": poprawki z sieci albo wlasnej bazy, sesja w minutach (1 s gry = 1 min obserwacji), min. 30 min do zapisu.
+  GnssRover(IWorld& w, const JobOptions& o, bool isStatic = false) : w_(w), opt_(o), static_(isStatic) {}
 
   std::string Name() const override { return static_ ? "Statyka GNSS (osnowa)" : "Pomiar GNSS (RTK)"; }
   JobKind Kind() const override { return JobKind::Gnss; }
@@ -29,7 +29,7 @@ class GnssRover : public Job {
       {"discard", "Odrzuc pomiar", "trwa pomiar punktu", measuring_},
       {"finish", "Zakoncz robote", "najpierw zapisz co najmniej jeden punkt", CanFinish()},
     };
-    items.erase(std::remove_if(items.begin(), items.end(), [&](const MenuItem& m) { return static_ ? m.id == "corr" : m.id == "control"; }), items.end());   // statyka zawsze z baza; osnowa tylko ze statyki (nie z RTK)
+    if (!static_) items.erase(std::remove_if(items.begin(), items.end(), [](const MenuItem& m) { return m.id == "control"; }), items.end());   // osnowa tylko ze statyki (nie z RTK)
     return items;
   }
 
@@ -87,8 +87,7 @@ class GnssRover : public Job {
 
   std::vector<std::string> StatusLines() const override {
     if (!measuring_ || !session_) {
-      if (!poleUp_) return ownBase_ && !static_ && !baseUp_ ? std::vector<std::string>{"Wlasna baza nie stoi - bez poprawek wynik autonomiczny"} : std::vector<std::string>{};
-      if (static_ && !baseUp_) return {"Statyka: postaw baze (statyw) na znanym punkcie, bez niej wynik autonomiczny"};
+      if (!poleUp_) return ownBase_ && !baseUp_ ? std::vector<std::string>{"Wlasna baza nie stoi - bez poprawek wynik autonomiczny"} : std::vector<std::string>{};
       return {std::string(static_ ? "Odbiornik stoi. " : "Tyczka stoi. ") + LV_KEYNAME_MENU + " - Rozpocznij pomiar punktu"};
     }
     const GnssFix& f = session_->Fix();
@@ -183,7 +182,7 @@ class GnssRover : public Job {
   IWorld& w_; JobOptions opt_;
   bool poleUp_ = false, measuring_ = false, baseUp_ = false, sessionBase_ = false, sessionStatic_ = false;
   GridPos baseTruth_{0, 0, 0}; double baseOff_[3] = {0, 0, 0}; std::string baseNote_;
-  const bool static_; bool ownBase_;
+  const bool static_; bool ownBase_ = false;      // poprawki: siec (domyslnie, bez bazy: mozna zalozyc pierwsza osnowe) albo wlasna baza
   int antIdx_ = 0; double lastEpoch_ = 0, virtT_ = 0; GridPos truth_{0, 0, 0};
   std::unique_ptr<GnssSession> session_;
   std::vector<GnssPoint> points_;

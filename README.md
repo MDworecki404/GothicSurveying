@@ -140,7 +140,7 @@ dodatkowe kolumny `blad_N_m`, `blad_E_m`, `blad_H_m`, `blad_2D_m` względem punk
 
 „Poprawki RTK: sieć / własna baza”: przy własnej bazie **Postaw bazę (stacja bazowa)** (menu robót GNSS). Bez bazy odbiornik daje tylko wynik autonomiczny (metry). Baza na znaku osnowy (≤ 2 m)
 zna swoje współrzędne (błąd mm), baza na dowolnym punkcie ma błąd pozycji rzędu metra, który przesuwa wszystkie punkty rovera tak samo; dochodzi błąd linii bazowej (1 ppm poziomo, 2 ppm pionowo).
-„Pomiar: statyczny” wymaga fixu i 120 epok, a szum fixu jest wtedy 0,4 zwykłego; uwaga przy punkcie podaje bazę, linię bazową i statykę.
+Statyka to **osobna robota** „Statyka GNSS (osnowa)”: odbiornik i baza stoją na statywie, poprawki domyślnie z sieci (bez bazy, więc pierwszą osnowę można założyć od zera), zapis wymaga fixu i co najmniej 30 min sesji (1 s gry = 1 min), a szum fixu jest wtedy 0,4 zwykłego. Punkty osnowy zakłada się tylko stąd (RTK ich nie zakłada). Uwaga przy punkcie podaje bazę, linię bazową i statykę.
 
 ## Osnowa GNSS
 
@@ -407,7 +407,7 @@ Jeśli cyfry na łacie są w grze do góry nogami, ustaw `FLIP_V = True` w `asse
 - Roboty: ciąg niwelacyjny, pomiar GNSS (RTK), tachimetria, niwelacja trygonometryczna (jeden odcinek naraz, bez wyrównania całego ciągu), ciąg poligonowy (sytuacja, limity odchyłek jako założenie symulatora), skaner laserowy naziemny i skaning lotniczy z drona.
 - ALS: wyrównanie szeregów jest sztywne (przesunięcia E/N/H na szereg, bez poprawki dryfu wewnątrz szeregu i bez kalibracji ramienia dźwigni); pitch/yaw boresightu wymagają nachylonego terenu albo szeregów poprzecznych; pierwszy zwrot (bez wielokrotnych odbić); bez omijania przeszkód i ręcznego latania; trajektoria dojazdu po wznowieniu lotu nie jest zapisywana; kamera za dronem jest eksperymentalna (kamera gry może ją nadpisać); fotogrametria lotnicza to osobna, późniejsza faza.
 - Tachimetria: bez wcięcia w przód i bez wyrównania osnowy ani wspólnego wyrównania stanowisk.
-- Pomiar GNSS: poprawki z własnej bazy to model uproszczony (1 ppm + przesunięcie bazy), bez wielu baz i bez przetwarzania linii bazowych; statyka to pojedyncza sesja 120 epok.
+- Pomiar GNSS: poprawki z własnej bazy to model uproszczony (1 ppm + przesunięcie bazy), bez wielu baz i bez przetwarzania linii bazowych; statyka to pojedyncza sesja co najmniej 30 min (1 s gry = 1 min).
 - Kreski dalmiercze liczone są dla pola widzenia gry; przy bardzo wąskim FOV mogą wypaść poza lunetę (wtedy są pomijane, wpis w `GothicSurveying.log`).
 - Hook na `zCWorld::Render` sprawdzono tylko na Gothic II NotR 2.6 (fix) ze Steam Gold Classic.
 
