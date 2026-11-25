@@ -130,13 +130,23 @@ namespace GOTHIC_NAMESPACE {
     gStartGuided = false;
   }
 
-  inline void ProjUiOpenNew() {
-    MenuView v; v.title = "Nowy pomiar"; v.crumbs = "GEODEZJA > Projekt: " + gProject.name + " > Nowy pomiar";
+  inline void ProjUiOpenNew();
+
+  inline void ProjUiOpenWizards() {
+    MenuView v; v.title = "Wybierz kreator"; v.crumbs = "GEODEZJA > Projekt: " + gProject.name + " > Nowy pomiar > Kreator";
     for ( const Wizard& wz : Wizards() ) { MenuItem it{ "w:" + wz.id, wz.name, wz.desc, true }; it.section = "Kreatory"; v.items.push_back( it ); }
-    { MenuItem it{ "manual", "Reczny wybor rodzaju pomiaru...", "pelne menu bez kreatora: wszystkie rodzaje i ustawienia", true }; it.section = "Inne"; v.items.push_back( it ); }
     MenuOpen( v, []( const std::string& id ) {
-      if ( id == "manual" ) { CtrlOpenStartMenu(); return; }
       for ( const Wizard& wz : Wizards() ) if ( "w:" + wz.id == id ) { ProjUiStartWizard( wz ); return; }
+    }, []() { ProjUiOpenNew(); } );
+  }
+
+  inline void ProjUiOpenNew() {                                   // dwa podmenu: konkretna robota (pelny wybor) albo kreator (gotowe ustawienia)
+    MenuView v; v.title = "Nowy pomiar"; v.crumbs = "GEODEZJA > Projekt: " + gProject.name + " > Nowy pomiar";
+    { MenuItem it{ "job", "Wybierz konkretna robote...", "wszystkie rodzaje pomiarow z pelnym wyborem ustawien, bez kreatora", true }; it.section = "Rodzaj"; v.items.push_back( it ); }
+    { MenuItem it{ "wizard", "Wybierz kreator...", "gotowe ustawienia typowych pomiarow i kolejne kroki podpowiadane na biezaco", true }; it.section = "Rodzaj"; v.items.push_back( it ); }
+    MenuOpen( v, []( const std::string& id ) {
+      if ( id == "job" ) CtrlOpenStartMenu( []() { ProjUiOpenNew(); } );
+      else if ( id == "wizard" ) ProjUiOpenWizards();
     }, []() { ProjUiOpenHome(); } );
   }
 
@@ -156,7 +166,7 @@ namespace GOTHIC_NAMESPACE {
       v.items.push_back( it );
     }
     std::string why; const bool canAdd = CanAddMeasurement( gProject, why );
-    { MenuItem it{ "new", "+ Nowy pomiar...", "kreator albo reczny wybor rodzaju", canAdd }; it.section = "Pomiary"; it.why = why; v.items.push_back( it ); }
+    { MenuItem it{ "new", "+ Nowy pomiar...", "konkretna robota albo kreator", canAdd }; it.section = "Pomiary"; it.why = why; v.items.push_back( it ); }
     if ( gProject.closed ) { MenuItem it{ "reopen", "Otworz projekt ponownie", "pozwoli dodawac pomiary", true }; it.section = "Projekt"; v.items.push_back( it ); }
     { bool anyDir = false; for ( const Measurement& m : gProject.items ) if ( !m.dir.empty() ) anyDir = true;
       MenuItem it{ "results", "Wyniki i raporty (pliki pomiarow)", "foldery wynikow pomiarow i otwarcie folderu", anyDir }; it.section = "Projekt"; it.why = "zaden pomiar nie zapisal jeszcze wynikow"; v.items.push_back( it ); }

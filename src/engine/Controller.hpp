@@ -281,7 +281,7 @@ namespace GOTHIC_NAMESPACE {
     } );
   }
 
-  inline void CtrlOpenStartMenu() {
+  inline void CtrlOpenStartMenu( std::function<void()> onBack = nullptr ) {
     MenuView v{ "Rozpocznij robote - typ roboty", {} };
     const auto& types = JobTypes();
     for ( size_t i = 0; i < types.size(); i++ ) v.items.push_back( { std::to_string( i ), types[i].name, "", true } );
@@ -290,7 +290,7 @@ namespace GOTHIC_NAMESPACE {
       if ( JobTypes()[idx].scan ) CtrlStartJob( idx, TraverseKind::Open, CalcMode::Auto );
       else if ( JobTypes()[idx].polygon ) CtrlOpenPolygonKindMenu( idx );
       else if ( JobTypes()[idx].gnss || JobTypes()[idx].tachy || JobTypes()[idx].aerial ) CtrlOpenTrueErrorMenu( idx ); else CtrlOpenKindMenu( idx );
-    } );
+    }, onBack );
   }
 
   inline void CtrlConfirmAbort() {                     // domyślnie „Nie”, żeby jeden Enter nie kasował roboty

@@ -72,9 +72,9 @@ Przy pierwszym uruchomieniu powstaje projekt `Luzem_<świat>`; zapisy stanu zrob
 **Ekran główny** pokazuje okruszki (projekt, świat, liczba punktów osnowy i pomiarów), wyróżnioną linię **DALEJ**, listę pomiarów ze stanem (`[x]` gotowy, `[~]` w toku, `[!]` przerwany, `[ ]` nowy),
 **+ Nowy pomiar…**, **Wyniki i raporty**, **Zamknij projekt**, **Projekty** (zmiana i zakładanie) oraz **Osnowa, mapa, teleport, poziomowanie**. Home otwiera ostatnio używany projekt (pamięć w `GothicSurveying/ustawienia.txt`, tam też ostatnia pozycja kursora).
 
-**Nowy pomiar** oferuje sześć **kreatorów** (gotowe ustawienia i tryb prowadzony): Pomierz osnowę (GNSS, tryb statyczny), Niwelacja ciągu A → B, Inwentaryzacja tachimetrem, Zeskanuj budynek (rejestracja na kulach),
+**Nowy pomiar** oferuje sześć **kreatorów** (gotowe ustawienia i tryb prowadzony): Pomierz osnowę (GNSS, statyka), Niwelacja ciągu A → B, Inwentaryzacja tachimetrem, Zeskanuj budynek (rejestracja na kulach),
 Nalot z drona (LiDAR, szeregi kalibracyjne) i Zdjęcia z drona. W **trybie prowadzonym** menu pokazuje tylko następny krok, „Pokaż wszystkie pozycje” i „Przerwij”; „Pokaż wszystkie” przełącza pomiar na pełne menu.
-Zamiast kreatora można wybrać rodzaj ręcznie (pełne menu). Dawna pozycja „Rozpocznij robotę” z opisów robót poniżej to teraz „+ Nowy pomiar…” → „Ręczny wybór rodzaju pomiaru…”.
+„+ Nowy pomiar…” otwiera dwa podmenu: **Wybierz konkretną robotę…** (wszystkie rodzaje pomiarów, pełny wybór ustawień, bez kreatora) i **Wybierz kreator…** (gotowe ustawienia). Dawna pozycja „Rozpocznij robotę” z opisów robót poniżej to teraz „+ Nowy pomiar…” → „Wybierz konkretną robotę…”.
 
 **Wyniki i raporty** wypisują pliki z folderów pomiarów (`GothicSurveying/<data>`, nazwy bez zmian) i otwierają folder w Eksploratorze. Raportów robót nie zastępuje nic nowego; **raport zbiorczy** powstaje dopiero przy **zamknięciu projektu**
 (potwierdzenie, domyślnie „Nie”): `projekt_raport.docx` i `projekt_raport.csv` w folderze projektu – lista pomiarów ze stanem i podsumowaniem oraz porównanie wysokości na wspólnych punktach
@@ -230,7 +230,7 @@ bez stanu albo z innego świata kończy bieżącą robotę jak dotąd (zmierzone
 
 ## Ciąg poligonowy
 
-„+ Nowy pomiar…” → „Ręczny wybór” → „Ciąg poligonowy” (potem rodzaj ciągu i pytanie o prawdziwy błąd). Pomiar odtwarza prawdziwą procedurę z przewodnika (`docs/przewodnik-pomiary-geodezyjne.pdf`, sekcja 5):
+„+ Nowy pomiar…” → „Wybierz konkretną robotę…” → „Ciąg poligonowy” (potem rodzaj ciągu i pytanie o prawdziwy błąd). Pomiar odtwarza prawdziwą procedurę z przewodnika (`docs/przewodnik-pomiary-geodezyjne.pdf`, sekcja 5):
 tachimetr stoi na kolejnych punktach ciągu, na każdym mierzysz **kąt poziomy lewy** między tyłem a przodem w **dwóch położeniach lunety** (KL i KP, średnia), a każdy bok jest mierzony **z obu końców**.
 Rodzaje: **nawiązany obustronnie** (N1, A … B, N2; kontrola kątowa i liniowa), **zamknięty** (poligon: punkt A i punkt orientacji N1, kontrola z samej figury; kierunek obchodu jest wykrywany, więc kąty lewe wewnętrzne i zewnętrzne liczą się poprawnie) i **wiszący** (bez kontroli, krótki).
 

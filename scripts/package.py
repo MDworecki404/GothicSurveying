@@ -10,7 +10,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = sys.argv[1] if len(sys.argv) > 1 else "0.13.0"
+VERSION = sys.argv[1] if len(sys.argv) > 1 else "0.13.1"
 BIN = ROOT / "out" / "install" / "x86-release" / "bin"
 
 README = r"""GothicSurveying v{version} - niwelacja geometryczna w Gothic II: Noc Kruka (plugin Union)
@@ -34,7 +34,7 @@ STEROWANIE
 - Projekty: projekt = praca na jednym swiecie (folder GothicSurveying\\projekty\\<nazwa>), w nim kolejne pomiary (takze kilka tego samego rodzaju). "+ Nowy pomiar..." ->
   jeden z 6 kreatorow (osnowa GNSS, niwelacja A-B, inwentaryzacja tachimetrem, skan budynku, nalot ALS, zdjecia z drona) albo wybor reczny rodzaju. "Wyniki i raporty" - pliki pomiarow
   i otwarcie folderu; "Zamknij projekt" tworzy raport zbiorczy (projekt_raport.docx/.csv) z porownaniem wysokosci. Stare zapisy stanu wznawiaja sie w projekcie "Luzem_<swiat>".
-- Rodzaj roboty ("Rozpocznij robote" w starych opisach ponizej = "+ Nowy pomiar..." -> "Reczny wybor"): ciag niwelacyjny -> rodzaj ciagu (dowiazany/zamkniety/otwarty) -> tryb liczenia dziennika.
+- Rodzaj roboty ("Rozpocznij robote" w starych opisach ponizej = "+ Nowy pomiar..." -> "Wybierz konkretna robote..."): ciag niwelacyjny -> rodzaj ciagu (dowiazany/zamkniety/otwarty) -> tryb liczenia dziennika.
 - Sprzet staje pod stopami bohatera. Kroki: reper A, niwelator, lata wstecz, odczyt, lata wprzod, odczyt,
   "Przeloz na nastepne stanowisko", ..., punkt koncowy, "Zakoncz robote".
 - F10: widok przez lunete (strzalki - obrot, Shift - tryb dokladny, Enter - odczyt; wpisz odczyt
@@ -55,7 +55,7 @@ STEROWANIE
   "Wyrownaj szeregi i skalibruj boresight" (lot_wyrownany.las, lot_wyrownanie.txt; opcja planu "Szeregi kalibracyjne" poprawia pitch/yaw) oraz "Produkty z chmury" (klasyfikacja,
   NMT/NMPT, warstwice CSV/DXF, objetosci w podfolderze produkty). Zaznaczajac obszar na mapie obracasz prostokat klawiszami PgUp/PgDn.
 - Mapa osnowy z gry: raz uruchom NARZEDZIA\make_game_maps.py "<katalog gry>" (Python 3) - wyciaga pergaminy map swiatow z archiwow gry; bez tego dziala mapa wygenerowana (kolorowa).
-- Ciag poligonowy: "+ Nowy pomiar..." -> "Reczny wybor" -> "Ciag poligonowy" (nawiazany obustronnie / zamkniety / wiszacy); nawiazania z osnowy, punkty ciagu zakladasz sam, na kazdym punkcie tachimetr i lustro (tyl, przod) w KL i KP,
+- Ciag poligonowy: "+ Nowy pomiar..." -> "Wybierz konkretna robote..." -> "Ciag poligonowy" (nawiazany obustronnie / zamkniety / wiszacy); nawiazania z osnowy, punkty ciagu zakladasz sam, na kazdym punkcie tachimetr i lustro (tyl, przod) w KL i KP,
   F10 luneta, K przerzut; "Podglad rachunku" pokazuje odchylki (limity: zalozenie symulatora), wynik: pomiar_poligonowy.csv i .docx w folderze roboty.
 - Fotogrametria lotnicza: "Rozpocznij robote" -> "Fotogrametria lotnicza"; ten sam nalot co ALS, ale kamera: zdjecia PNG (folder zdjecia), zdjecia.csv (GNSS/IMU), wyrownanie wiazki z osnowa (fotogrametria_raport.txt); po locie menu "Ortofotomapa ze zdjec" (ortofotomapa.png + .pgw).
 - Kolory skanera: raz uruchom NARZEDZIA\make_texture_colors.py "<katalog gry>" (Python 3; ok. 20 s) - tworzy GothicSurveying\texcolors.bin z miniaturek tekstur gry. Bez niego punkty maja kolory zapasowe/szare.

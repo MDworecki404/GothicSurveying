@@ -107,6 +107,6 @@ inline Next ProjectNext(const Project& p, const Next& activeJobNext) {
     if (step.compare(0, pre.size(), pre) == 0) step = step.substr(pre.size());
     return { "continue", "DALEJ: Kontynuuj " + r->name + (step.empty() ? "" : " - " + step) };
   }
-  if (p.items.empty()) return { "new", "DALEJ: Nowy pomiar (kreator)" };
+  if (p.items.empty()) return { "new", "DALEJ: Nowy pomiar (robota albo kreator)" };
   return { "new", "DALEJ: Nowy pomiar albo zamknij projekt" };
 }
