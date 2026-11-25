@@ -104,6 +104,27 @@ namespace GOTHIC_NAMESPACE {
     return dir;
   }
 
+  // Ciag poligonowy: przerwana robota / zmiana swiata zapisuje ukonczone stanowiska do nowego folderu; "" gdy nie bylo czego zapisac.
+  inline std::string CtrlSavePartialPolygon( const PolygonReport& part ) {
+    if ( part.stations.empty() && !FileExistsRel( gReadingLog ) ) return "";
+    const std::string dir = MakeJobDir();
+    if ( !part.stations.empty() ) ExportPolygon( part, dir, true );
+    MoveReadingLog( gReadingLog, dir );
+    return dir;
+  }
+
+  inline void CtrlFinishPolygon() {
+    const PolygonReport r = gJob->FinishPolygon( true );
+    gJobDir = MakeJobDir();
+    MoveReadingLog( gReadingLog, gJobDir );
+    const bool ok = ExportPolygon( r, gJobDir, false );
+    const std::vector<std::string> lines = PolygonSummaryLines( r );
+    TextPanelShow( "Ciag poligonowy - podsumowanie", lines, ok ? "Zapisano w folderze: " + gJobDir : "BLAD ZAPISU plikow raportu" );
+    SvTrace( "Ciag poligonowy zakonczony" );
+    CtrlMarkEnd( MeasState::Done, gJobDir, lines.size() > 1 ? lines[1] : CtrlFirst( lines ) );
+    CtrlEndJob();
+  }
+
   inline void CtrlFinishTachy() {
     const TachyReport r = gJob->FinishTachy( true );
     gJobDir = MakeJobDir();
@@ -180,6 +201,7 @@ namespace GOTHIC_NAMESPACE {
     if ( !gJob ) return;
     if ( gJob->Kind() == JobKind::Gnss ) { CtrlFinishGnss(); return; }
     if ( gJob->Kind() == JobKind::Tachy ) { CtrlFinishTachy(); return; }
+    if ( gJob->Kind() == JobKind::Polygon ) { CtrlFinishPolygon(); return; }
     if ( gJob->Kind() == JobKind::Scan ) { TextPanelShow( "Skaner laserowy - podsumowanie", gJob->SummaryLines(), "Pliki .pts i .las w folderze GothicSurveying" ); SvTrace( "Skaner zakonczony" ); CtrlMarkEnd( MeasState::Done, gJob->ResultDir(), CtrlFirst( gJob->SummaryLines() ) ); CtrlEndJob(); return; }
     if ( gJob->Kind() == JobKind::Aerial || gJob->Kind() == JobKind::Photo ) { TextPanelShow( gJob->Name() + " - podsumowanie", gJob->SummaryLines(), gJob->Kind() == JobKind::Photo ? "Zdjecia PNG, zdjecia.csv i raport wyrownania wiazki w folderze GothicSurveying (..._lot)" : "Pliki LAS, PTS, trajektoria i opis lotu w folderze GothicSurveying (..._lot)" ); SvTrace( "Robota lotnicza zakonczona" ); CtrlMarkEnd( MeasState::Done, gJob->ResultDir(), CtrlFirst( gJob->SummaryLines() ) ); CtrlEndJob(); return; }
     FieldBook fb = gJob->Finish( true );
@@ -243,10 +265,19 @@ namespace GOTHIC_NAMESPACE {
     } );
   }
 
-  inline void CtrlOpenTrueErrorMenu( int typeIdx ) {   // opcja robót GNSS: pokaz prawdziwy błąd względem punktu w grze
+  inline void CtrlOpenTrueErrorMenu( int typeIdx, TraverseKind kind = TraverseKind::Open ) {   // opcja robót GNSS: pokaz prawdziwy błąd względem punktu w grze
     MenuView v{ "Pokazywac prawdziwy blad po pomiarze?", { { "no", "Nie (tylko wynik odbiornika)", "", true },
                                                            { "yes", "Tak (blad wzgledem punktu w grze)", "", true } } };
-    MenuOpen( v, [typeIdx]( const std::string& id ) { CtrlStartJob( typeIdx, TraverseKind::Open, CalcMode::Auto, id == "yes" ); } );
+    MenuOpen( v, [typeIdx, kind]( const std::string& id ) { CtrlStartJob( typeIdx, kind, CalcMode::Auto, id == "yes" ); } );
+  }
+
+  inline void CtrlOpenPolygonKindMenu( int typeIdx ) {  // rodzaj ciagu poligonowego, potem pytanie o prawdziwy blad
+    MenuView v{ "Rodzaj ciagu poligonowego", { { "anchored", "Ciag nawiazany obustronnie (N1, A ... B, N2)", "kontrola katowa i liniowa; potrzebne 4 punkty osnowy", true },
+                                               { "closed", "Poligon zamkniety (z A do A)", "kontrola z samej figury; punkt A i N1 z osnowy", true },
+                                               { "open", "Ciag wiszacy (jednostronnie nawiazany)", "bez kontroli: krotki, tylko do sprawdzenia", true } } };
+    MenuOpen( v, [typeIdx]( const std::string& id ) {
+      CtrlOpenTrueErrorMenu( typeIdx, id == "anchored" ? TraverseKind::Anchored : id == "closed" ? TraverseKind::Closed : TraverseKind::Open );
+    } );
   }
 
   inline void CtrlOpenStartMenu() {
@@ -256,6 +287,7 @@ namespace GOTHIC_NAMESPACE {
     MenuOpen( v, []( const std::string& id ) {
       const int idx = std::stoi( id );
       if ( JobTypes()[idx].scan ) CtrlStartJob( idx, TraverseKind::Open, CalcMode::Auto );
+      else if ( JobTypes()[idx].polygon ) CtrlOpenPolygonKindMenu( idx );
       else if ( JobTypes()[idx].gnss || JobTypes()[idx].tachy || JobTypes()[idx].aerial ) CtrlOpenTrueErrorMenu( idx ); else CtrlOpenKindMenu( idx );
     } );
   }
@@ -266,7 +298,8 @@ namespace GOTHIC_NAMESPACE {
               []( const std::string& id ) {
       if ( id != "yes" || !gJob ) return;
       const std::string dir = gJob->Kind() == JobKind::Gnss ? CtrlSavePartialGnss( gJob->FinishGnss( false ) )
-                            : gJob->Kind() == JobKind::Tachy ? CtrlSavePartialTachy( gJob->FinishTachy( false ) ) : CtrlSavePartial( gJob->Finish( false ) );
+                            : gJob->Kind() == JobKind::Tachy ? CtrlSavePartialTachy( gJob->FinishTachy( false ) )
+                            : gJob->Kind() == JobKind::Polygon ? CtrlSavePartialPolygon( gJob->FinishPolygon( false ) ) : CtrlSavePartial( gJob->Finish( false ) );
       HudMessage( dir.empty() ? "Robota przerwana" : ( "Robota przerwana, zapisano w folderze: " + dir ).c_str() );
       CtrlMarkEnd( MeasState::Aborted, dir.empty() ? gJob->ResultDir() : dir, "" );
       CtrlEndJob();
@@ -277,10 +310,12 @@ namespace GOTHIC_NAMESPACE {
   inline void CtrlOpenChoice( const std::string& menuId ) {
     std::vector<MenuItem> items = gJob->TachyChoices( menuId );
     if ( items.empty() ) {
+      if ( menuId.compare( 0, 4, "ref_" ) == 0 ) { HudMessage( "Brak wolnych punktow osnowy w tym swiecie (zaladuj osnowe albo zaloz punkty w robocie GNSS)" ); return; }
       HudMessage( menuId == "station" ? "Brak punktu osnowy w promieniu 2 m od ciebie" : menuId == "stake" ? "Brak punktow osnowy 3-300 m od stanowiska do wytyczenia" : "Brak wolnych punktow osnowy 3-300 m od stanowiska" );
       return;
     }
-    MenuOpen( MenuView{ menuId == "station" ? "Wybierz punkt osnowy na stanowisko" : menuId == "stake" ? "Wybierz punkt osnowy do wytyczenia" : "Wybierz punkt osnowy na nawiazanie", items },
+    MenuOpen( MenuView{ menuId == "redo" ? "Wybierz stanowisko do powtorzenia" : menuId == "ref_n1" ? "Wybierz nawiazanie poczatkowe N1" : menuId == "ref_a" ? "Wybierz pierwszy punkt ciagu A" : menuId == "ref_b" ? "Wybierz ostatni punkt ciagu B" : menuId == "ref_n2" ? "Wybierz nawiazanie koncowe N2" :
+                        menuId == "station" ? "Wybierz punkt osnowy na stanowisko" : menuId == "stake" ? "Wybierz punkt osnowy do wytyczenia" : "Wybierz punkt osnowy na nawiazanie", items },
               []( const std::string& id ) { if ( gJob ) gJob->OnMenu( id ); } );
   }
 
@@ -535,6 +570,7 @@ namespace GOTHIC_NAMESPACE {
         std::string dir;
         if ( gJob->Kind() == JobKind::Gnss ) dir = CtrlSavePartialGnss( gJob->FinishGnss( false ) );
         else if ( gJob->Kind() == JobKind::Tachy ) dir = CtrlSavePartialTachy( gJob->FinishTachy( false ) );
+        else if ( gJob->Kind() == JobKind::Polygon ) dir = CtrlSavePartialPolygon( gJob->FinishPolygon( false ) );
         else dir = CtrlSavePartial( gJob->Finish( false ) );
         CtrlMarkEnd( MeasState::Aborted, dir.empty() ? gJob->ResultDir() : dir, "" );
       }
@@ -569,9 +605,9 @@ namespace GOTHIC_NAMESPACE {
     if ( MenuIsOpen() ) { MenuTick(); return; }
     if ( zinput->KeyToggled( LV_KEY_MENU ) ) { CtrlOpenMenu(); return; }
     if ( gJob && gJob->Kind() == JobKind::Leveling && zinput->KeyToggled( LV_KEY_SCOPE ) ) CtrlEnterScope();
-    if ( gJob && gJob->Kind() == JobKind::Tachy && zinput->KeyToggled( LV_KEY_SCOPE ) ) {
+    if ( gJob && ( gJob->Kind() == JobKind::Tachy || gJob->Kind() == JobKind::Polygon ) && zinput->KeyToggled( LV_KEY_SCOPE ) ) {
       bool canView = false; for ( const MenuItem& m : gJob->Menu() ) if ( m.id == "view" && m.enabled ) canView = true;
-      if ( canView ) { gJob->OnMenu( "view" ); CtrlEnterTachyView(); } else HudMessage( "Najpierw orientacja i tyczka z lustrem" );
+      if ( canView ) { gJob->OnMenu( "view" ); CtrlEnterTachyView(); } else HudMessage( gJob->Kind() == JobKind::Polygon ? "Najpierw tachimetr i lustro (menu)" : "Najpierw orientacja i tyczka z lustrem" );
     }
     CtrlUpdateJobHud();
     CtrlUpdateStatusPanel();

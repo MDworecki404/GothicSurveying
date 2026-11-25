@@ -4,6 +4,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include "job/Jobs.hpp"
 #include "job/PolygonJob.hpp"
 
 static bool has(const std::string& s, const std::string& part) { return s.find(part) != std::string::npos; }
@@ -71,6 +72,7 @@ static double LeftAngle(const GridPos& st, const GridPos& back, const GridPos& f
 }
 
 static void registry_and_kind() {
+  { bool found = false; for (const JobType& t : JobTypes()) if (t.id == "polygon") found = t.polygon && !t.gnss && !t.tachy && !t.aerial && t.name.find("poligonowy") != std::string::npos; assert(found); }
   Fx f(TraverseKind::Anchored);
   assert(f.job->Kind() == JobKind::Polygon && f.job->Name().find("poligonowy") != std::string::npos && !f.job->CanFinish());
 }

@@ -118,12 +118,12 @@ static void all_done_recommends_new_or_close() {
 static void closed_project_recommends_reopen() { Project p = Proj(); p.closed = true; assert(ProjectNext(p, Next{}).id == "reopen"); }
 
 static void help_has_lines_for_every_context() {
-  for (const char* c : {"home", "job:leveling", "job:gnss", "job:tachy", "job:scan", "job:aerial", "job:photo", "map"}) {
+  for (const char* c : {"home", "job:leveling", "job:gnss", "job:tachy", "job:scan", "job:aerial", "job:photo", "job:polygon", "map"}) {
     const auto h = HelpLines(c); assert(h.size() >= 3);
     for (const std::string& l : h) { assert(l.size() <= 88); for (unsigned char ch : l) assert(ch < 128); }
   }
   assert(HelpLines("nieznany").size() >= 1);                       // nieznany kontekst: pomoc ogolna, nigdy pusto
-  assert(HelpContextFor(JobKind::Photo) == "job:photo" && HelpContextFor(JobKind::Leveling) == "job:leveling");
+  assert(HelpContextFor(JobKind::Polygon) == "job:polygon" && HelpContextFor(JobKind::Photo) == "job:photo" && HelpContextFor(JobKind::Leveling) == "job:leveling");
 }
 
 static void guided_items_include_finish_and_end_of_traverse() {
@@ -137,10 +137,19 @@ static void guided_items_include_finish_and_end_of_traverse() {
   assert(ids(GuidedItems(items, "finish")) == "level,showall,abort,");                                           // niedostepny krok nie jest dublowany ani dodawany
 }
 
+static void guided_keeps_addpt_next_to_inst_and_prism_items_in_prep() {
+  std::vector<MenuItem> items = { {"addpt", "Punkt", "", true}, {"inst", "Tachimetr", "", true}, {"finish", "Zakoncz", "", false}, {"abort", "Przerwij", "", true} };
+  auto ids = [](const std::vector<MenuItem>& v) { std::string s; for (auto& m : v) s += m.id + ","; return s; };
+  assert(ids(GuidedItems(items, "inst")) == "inst,addpt,showall,abort,");                                    // kolejne punkty ciagu mozna dodac w trybie prowadzonym
+  assert(ids(GuidedItems(items, "addpt")) == "addpt,showall,abort,");
+  const auto out = Arrange(JobKind::Polygon, { {"calc", "Podglad", "x", true}, {"prism_fore", "P", "x", true}, {"redo", "R", "x", true}, {"ref_a", "A", "x", true}, {"abort", "Przerwij", "", true}, {"finish", "K", "x", true}, {"prism_back", "T", "x", true}, {"ref_n1", "N1", "x", true} });
+  assert(ids(out) == "ref_n1,ref_a,prism_back,prism_fore,redo,calc,finish,abort,");
+}
+
 int main() {
   every_menu_id_has_a_section(); abort_is_last(); disabled_items_have_reason(); order_is_stable_across_kinds(); unknown_id_goes_to_advanced(); hint_becomes_reason_else_table();
   gnss_prefix_follows_base_item(); no_project_recommends_create(); running_measurement_recommends_continue_with_name(); empty_project_recommends_new();
-  all_done_recommends_new_or_close(); closed_project_recommends_reopen(); help_has_lines_for_every_context(); guided_items_include_finish_and_end_of_traverse();
+  all_done_recommends_new_or_close(); closed_project_recommends_reopen(); help_has_lines_for_every_context(); guided_items_include_finish_and_end_of_traverse(); guided_keeps_addpt_next_to_inst_and_prism_items_in_prep();
   FakeWorld w; (void)KindOf;
   std::puts("test_workflow OK");
   return 0;

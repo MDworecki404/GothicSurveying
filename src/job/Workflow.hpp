@@ -27,18 +27,18 @@ struct Slot { const char* id; Section sec; };
 // Jedna wspolna tabela dla wszystkich robot: kolejnosc w tabeli = kolejnosc w sekcji; te same pozycje sa w tych samych miejscach.
 inline const std::vector<Slot>& Table() {
   static const std::vector<Slot> t = {
-    {"reper_a", Section::Prep}, {"src", Section::Prep}, {"station", Section::Prep}, {"newst", Section::Prep}, {"free", Section::Prep},
-    {"backsight", Section::Prep}, {"unback", Section::Prep}, {"prism", Section::Prep}, {"inst", Section::Prep}, {"instrument", Section::Prep},
+    {"reper_a", Section::Prep}, {"ref_n1", Section::Prep}, {"ref_a", Section::Prep}, {"ref_b", Section::Prep}, {"ref_n2", Section::Prep}, {"addpt", Section::Prep}, {"src", Section::Prep}, {"station", Section::Prep}, {"newst", Section::Prep}, {"free", Section::Prep},
+    {"backsight", Section::Prep}, {"unback", Section::Prep}, {"prism", Section::Prep}, {"prism_back", Section::Prep}, {"prism_fore", Section::Prep}, {"prism_n1", Section::Prep}, {"inst", Section::Prep}, {"instrument", Section::Prep},
     {"pole", Section::Prep}, {"fine", Section::Prep}, {"antenna", Section::Prep}, {"base", Section::Prep}, {"target", Section::Prep}, {"untarget", Section::Prep},
     {"area_here", Section::Prep}, {"area_ctrl", Section::Prep}, {"area_map", Section::Prep}, {"area_clear", Section::Prep}, {"plan_csv", Section::Prep}, {"cam", Section::Prep},
     {"agl", Section::Params}, {"speed", Section::Params}, {"sidelap", Section::Params}, {"preset", Section::Params}, {"res", Section::Params},
     {"fwd", Section::Params}, {"side", Section::Params}, {"rodlen", Section::Params}, {"lvl", Section::Params},
     {"rod_back", Section::Measure}, {"rod_fore_turn", Section::Measure}, {"rod_fore_end", Section::Measure}, {"move_next", Section::Measure},
-    {"obsadzka", Section::Measure}, {"redo_readings", Section::Measure}, {"meas", Section::Measure}, {"view", Section::Measure},
+    {"obsadzka", Section::Measure}, {"redo", Section::Measure}, {"redo_readings", Section::Measure}, {"meas", Section::Measure}, {"view", Section::Measure},
     {"stake", Section::Measure}, {"unstake", Section::Measure}, {"start", Section::Measure}, {"store", Section::Measure}, {"control", Section::Measure},
     {"discard", Section::Measure}, {"scan", Section::Measure}, {"launch", Section::Measure}, {"cancel", Section::Measure}, {"scope", Section::Measure},
     {"level", Section::Measure}, {"camera", Section::Measure},
-    {"adjust", Section::Results}, {"adjust_cancel", Section::Results}, {"products", Section::Results}, {"products_cancel", Section::Results},
+    {"adjust", Section::Results}, {"adjust_cancel", Section::Results}, {"products", Section::Results}, {"products_cancel", Section::Results}, {"calc", Section::Results},
     {"ortho", Section::Results}, {"ortho_cancel", Section::Results}, {"finish", Section::Results},
     {"preview", Section::Tools}, {"map", Section::Tools}, {"tp", Section::Tools},
     {"corr", Section::Advanced}, {"mode", Section::Advanced}, {"prismh", Section::Advanced}, {"faces", Section::Advanced}, {"rgb", Section::Advanced},
@@ -84,6 +84,7 @@ inline std::vector<MenuItem> GuidedItems(const std::vector<MenuItem>& items, con
   };
   add(nextId);
   if (nextId == "rod_fore_turn") add("rod_fore_end");
+  if (nextId == "inst" || nextId == "addpt") add("addpt");                    // ciag poligonowy: kolejne punkty ciagu
   add("level"); add("finish");
   { MenuItem it{ "showall", "Pokaz wszystkie pozycje (tryb zaawansowany)", "wylacza tryb prowadzony dla tego pomiaru", true }; it.section = "Pozostale"; g.push_back(it); }
   for (const MenuItem& m : items) if (m.id == "abort") g.push_back(m);

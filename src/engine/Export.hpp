@@ -83,6 +83,15 @@ namespace GOTHIC_NAMESPACE {
     return ok;
   }
 
+  // Raport ciagu poligonowego: pomiar_poligonowy.csv + .docx; aborted: tylko pomiar_poligonowy_przerwany.csv.
+  inline bool ExportPolygon( PolygonReport r, const std::string& dir, bool aborted ) {
+    r.dateText = DateTodayText();
+    if ( aborted ) return WriteBytes( dir + "/pomiar_poligonowy_przerwany.csv", PolygonCsv( r ) );
+    bool ok = WriteBytes( dir + "/pomiar_poligonowy.csv", PolygonCsv( r ) );
+    ok = WriteBytes( dir + "/pomiar_poligonowy.docx", PolygonDocx( r ) ) && ok;
+    return ok;
+  }
+
   // Raport GNSS: pomiar_gnss.csv + pomiar_gnss.docx; aborted: tylko pomiar_gnss_przerwany.csv.
   inline bool ExportGnss( GnssReport r, const std::string& dir, bool aborted ) {
     r.dateText = DateTodayText();

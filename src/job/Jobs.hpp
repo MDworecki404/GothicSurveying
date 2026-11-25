@@ -8,6 +8,7 @@
 #include "ScanJob.hpp"
 #include "AerialJob.hpp"
 #include "PhotoJob.hpp"
+#include "PolygonJob.hpp"
 
 inline const std::vector<JobType>& JobTypes() {
   static const std::vector<JobType> types = {
@@ -18,6 +19,7 @@ inline const std::vector<JobType>& JobTypes() {
     {"scan", "Skaner laserowy", &CreateScanJob, false, false, true},
     {"aerial", "Skaning lotniczy z drona (ALS)", &CreateAerialJob, false, false, false, true},
     {"photo", "Fotogrametria lotnicza", &CreatePhotoJob, false, false, false, true},
+    {"polygon", "Ciag poligonowy", &CreatePolygonJob, false, false, false, false, true},
   };
   return types;
 }

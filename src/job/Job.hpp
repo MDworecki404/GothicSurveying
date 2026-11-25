@@ -116,4 +116,4 @@ class Job {
   virtual std::vector<MapLine> MapOverlay() const { return {}; }        // linie do narysowania na mapie osnowy (plan nalotu)
 };
 
-struct JobType { std::string id, name; std::unique_ptr<Job> (*create)(IWorld&, const JobOptions&); bool gnss = false, tachy = false, scan = false, aerial = false; };
+struct JobType { std::string id, name; std::unique_ptr<Job> (*create)(IWorld&, const JobOptions&); bool gnss = false, tachy = false, scan = false, aerial = false, polygon = false; };
