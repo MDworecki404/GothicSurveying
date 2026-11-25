@@ -228,6 +228,21 @@ kroki roboty, ustawienia (KL/KP, źródło współrzędnych, własna baza, staty
 Po **wczytaniu** takiego zapisu robota wraca w tym samym stanie, ze sprzętem na swoich miejscach (komunikat „Wznowiono robotę”). Zapis bez roboty usuwa stan tego slotu, a wczytanie zapisu
 bez stanu albo z innego świata kończy bieżącą robotę jak dotąd (zmierzone punkty trafiają do folderu „przerwana”). Wznowiona robota ma nowy dziennik bieżący (`odczyty_biezace.csv`) bez wcześniejszych odczytów; raport końcowy jest kompletny.
 
+## Ciąg poligonowy
+
+„+ Nowy pomiar…” → „Ręczny wybór” → „Ciąg poligonowy” (potem rodzaj ciągu i pytanie o prawdziwy błąd). Pomiar odtwarza prawdziwą procedurę z przewodnika (`docs/przewodnik-pomiary-geodezyjne.pdf`, sekcja 5):
+tachimetr stoi na kolejnych punktach ciągu, na każdym mierzysz **kąt poziomy lewy** między tyłem a przodem w **dwóch położeniach lunety** (KL i KP, średnia), a każdy bok jest mierzony **z obu końców**.
+Rodzaje: **nawiązany obustronnie** (N1, A … B, N2; kontrola kątowa i liniowa), **zamknięty** (poligon: punkt A i punkt orientacji N1, kontrola z samej figury; kierunek obchodu jest wykrywany, więc kąty lewe wewnętrzne i zewnętrzne liczą się poprawnie) i **wiszący** (bez kontroli, krótki).
+
+**Przebieg.** Nawiązania (N1, A, B, N2 zależnie od rodzaju) wybierasz z listy punktów osnowy (wzorcowe `G..` albo założone GNSS-em), punkty pośrednie zakładasz sam („Postaw punkt ciągu”, pod stopami, po kolei od A). Dla każdego stanowiska:
+„Postaw tachimetr na punkcie …” (staje dokładnie nad znakiem), „Postaw lustro z tyłu / z przodu” (jedno lustro przestawiasz z menu), w lunecie (F10) **Enter** na lustrze, **K** – przerzut lunety. Komplet to tył i przód w KL i w KP (kolejność dowolna; na punkcie A poligonu dodatkowo lustro na N1 do orientacji).
+Zły kąt poprawisz przez „Powtórz stanowisko” (przy kilku stanowiskach z listy), a **„Podgląd rachunku”** pokazuje odchyłki przed zakończeniem. „Zakończ i oblicz” tworzy raport.
+
+**Rachunek** (jak w przewodniku): `A(i,i+1) = A(i−1,i) + β − 200g`, `f_β = A_p + Σβ − n·200g − A_k`, `v_β = −f_β/n`, `f_x = X_A + ΣΔX − X_B`, poprawki liniowe proporcjonalnie do długości boków; w poligonie `Σβ = (n−2)·200g` (kąty wewnętrzne) albo `(n+2)·200g` (zewnętrzne), `f_x = ΣΔX`.
+**Limity odchyłek to założenie symulatora**, nie wartości z instrukcji: `f_β,dop = 2·m_β·√n` (m_β = 5″, szum kierunku tachimetru) oraz `f_d,dop` z błędów odległości (2 mm + 2 ppm, średnia z dwóch pomiarów) i z wpływu błędu kąta; raport mówi o tym wprost.
+Wyniki: `pomiar_poligonowy.csv` i `.docx` (dziennik kątów, boków, azymuty i przyrosty, współrzędne; opcja prawdziwego błędu dodaje `blad_N_m`, `blad_E_m`, `blad_2D_m`), przerwany: `pomiar_poligonowy_przerwany.csv`. Zapis gry w trakcie pomiaru wznawia go ze stanu.
+Ograniczenia: tylko sytuacja (bez wysokości), bez redukcji do układu odwzorowania i poprawki atmosferycznej, bez wyrównania ścisłego i punktów węzłowych; nawiązania muszą być punktami osnowy; pojedyncze obserwacje nie trafiają jeszcze do `odczyty_biezace.csv`.
+
 ## Skaner laserowy naziemny
 
 „Rozpocznij robotę” → „Skaner laserowy”. **Postaw skaner (stanowisko)** (pod stopami; stając przy znaku osnowy dziedziczy jego współrzędne GNSS, inaczej używa prawdziwych),
@@ -373,7 +388,7 @@ Opis przy decymetrze to jego numer od podstawy łaty (`14` = 1,40 m). Nieparzyst
 - `src/calc/` – czyste obliczenia bez silnika (testowane): `LevelMath.hpp` (odczyt, dalmierz), `Traverse.hpp` (przewyższenia, fh, poprawki, wysokości),
   `FieldBook.hpp` (dziennik + CSV), `Docx.hpp` (zapis DOCX), `ManualCheck.hpp` (sprawdzanie trybu samodzielnego).
 - `src/calc/` (lotnictwo): `Flight.hpp` (plan nalotu), `Georef.hpp` (trajektoria, błędy GNSS/IMU, georeferencja), `AlsLas.hpp` (LAS 1.2 format 3, PTS, kontrole szeregów i osnowy).
-- `src/job/` – interfejs `Job`/`IWorld` i automat ciągu niwelacyjnego (bez silnika, testowany sztucznym światem); nowe roboty rejestruje się w `Jobs.hpp`. Prowadzenie w menu: `Workflow.hpp` (sekcje, powody niedostępności, DALEJ), `MenuLayout.hpp` (układ wierszy i przewijanie), `Wizards.hpp` (kreatory), `Help.hpp` (F1).
+- `src/job/` – interfejs `Job`/`IWorld` i automat ciągu niwelacyjnego (bez silnika, testowany sztucznym światem); nowe roboty rejestruje się w `Jobs.hpp`. Prowadzenie w menu: `Workflow.hpp` (sekcje, powody niedostępności, DALEJ), `MenuLayout.hpp` (układ wierszy i przewijanie), `Wizards.hpp` (kreatory), `Help.hpp` (F1); `PolygonJob.hpp` i `calc/Polygon.hpp`, `calc/PolygonReport.hpp` – ciąg poligonowy.
 - `src/calc/Project.hpp`, `ProjectReport.hpp`, `UiSettings.hpp` – model projektu (manifest), raport zbiorczy z porównaniem wysokości i pamięć ustawień; `src/engine/ProjectState.hpp`, `ProjectUi.hpp` – ekran główny i zarządzanie projektami.
 - `src/engine/` – część zależna od Gothic API: panele, stawianie, luneta, menu, adapter `EngineWorld`, kontroler, eksport, podgląd i edytor dziennika.
 - `src/Plugin.hpp` – hook `zCWorld::Render` (pętla klatki), `userapi/zCWorld.inl` – deklaracja hooka.
@@ -389,7 +404,7 @@ Jeśli cyfry na łacie są w grze do góry nogami, ustaw `FLIP_V = True` w `asse
 ## Znane ograniczenia
 
 - Zapis gry w trakcie roboty zapisuje też stan roboty i sprzętu (patrz „Zapis gry w trakcie roboty”). Trwający pomiar punktu GNSS (sesja) i połowa pomiaru KL bez KP nie są zapisywane; zapisy zrobione wersją bez tej funkcji nie mają stanu.
-- Roboty: ciąg niwelacyjny, pomiar GNSS (RTK), tachimetria, niwelacja trygonometryczna (jeden odcinek naraz, bez wyrównania całego ciągu), skaner laserowy naziemny i skaning lotniczy z drona.
+- Roboty: ciąg niwelacyjny, pomiar GNSS (RTK), tachimetria, niwelacja trygonometryczna (jeden odcinek naraz, bez wyrównania całego ciągu), ciąg poligonowy (sytuacja, limity odchyłek jako założenie symulatora), skaner laserowy naziemny i skaning lotniczy z drona.
 - ALS: wyrównanie szeregów jest sztywne (przesunięcia E/N/H na szereg, bez poprawki dryfu wewnątrz szeregu i bez kalibracji ramienia dźwigni); pitch/yaw boresightu wymagają nachylonego terenu albo szeregów poprzecznych; pierwszy zwrot (bez wielokrotnych odbić); bez omijania przeszkód i ręcznego latania; trajektoria dojazdu po wznowieniu lotu nie jest zapisywana; kamera za dronem jest eksperymentalna (kamera gry może ją nadpisać); fotogrametria lotnicza to osobna, późniejsza faza.
 - Tachimetria: bez wcięcia w przód i bez wyrównania osnowy ani wspólnego wyrównania stanowisk.
 - Pomiar GNSS: poprawki z własnej bazy to model uproszczony (1 ppm + przesunięcie bazy), bez wielu baz i bez przetwarzania linii bazowych; statyka to pojedyncza sesja 120 epok.
