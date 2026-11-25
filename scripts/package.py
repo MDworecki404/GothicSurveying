@@ -10,7 +10,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = sys.argv[1] if len(sys.argv) > 1 else "0.12.0"
+VERSION = sys.argv[1] if len(sys.argv) > 1 else "0.13.0"
 BIN = ROOT / "out" / "install" / "x86-release" / "bin"
 
 README = r"""GothicSurveying v{version} - niwelacja geometryczna w Gothic II: Noc Kruka (plugin Union)
@@ -37,7 +37,7 @@ STEROWANIE
 - Rodzaj roboty ("Rozpocznij robote" w starych opisach ponizej = "+ Nowy pomiar..." -> "Reczny wybor"): ciag niwelacyjny -> rodzaj ciagu (dowiazany/zamkniety/otwarty) -> tryb liczenia dziennika.
 - Sprzet staje pod stopami bohatera. Kroki: reper A, niwelator, lata wstecz, odczyt, lata wprzod, odczyt,
   "Przeloz na nastepne stanowisko", ..., punkt koncowy, "Zakoncz robote".
-- F10: widok przez lunete (strzalki - obrot, Shift - powoli, Enter - odczyt; wpisz odczyt
+- F10: widok przez lunete (strzalki - obrot, Shift - tryb dokladny, Enter - odczyt; wpisz odczyt
   srodkowej kreski w mm cyframi 0-9; dalmierz liczy sie sam; Z / X - obrot na late wstecz / wprzod).
 - Osnowa GNSS: w robocie GNSS "Zaloz punkt osnowy" (fix, 20 epok) zapisuje punkt do GothicSurveying\\osnowa.csv i stawia znak; "Pokaz osnowe" w menu glownym.
   Tachimetria moze stac na punktach osnowy, do 5 nawiazan, orientacja ze sredniej, odchylki kontrolne w dzienniku.
@@ -60,9 +60,10 @@ STEROWANIE
 - Fotogrametria lotnicza: "Rozpocznij robote" -> "Fotogrametria lotnicza"; ten sam nalot co ALS, ale kamera: zdjecia PNG (folder zdjecia), zdjecia.csv (GNSS/IMU), wyrownanie wiazki z osnowa (fotogrametria_raport.txt); po locie menu "Ortofotomapa ze zdjec" (ortofotomapa.png + .pgw).
 - Kolory skanera: raz uruchom NARZEDZIA\make_texture_colors.py "<katalog gry>" (Python 3; ok. 20 s) - tworzy GothicSurveying\texcolors.bin z miniaturek tekstur gry. Bez niego punkty maja kolory zapasowe/szare.
 - Osnowa swiata: "Zaladuj osnowe geodezyjna swiata" (wzorcowe punkty G.. dla Khorinis, Doliny Gornickiej i Jarkendaru), "Mapa osnowy" (mapa swiata z punktami),
-  "Teleport do punktu osnowy". Pomiar GNSS: wlasna baza (poprawki RTK) i pomiar statyczny.
+  "Teleport do punktu osnowy". Pomiar GNSS: poprawki z sieci albo wlasna baza (RTK).
 - Pomiar GNSS (RTK): "Rozpocznij robote" -> "Pomiar GNSS (RTK)"; tyczka z odbiornikiem, panel w lewym gornym rogu,
   "Zapisz punkt" po fixie; wynik: pomiar_gnss.csv i pomiar_gnss.docx w folderze roboty.
+- Statyka GNSS (osnowa): osobna robota "Statyka GNSS (osnowa)"; odbiornik (i opcjonalna baza) na statywie, poprawki z sieci albo wlasna baza, sesja co najmniej 30 min (1 s gry = 1 min), "Zaloz punkt osnowy" po fixie. Punkty osnowy zaklada sie tylko stad.
 - Wynik: tabela w grze oraz pliki dziennik.docx, dziennik.csv i odczyty.csv w folderze
   GothicSurveying\RRRR-MM-DD_GG-MM-SS (czas zakonczenia roboty) w katalogu gry (przerwana robota: dziennik_przerwany.csv).
 
