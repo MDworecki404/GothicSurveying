@@ -59,6 +59,7 @@ inline std::vector<std::string> HelpLines(const std::string& context) {
   else if (context == "job:polygon") extra = {
     "Kolejnosc: nawiazania z osnowy, punkty ciagu, tachimetr i lustro na kazdym punkcie.",
     "Stanowisko: lustro tyl i przod w KL, przerzut " LV_KEYNAME_FLIP ", to samo w KP. Boki z obu koncow.",
+    "Ciag nawiazany w limitach: Zapisz punkty ciagu jako osnowe (poligonizacja).",
     "Podglad rachunku pokazuje odchylki; Powtorz stanowisko poprawia zly kat.",
   };
   else if (context == "map") extra = {

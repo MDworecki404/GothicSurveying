@@ -49,8 +49,8 @@ class PolygonJob : public Job {
     ref("ref_n1", kind_ == TraverseKind::Closed ? "punkt orientacji N1" : "nawiazanie poczatkowe N1", n1_, hasN1_);
     ref("ref_a", "pierwszy punkt ciagu A", a_, hasA_);
     if (anch) { ref("ref_b", "ostatni punkt ciagu B", b_, hasB_); ref("ref_n2", "nawiazanie koncowe N2", n2_, hasN2_); }
-    m.push_back({"addpt", "Postaw punkt ciagu (pod stopami)", "najpierw nawiazania; punkty zakladasz po kolei od A, takze w trakcie pomiaru (nie po stanowisku, ktorego bok by sie zmienil)", hasA_ && CanAdd() && mid_.size() < kMaxMid && (!anch || (hasB_ && hasN2_))});
-    m.push_back({"delpt", mid_.empty() ? "Usun ostatni punkt ciagu" : "Usun ostatni punkt ciagu (" + mid_.back().name + ")", "brak punktow ciagu; nie po zmierzeniu stanowiska, ktorego bok by sie zmienil; punkty osnowy zostaja", !mid_.empty() && CanDel()});
+    m.push_back({"addpt", "Postaw punkt ciagu (pod stopami)", "najpierw nawiazania; punkty zakladasz po kolei od A, takze w trakcie pomiaru (nie po stanowisku, ktorego bok by sie zmienil)", hasA_ && !ctlSaved_ && CanAdd() && mid_.size() < kMaxMid && (!anch || (hasB_ && hasN2_))});
+    m.push_back({"delpt", mid_.empty() ? "Usun ostatni punkt ciagu" : "Usun ostatni punkt ciagu (" + mid_.back().name + ")", "brak punktow ciagu; nie po zmierzeniu stanowiska, ktorego bok by sie zmienil; punkty osnowy zostaja", !mid_.empty() && !ctlSaved_ && CanDel()});
     const int cur = Cur(), S = SCount();
     const std::string curName = ready && cur < S ? Seq()[cur].name : "?";
     m.push_back({"inst", instUp_ ? "Przestaw tachimetr na punkcie " + curName : "Postaw tachimetr na punkcie " + curName, "najpierw nawiazania i punkty ciagu; nie po zmierzeniu wszystkich stanowisk", ready && cur < S});
@@ -65,7 +65,8 @@ class PolygonJob : public Job {
     char ph[64]; std::snprintf(ph, sizeof ph, "Wysokosc lustra: %.3f m (zmien)", kPrism[prismIdx_]);
     m.push_back({"prismh", ph, "najpierw nawiazania", ready});
     m.push_back({"view", "Patrz przez lunete (" LV_KEYNAME_SCOPE ")", "najpierw tachimetr i lustro na swoich punktach", instUp_ && prismUp_});
-    m.push_back({"redo", "Powtorz stanowisko", "brak zmierzonych stanowisk", AnyObs()});
+    m.push_back({"redo", "Powtorz stanowisko", "brak zmierzonych stanowisk", AnyObs() && !ctlSaved_});
+    m.push_back({"savectl", ctlSaved_ ? "Punkty ciagu zapisane jako osnowa" : "Zapisz punkty ciagu jako osnowe", "ciag nawiazany obustronnie po zmierzeniu wszystkich stanowisk, z odchylkami w limitach; nie zapisano jeszcze", CanSaveControl()});
     m.push_back({"calc", "Podglad rachunku (odchylki)", "po zmierzeniu wszystkich stanowisk", AllDone()});
     m.push_back({"finish", "Zakoncz i oblicz", "po zmierzeniu wszystkich stanowisk", AllDone()});
     return m;
@@ -84,6 +85,8 @@ class PolygonJob : public Job {
       if (!w_.PlaceMarker(mk, MarkerKind::Turning)) { w_.Say("Brak gruntu pod stopami"); return; }
       Pt p; p.name = std::to_string(mk); p.marker = mk; p.truth = g; mid_.push_back(p); Sync();
       char b[80]; std::snprintf(b, sizeof b, "Punkt ciagu %s zalozony", p.name.c_str()); w_.Say(b);
+    } else if (base == "savectl") {
+      SaveControl();
     } else if (base == "delpt") {
       w_.RemoveMarker(mid_.back().marker);
       w_.Say("Punkt ciagu " + mid_.back().name + " usuniety");
@@ -206,7 +209,7 @@ class PolygonJob : public Job {
       s.Bool(k + ".has", o.has); if (o.has) { s.Num(k + ".hz", o.hz); s.Num(k + ".v", o.v); s.Num(k + ".d", o.slope); }
     }
     s.Bool("instUp", instUp_); s.Bool("prismUp", prismUp_); s.Int("role", prismRole_); s.Int("pkind", prismKind_); s.Int("face", face_); s.Int("prismIdx", prismIdx_);
-    s.Num("coll", collGon_); s.Num("index", indexGon_); s.Num("az0", az0Deg_); s.Bool("previewed", previewed_); s.Num("lib.x", lib_.x); s.Num("lib.y", lib_.y);
+    s.Num("coll", collGon_); s.Num("index", indexGon_); s.Num("az0", az0Deg_); s.Bool("previewed", previewed_); s.Bool("ctlSaved", ctlSaved_); s.Num("lib.x", lib_.x); s.Num("lib.y", lib_.y);
   }
   bool LoadState(const StateKV& s) override {
     if (s.GetInt("kind", -1) != (int)kind_) return false;
@@ -219,7 +222,7 @@ class PolygonJob : public Job {
       o.has = s.GetBool(k + ".has"); if (o.has) { o.hz = s.GetNum(k + ".hz"); o.v = s.GetNum(k + ".v"); o.slope = s.GetNum(k + ".d"); }
     }
     instUp_ = s.GetBool("instUp"); prismUp_ = s.GetBool("prismUp"); prismRole_ = (std::min)(2, (std::max)(-1, s.GetInt("role", -1))); prismKind_ = s.GetInt("pkind"); face_ = s.GetInt("face", 1) == 2 ? 2 : 1;
-    prismIdx_ = ((s.GetInt("prismIdx") % kPrismCount) + kPrismCount) % kPrismCount; collGon_ = s.GetNum("coll"); indexGon_ = s.GetNum("index"); az0Deg_ = s.GetNum("az0"); previewed_ = s.GetBool("previewed");
+    prismIdx_ = ((s.GetInt("prismIdx") % kPrismCount) + kPrismCount) % kPrismCount; collGon_ = s.GetNum("coll"); indexGon_ = s.GetNum("index"); az0Deg_ = s.GetNum("az0"); previewed_ = s.GetBool("previewed"); ctlSaved_ = s.GetBool("ctlSaved");
     lib_.x = s.GetNum("lib.x"); lib_.y = s.GetNum("lib.y"); lastMsg_.clear();
     w_.SetPrismHeightM(kPrism[prismIdx_]);
     return true;
@@ -269,6 +272,51 @@ class PolygonJob : public Job {
       Sync(); return;
     }
     w_.Say("Brak takiego punktu osnowy");
+  }
+
+  // Przewyzszenie boku i->i+1 z pomiaru zenitalnego z obu koncow (srednia: krzywizna i refrakcja redukuja sie) [m]; false = brak pomiaru.
+  bool SideDh(int i, double& dh) const {
+    const double ph = kPrism[prismIdx_]; double f = 0, b = 0; bool hf = false, hb = false;
+    auto one = [&](int st, int role, double& out) {
+      if (st < 0 || st >= SCount() || !stn_[st].o[role][0].has || !stn_[st].o[role][1].has) return false;
+      const Obs &k = stn_[st].o[role][0], &p = stn_[st].o[role][1];
+      const TachyFaceMean m = TachyCombineFaces({k.hz, k.v, k.slope}, {p.hz, p.v, p.slope});
+      out = TrigHeightDiffM(m.r.slopeM, m.r.vGon, kInstrH, ph); return true;
+    };
+    hf = one(i, 1, f); hb = one(i + 1, 0, b);
+    if (!hf && !hb) return false;
+    dh = hf && hb ? (f - b) / 2.0 : hf ? f : -b; return true;
+  }
+  bool ControlResultOk(PolygonReport* out = nullptr) const {                // ciag nawiazany, komplet pomiarow, odchylki w limitach
+    if (kind_ != TraverseKind::Anchored || !AllDone()) return false;
+    const PolygonReport r = BuildReport(true);
+    if (out) *out = r;
+    return r.res.valid && r.res.angleOk && r.res.linearOk;
+  }
+  bool CanSaveControl() const { return !ctlSaved_ && !mid_.empty() && ControlResultOk(); }
+  // Punkty pośrednie ciągu -> osnowa swiata: N, E z rachunku (wyrownane), H z przewyzszen (rozdzielone proporcjonalnie do dlugosci), polozenie znaku = prawdziwe.
+  void SaveControl() {
+    PolygonReport r; if (!ControlResultOk(&r)) { w_.Say("Ciag nie spelnia warunkow zapisu osnowy (odchylki albo niekompletny pomiar)"); return; }
+    const size_t np = mid_.size() + 2;                                         // A, punkty pośrednie, B
+    std::vector<double> dh(np - 1, 0.0), len(np - 1, 0.0); double sumDh = 0, sumLen = 0;
+    for (size_t i = 0; i + 1 < np; i++) {
+      if (!SideDh((int)i, dh[i])) { w_.Say("Brak pomiaru pionowego boku: wysokosci osnowy nie da sie policzyc"); return; }
+      len[i] = std::hypot(r.res.x[i + 1] - r.res.x[i], r.res.y[i + 1] - r.res.y[i]); sumDh += dh[i]; sumLen += len[i];
+    }
+    const double fh = a_.cp.h + sumDh - b_.cp.h;                               // odchylka wysokosciowa ciagu
+    std::string ids; double h = a_.cp.h, cum = 0;
+    for (size_t k = 0; k < mid_.size(); k++) {
+      h += dh[k]; cum += len[k]; const double hAdj = h - fh * cum / sumLen;
+      ControlPoint cp; cp.n = r.res.x[k + 1]; cp.e = r.res.y[k + 1]; cp.h = hAdj;
+      char sol[160]; std::snprintf(sol, sizeof sol, "poligonizacja (ciag nawiazany, f_beta %+.4f g, f_d %.3f m, f_h %+.1f mm)", r.res.fBetaGon, r.res.fd, fh * 1000.0); cp.solution = sol;
+      cp.timeText = w_.TimeText();
+      GnssFromGrid(mid_[k].truth, cp.x, cp.y, cp.z);                           // prawdziwe polozenie znaku w grze [cm]
+      const std::string id = w_.StoreControlPoint(cp);
+      if (id.empty()) { w_.Say("Blad zapisu osnowy (zapisano " + std::to_string(k) + " z " + std::to_string(mid_.size()) + ")"); ctlSaved_ = k > 0; return; }
+      w_.RemoveMarker(mid_[k].marker);                                         // znak osnowy zastepuje tymczasowy znak punktu ciagu
+      ids += (ids.empty() ? "" : ", ") + id;
+    }
+    ctlSaved_ = true; w_.Say("Zapisano jako osnowe: " + ids);
   }
 
   // Punkty ciagu mozna dokladac/usuwac w trakcie pomiaru, dopoki nie zmieni sie sasiad zmierzonego stanowiska.
@@ -349,7 +397,7 @@ class PolygonJob : public Job {
   Pt n1_, a_, b_, n2_; bool hasN1_ = false, hasA_ = false, hasB_ = false, hasN2_ = false;
   std::vector<Pt> mid_; std::vector<Stn> stn_;
   bool instUp_ = false, prismUp_ = false; int prismRole_ = -1, prismKind_ = 0, face_ = 1, prismIdx_ = 0;   // prismKind_: 0 brak, 1 tyczka na znaku, 2 lustro nawiazania (slot 1)
-  double collGon_ = 0, indexGon_ = 0, az0Deg_ = 0; bool previewed_ = false;
+  double collGon_ = 0, indexGon_ = 0, az0Deg_ = 0; bool previewed_ = false, ctlSaved_ = false;
   std::string lastMsg_;
 };
 

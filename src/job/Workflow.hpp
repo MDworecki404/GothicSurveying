@@ -38,7 +38,7 @@ inline const std::vector<Slot>& Table() {
     {"stake", Section::Measure}, {"unstake", Section::Measure}, {"start", Section::Measure}, {"store", Section::Measure}, {"control", Section::Measure},
     {"discard", Section::Measure}, {"scan", Section::Measure}, {"launch", Section::Measure}, {"cancel", Section::Measure}, {"scope", Section::Measure},
     {"level", Section::Measure}, {"camera", Section::Measure},
-    {"adjust", Section::Results}, {"adjust_cancel", Section::Results}, {"products", Section::Results}, {"products_cancel", Section::Results}, {"calc", Section::Results},
+    {"adjust", Section::Results}, {"adjust_cancel", Section::Results}, {"products", Section::Results}, {"products_cancel", Section::Results}, {"calc", Section::Results}, {"savectl", Section::Results},
     {"ortho", Section::Results}, {"ortho_cancel", Section::Results}, {"finish", Section::Results},
     {"preview", Section::Tools}, {"map", Section::Tools}, {"tp", Section::Tools},
     {"corr", Section::Advanced}, {"mode", Section::Advanced}, {"prismh", Section::Advanced}, {"faces", Section::Advanced}, {"rgb", Section::Advanced},

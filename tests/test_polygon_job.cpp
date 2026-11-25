@@ -15,6 +15,8 @@ struct FakePoly : IWorld {
   std::map<std::string, GridPos> controlTruth; std::vector<ControlPoint> controls;
   GridPos hero{0, 0, 100}, station{0, 0, 100}, pole{0, 0, 100}, bs{0, 0, 100}; bool heroOk = true, clear = true;
   std::map<int, GridPos> marker; std::vector<std::string> said, placed;
+  std::vector<ControlPoint> stored;
+  std::string StoreControlPoint(const ControlPoint& cp) override { stored.push_back(cp); return "O" + std::to_string(stored.size()); }
   void RemoveMarker(int id) override { marker.erase(id); placed.push_back("unmarker" + std::to_string(id)); }
   bool PlaceMarker(int id, MarkerKind) override { if (!heroOk) return false; marker[id] = hero; placed.push_back("marker" + std::to_string(id)); return true; }
   bool FeetWithinCm(int, double) const override { return true; }
@@ -187,6 +189,25 @@ static void RunAnchored(Fx& f) {                                  // pelny przeb
   f.Station(A, N1, P1); f.Station(P1, A, P2); f.Station(P2, P1, B); f.Station(B, P2, N2);
 }
 
+static void polygon_points_can_be_saved_as_control() {
+  Fx f(TraverseKind::Anchored, true); f.Refs(); f.AddPoint(P1); f.AddPoint(P2);
+  assert(f.listed("savectl") && !f.enabled("savectl"));                                       // przed komplet pomiarow: niedostepne
+  RunAnchored(f);
+  assert(f.enabled("savectl"));
+  f.job->OnMenu("savectl");
+  assert(f.w.stored.size() == 2 && !f.enabled("savectl") && !f.enabled("redo") && !f.enabled("addpt") && !f.enabled("delpt"));
+  assert(std::fabs(f.w.stored[0].n - P1.n) < 1e-4 && std::fabs(f.w.stored[0].e - P1.e) < 1e-4 && std::fabs(f.w.stored[1].n - P2.n) < 1e-4);   // wspolrzedne z rachunku
+  assert(std::fabs(f.w.stored[0].h - 100.0) < 0.01 && has(f.w.stored[0].solution, "poligonizacja"));
+  double x, y, z; GnssFromGrid(P1, x, y, z); assert(std::fabs(f.w.stored[0].x - x) < 1e-6 && std::fabs(f.w.stored[0].z - z) < 1e-6);        // prawdziwe polozenie znaku
+  assert(f.w.placed.back() == "unmarker2");                                                   // tymczasowe znaki usuniete
+  f.job->OnMenu("savectl"); assert(f.w.stored.size() == 2);                                   // drugi raz nie zapisuje
+  StateKV st; f.job->SaveState(st); Fx g(TraverseKind::Anchored, true); assert(g.job->LoadState(StateKV::FromText(st.ToText()))); assert(!g.enabled("savectl") && g.listed("savectl"));
+  Fx h(TraverseKind::Open); h.Refs(false); h.AddPoint(P1); assert(!h.enabled("savectl"));      // tylko ciag nawiazany
+  Fx bad(TraverseKind::Anchored, true); bad.Refs(); bad.AddPoint(P1); bad.AddPoint(P2);
+  bad.P->SetNoise(TachyNoise{20000.0, 0, 0}); bad.Station(A, N1, P1); bad.Station(P1, A, P2); bad.P->SetNoise(TachyNoise{0, 0, 0}); bad.Station(P2, P1, B); bad.Station(B, P2, N2);
+  assert(!bad.enabled("savectl"));                                                            // odchylka poza limitem: nie zapisuje
+}
+
 static void full_anchored_matches_truth() {
   Fx f(TraverseKind::Anchored, true); f.Refs(); f.AddPoint(P1); f.AddPoint(P2);
   assert(!f.job->CanFinish() && !f.enabled("finish") && !f.enabled("calc"));
@@ -311,7 +332,7 @@ static void reinstalling_instrument_starts_station_over() {       // nowe postaw
 }
 
 int main() {
-  registry_and_kind(); setup_refs_by_kind(); addpt_places_marker_and_names_points(); delpt_removes_last_mid_point_only(); prism_is_removed_when_instrument_moves(); points_can_be_added_during_measurement(); station_collects_four_observations(); refuses_bad_shots();
+  registry_and_kind(); polygon_points_can_be_saved_as_control(); setup_refs_by_kind(); addpt_places_marker_and_names_points(); delpt_removes_last_mid_point_only(); prism_is_removed_when_instrument_moves(); points_can_be_added_during_measurement(); station_collects_four_observations(); refuses_bad_shots();
   sides_measured_from_both_ends(); redo_station_replaces_observations();
   full_anchored_matches_truth(); calc_preview_before_finish(); bad_angle_flagged_then_redo_fixes(); closed_and_hanging_flows(); save_load_midstation(); nextstep_always_enabled_or_special();
   aiming_within_tolerance_does_not_spoil_angle(); reinstalling_instrument_starts_station_over();
