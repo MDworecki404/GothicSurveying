@@ -54,6 +54,7 @@ struct FakeTachy : IWorld {
   // GNSS wewnatrz roboty tachimetrycznej: tyczka z odbiornikiem, niebo, zegar, zapis osnowy
   SkyMask mask; double now = 0; std::vector<ControlPoint> stored; std::string nextId = "O1";
   bool PlacePole() override { placed.push_back("pole"); return ground; }
+  bool PlaceBase(GridPos& g) override { placed.push_back("base"); g = GridPos{5500010.0, 6500010.0, 100.0}; return ground; }
   SkyMask SkyHorizon() const override { return mask; }
   double NowSec() const override { return now; }
   std::string StoreControlPoint(const ControlPoint& cp) override { if (nextId.empty()) return ""; stored.push_back(cp); return nextId; }
@@ -169,10 +170,10 @@ static void gnss_items_and_control_point_in_tachy_job() {
   assert(has(f.label("g_pole"), "GNSS") && f.job->StatusLines().empty());
   f.menu("g_pole"); assert(f.w.placed.back() == "pole" && f.enabled("g_start"));
   assert(!f.job->StatusLines().empty());                                          // podpowiedz odbiornika przy stojacej tyczce
-  f.menu("g_start"); tick(f, 60);
+  f.menu("g_base"); f.menu("g_start"); tick(f, 60);                                // statyka: 1 s gry = 1 min sesji
   assert(has(f.job->StatusLines()[0], "fix RTK") && f.enabled("g_control") && !f.enabled("g_pole"));
   f.menu("g_control");
-  assert(f.w.stored.size() == 1 && f.w.stored[0].solution == "fix RTK" && f.w.stored[0].epochs >= 20);
+  assert(f.w.stored.size() == 1 && f.w.stored[0].solution == "fix RTK" && f.w.stored[0].epochs >= 30);
   assert(f.job->FinishTachy(true).points.empty());                                // punkt GNSS to osnowa, nie punkt tachimetryczny
   f.w.allControls = f.w.stored;                                                   // swiat widzi nowa osnowe: mozna ja uzyc jako zrodlo
   assert(f.enabled("src")); f.menu("src"); assert(has(f.label("src"), "osnowa"));

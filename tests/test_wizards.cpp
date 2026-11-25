@@ -44,7 +44,7 @@ static void setup_is_idempotent_when_state_already_matches() {   // gdy swiat ma
 static void osnowa_uses_static_mode_and_niwelacja_is_anchored() {
   FakeAerial w; const Wizard *os = nullptr, *ni = nullptr;
   for (const Wizard& x : Wizards()) { if (x.id == "osnowa") os = &x; if (x.id == "niwelacja") ni = &x; }
-  assert(LabelOf(*StartWizard(w, *os), "mode").find("statyczny") != std::string::npos);
+  assert(os->typeId == "gnss_static" && StartWizard(w, *os)->Name() == "Statyka GNSS (osnowa)");
   assert(LabelOf(*StartWizard(w, *ni), "rod_fore_end").find("reper B") != std::string::npos);
 }
 

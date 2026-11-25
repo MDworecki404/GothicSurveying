@@ -12,8 +12,8 @@ struct Wizard { std::string id, name, typeId, desc; JobOptions opts; std::vector
 
 inline const std::vector<Wizard>& Wizards() {
   static const std::vector<Wizard> w = {
-    {"osnowa", "Pomierz osnowe (GNSS)", "gnss", "pomiar statyczny punktow osnowy: dluzsza sesja, mniejszy szum; punkty zakladasz z pomiaru",
-     JobOptions{TraverseKind::Open, CalcMode::Auto, false}, {{"mode", "Pomiar: RTK"}}},
+    {"osnowa", "Pomierz osnowe (GNSS)", "gnss_static", "statyka na punktach osnowy: baza na znanym punkcie, sesja min. 30 min, mniejszy szum; punkty zakladasz z pomiaru",
+     JobOptions{TraverseKind::Open, CalcMode::Auto, false}, {}},
     {"niwelacja", "Niwelacja ciagu A -> B", "traverse", "ciag niwelacyjny dowiazany: reper A, punkty obrotowe, reper B, dziennik liczony automatycznie",
      JobOptions{TraverseKind::Anchored, CalcMode::Auto, false}, {}},
     {"tachy_inwent", "Inwentaryzacja tachimetrem", "tachy", "stanowisko, nawiazania, pomiar punktow na lustro; wyniki w dzienniku tachimetrycznym",

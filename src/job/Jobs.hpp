@@ -14,6 +14,7 @@ inline const std::vector<JobType>& JobTypes() {
   static const std::vector<JobType> types = {
     {"traverse", "Ciag niwelacyjny", &CreateLevelingTraverse},
     {"gnss", "Pomiar GNSS (RTK)", &CreateGnssRover, true, false},
+    {"gnss_static", "Statyka GNSS (osnowa)", &CreateGnssStatic, true, false},
     {"tachy", "Tachimetria (pomiar biegunowy)", &CreateTachyStation, false, true},
     {"trig", "Niwelacja trygonometryczna", &CreateTrigLevel, false, true},
     {"scan", "Skaner laserowy", &CreateScanJob, false, false, true},

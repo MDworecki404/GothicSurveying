@@ -34,7 +34,7 @@ struct FakeGnss : IWorld {
 
 struct Fx {
   FakeGnss w; std::unique_ptr<Job> job;
-  explicit Fx(bool trueErr = false) { job = CreateGnssRover(w, JobOptions{TraverseKind::Open, CalcMode::Auto, trueErr}); }
+  explicit Fx(bool trueErr = false, bool isStatic = false) { job = (isStatic ? CreateGnssStatic : CreateGnssRover)(w, JobOptions{TraverseKind::Open, CalcMode::Auto, trueErr}); }
   bool enabled(const std::string& id) const { for (auto& m : job->Menu()) if (m.id == id) return m.enabled; return false; }
   std::string label(const std::string& id) const { for (auto& m : job->Menu()) if (m.id == id) return m.label; return ""; }
   void menu(const std::string& id) { job->OnMenu(id); }
@@ -89,7 +89,7 @@ static void blocked_sky_never_enables_store() {
   assert(!f.enabled("store") && has(f.status(), "brak rozwiazania") && !has(f.status(), "nan") && !has(f.status(), "inf"));
 }
 
-static int epochsOf(const std::string& status) { size_t i = status.find("Epoki: "); return i == std::string::npos ? -1 : std::atoi(status.c_str() + i + 7); }
+static int epochsOf(const std::string& status) { size_t i = status.find("Epoki: "), k = 7; if (i == std::string::npos) { i = status.find("Sesja: "); } return i == std::string::npos ? -1 : std::atoi(status.c_str() + i + k); }
 
 static void clock_frozen_means_no_epochs() {
   Fx f; f.menu("pole"); f.menu("start");
@@ -135,35 +135,38 @@ static void discard_clears_measurement() {
   assert(f.enabled("start") && f.job->FinishGnss(true).points.empty() && !f.enabled("discard") && !f.job->CanFinish());
 }
 
-static void control_requires_fix_and_20_epochs() {
-  Fx f; f.menu("pole"); f.menu("start"); bool sawEnabled = false, sawFixBelow20 = false;
+static void control_requires_fix_and_30_minutes() {
+  Fx f(false, true); f.menu("pole"); f.menu("base"); f.menu("start"); bool sawEnabled = false, sawFixBelow30 = false;
   for (int t = 1; t <= 60; t++) {
     f.advance(1);
     const bool fix = has(f.status(), "fix RTK"); const int ep = epochsOf(f.status());
-    assert(f.enabled("control") == (fix && ep >= 20));
+    assert(f.enabled("control") == (fix && ep >= 30));
     if (f.enabled("control")) sawEnabled = true;
-    if (fix && ep < 20) sawFixBelow20 = true;
+    if (fix && ep < 30) sawFixBelow30 = true;
   }
-  assert(sawEnabled && sawFixBelow20);
-  Fx g; g.w.mask.nearestObstacleM = 2.5; g.menu("pole"); g.menu("start");        // wielodrogowosc: nigdy fix
+  assert(sawEnabled && sawFixBelow30);
+  Fx g(false, true); g.w.mask.nearestObstacleM = 2.5; g.menu("pole"); g.menu("base"); g.menu("start");   // wielodrogowosc: nigdy fix
   for (int t = 1; t <= 60; t++) { g.advance(1); assert(!g.enabled("control")); }
+  Fx r; assert(!r.enabled("control")); r.measure(60); assert(!r.enabled("control"));                    // RTK nie zaklada osnowy
 }
 
+static void staticMeasure(Fx& f, int min) { f.menu("pole"); f.menu("base"); f.menu("start"); f.advance(min); }
+
 static void control_stores_point_and_report() {
-  Fx f; f.measure(60); assert(f.enabled("control"));
+  Fx f(false, true); staticMeasure(f, 60); assert(f.enabled("control"));
   f.menu("control");
   assert(f.w.stored.size() == 1);
   GnssReport r = f.job->FinishGnss(true);
-  assert(r.points.size() == 1 && r.points[0].note == "osnowa O1");
+  assert(r.points.size() == 1 && has(r.points[0].note, "osnowa O1"));
   const ControlPoint& cp = f.w.stored[0];
-  assert(cp.n == r.points[0].n && cp.e == r.points[0].e && cp.h == r.points[0].h && cp.solution == "fix RTK" && cp.epochs >= 20 && cp.timeText == "09:15:03");
+  assert(cp.n == r.points[0].n && cp.e == r.points[0].e && cp.h == r.points[0].h && cp.solution == "fix RTK" && cp.epochs >= 30 && cp.timeText == "09:15:03");
   double x, y, z; GnssFromGrid(f.w.PoleGroundGrid(), x, y, z);
   assert(std::fabs(cp.x - x) < 1e-6 && std::fabs(cp.y - y) < 1e-6 && std::fabs(cp.z - z) < 1e-6);
   assert(f.enabled("start") && !f.enabled("control"));                          // pomiar zakonczony, mozna mierzyc nastepny
 }
 
 static void control_failure_does_not_store() {
-  Fx f; f.w.nextId = ""; f.measure(60);
+  Fx f(false, true); f.w.nextId = ""; staticMeasure(f, 60);
   f.menu("control");
   assert(f.w.stored.empty() && f.job->FinishGnss(true).points.empty());
   assert(!f.w.said.empty() && has(f.w.said.back(), "osnowy") && f.enabled("control"));   // nadal mierzymy, mozna ponowic
@@ -188,31 +191,38 @@ static void base_on_control_point_is_accurate_arbitrary_base_shifts_all() {
   assert(err(true) < 100.0 && err(false) > 300.0);                                // baza na znaku osnowy: cm; baza na dowolnym punkcie: przesuniecie rzedu metra
 }
 
-static void static_needs_120_epochs_and_is_flagged() {
-  Fx f; f.menu("mode"); assert(has(f.label("mode"), "statyczny"));
-  f.measure(60); assert(has(f.status(), "statyka") && !f.enabled("store") && !f.enabled("control"));
-  f.advance(100); assert(f.enabled("store") && f.enabled("control"));
+static void static_is_separate_job_needing_30_minutes() {
+  bool found = false;
+  for (const JobType& t : JobTypes()) if (t.id == "gnss_static") found = t.gnss && t.name == "Statyka GNSS (osnowa)";
+  assert(found);
+  Fx f(false, true);
+  assert(!f.enabled("corr") && f.job->Name() == "Statyka GNSS (osnowa)");        // statyka zawsze z baza, bez przelacznika
+  f.menu("pole"); f.menu("base"); f.menu("start"); f.advance(10);                  // 1 s gry = 1 min obserwacji
+  assert(has(f.status(), "min") && !f.enabled("store") && !f.enabled("control"));
+  f.advance(25); assert(f.enabled("store") && f.enabled("control"));
   f.menu("store");
   assert(has(f.job->FinishGnss(true).points[0].note, "statyka"));
 }
 
+static void rtk_has_no_static_switch() { Fx f; assert(f.enabled("corr") && f.label("mode").empty()); }
+
 static void state_roundtrip_gnss() {
-  Fx f; f.menu("corr"); f.menu("mode"); f.menu("base"); f.menu("antenna");
-  f.measure(160); f.menu("store");                                                  // jeden punkt zapisany (statyka, wlasna baza)
+  Fx f; f.menu("corr"); f.menu("base"); f.menu("antenna");
+  f.measure(160); f.menu("store");                                                  // jeden punkt zapisany (wlasna baza)
   f.menu("start"); f.advance(5);                                                    // drugi pomiar w trakcie: sesja nie jest zapisywana
   StateKV st; assert(f.job->CanSaveState()); f.job->SaveState(st);
   Fx g; assert(g.job->LoadState(StateKV::FromText(st.ToText())));
   const GnssReport a = f.job->FinishGnss(true), b = g.job->FinishGnss(true);
   assert(a.points.size() == 1 && b.points.size() == 1 && GnssToCsv(a) == GnssToCsv(b));
-  assert(g.label("corr") == f.label("corr") && g.label("mode") == f.label("mode") && g.label("antenna") == f.label("antenna") && g.enabled("start") && !g.enabled("discard"));   // sesja zerwana, tyczka stoi
+  assert(g.label("corr") == f.label("corr") && g.label("antenna") == f.label("antenna") && g.enabled("start") && !g.enabled("discard"));   // sesja zerwana, tyczka stoi
 }
 
 int main() {
   registry_lists_gnss(); menu_enablement_follows_state(); pole_blocked_without_ground(); open_sky_fix_then_store();
   store_without_fix_is_flagged(); blocked_sky_never_enables_store(); clock_frozen_means_no_epochs();
   antenna_presets_cycle_and_bias_height(); true_error_columns_when_enabled(); abort_returns_partial_report(); discard_clears_measurement();
-  control_requires_fix_and_20_epochs(); control_stores_point_and_report(); control_failure_does_not_store();
-  own_base_needed_for_corrections(); base_on_control_point_is_accurate_arbitrary_base_shifts_all(); static_needs_120_epochs_and_is_flagged();
+  control_requires_fix_and_30_minutes(); control_stores_point_and_report(); control_failure_does_not_store();
+  own_base_needed_for_corrections(); base_on_control_point_is_accurate_arbitrary_base_shifts_all(); static_is_separate_job_needing_30_minutes(); rtk_has_no_static_switch();
   state_roundtrip_gnss();
   std::puts("test_gnss_job OK");
   return 0;

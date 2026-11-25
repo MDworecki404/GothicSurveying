@@ -36,7 +36,8 @@ inline std::vector<std::string> HelpLines(const std::string& context) {
   };
   else if (context == "job:gnss") extra = {
     "Postaw tyczke, rozpocznij pomiar punktu, poczekaj na fix i zapisz punkt.",
-    "Punkt osnowy mozna zalozyc po fixie i co najmniej 20 epokach.",
+    "RTK sluzy do zdjecia sytuacyjnego; punkty osnowy zakladasz w robocie Statyka GNSS.",
+    "Statyka (osobna robota): baza na znanym punkcie, sesja min. 30 min (1 s gry = 1 min).",
   };
   else if (context == "job:tachy") extra = {
     LV_KEYNAME_SCOPE " - luneta tachimetru; Enter - orientacja albo pomiar; " LV_KEYNAME_FLIP " - przerzut lunety (KL/KP).",

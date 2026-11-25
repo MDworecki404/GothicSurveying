@@ -13,7 +13,7 @@ class TachyStationJob : public Job {
  public:
   TachyStationJob(IWorld& w, const JobOptions& o) : w_(w), opt_(o), rng_((uint32_t)(w.Random01() * 4e9) + 1) {
     control_ = !w_.ControlNearHero(1e9).empty();      // domyslnie osnowa GNSS, gdy w swiecie sa jej punkty
-    gnss_ = CreateGnssRover(w_, opt_);                // GNSS w robocie: zakladanie osnowy bez wychodzenia z tachimetrii
+    gnss_ = CreateGnssStatic(w_, opt_);                // GNSS w robocie: zakladanie osnowy bez wychodzenia z tachimetrii
     w_.SetPrismHeightM(kPrism[0]);
     lib_.enabled = w_.InstrumentLevelingEnabled();
     if (w_.TwoFaceByDefault()) SetTwoFace(true);
@@ -44,7 +44,7 @@ class TachyStationJob : public Job {
       {"finish", "Zakoncz robote", "najpierw zmierz co najmniej jeden punkt", CanFinish()},
     };
     for (const MenuItem& m : gnss_->Menu())            // zakladanie osnowy GNSS: te same kroki co w robocie GNSS (tyczka GNSS zajmuje miejsce tyczki z lustrem)
-      if (m.id == "pole" || m.id == "antenna" || m.id == "start" || m.id == "control" || m.id == "discard")
+      if (m.id == "pole" || m.id == "antenna" || m.id == "base" || m.id == "start" || m.id == "control" || m.id == "discard")
         items.push_back({"g_" + m.id, "GNSS: " + m.label, m.hint, m.enabled});
     return items;
   }
@@ -141,7 +141,7 @@ class TachyStationJob : public Job {
     } else if (base == "prism") {
       if (!w_.PlacePrism()) { w_.Say("Brak gruntu pod stopami"); return; }
       prismUp_ = true;
-      gnss_ = CreateGnssRover(w_, opt_);               // tyczka GNSS zniknela: odbiornik zaczyna od nowa
+      gnss_ = CreateGnssStatic(w_, opt_);               // tyczka GNSS zniknela: odbiornik zaczyna od nowa
     } else if (base == "prismh") {
       prismIdx_ = (prismIdx_ + 1) % kPrismCount;
       w_.SetPrismHeightM(kPrism[prismIdx_]);          // modele lustra (tyczka i nawiazania) maja od teraz te wysokosc

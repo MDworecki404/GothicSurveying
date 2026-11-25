@@ -1,5 +1,6 @@
 // Robota "Pomiar GNSS (RTK rover)": tyczka z odbiornikiem, sesje punktow z symulacja jakosci (bez Gothic API).
 #pragma once
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <memory>
@@ -8,26 +9,28 @@
 
 class GnssRover : public Job {
  public:
-  GnssRover(IWorld& w, const JobOptions& o) : w_(w), opt_(o) {}
+  // isStatic: osobna robota "Statyka GNSS (osnowa)": zawsze wlasna baza, sesja w minutach (1 s gry = 1 min obserwacji), min. 30 min do zapisu.
+  GnssRover(IWorld& w, const JobOptions& o, bool isStatic = false) : w_(w), opt_(o), static_(isStatic), ownBase_(isStatic) {}
 
-  std::string Name() const override { return "Pomiar GNSS (RTK)"; }
+  std::string Name() const override { return static_ ? "Statyka GNSS (osnowa)" : "Pomiar GNSS (RTK)"; }
   JobKind Kind() const override { return JobKind::Gnss; }
 
   std::vector<MenuItem> Menu() const override {
     char ant[64]; std::snprintf(ant, sizeof ant, "Wysokosc anteny: %.3f m (zmien)", kAntenna[antIdx_]);
-    return {
+    std::vector<MenuItem> items = {
       {"pole", poleUp_ ? "Przestaw tyczke z odbiornikiem" : "Postaw tyczke z odbiornikiem", "nie w trakcie pomiaru punktu", !measuring_},
       {"fine", "Precyzyjne ustawienie tyczki (milimetry)", "najpierw postaw tyczke; nie w trakcie pomiaru punktu", poleUp_ && !measuring_},   // obsluguje kontroler
       {"antenna", ant, "nie w trakcie pomiaru punktu", !measuring_},
       {"corr", ownBase_ ? "Poprawki RTK: wlasna baza (zmien)" : "Poprawki RTK: siec (zmien)", "nie w trakcie pomiaru punktu; wlasna baza = stawiasz stacje bazowa", !measuring_},
       {"base", baseUp_ ? "Przestaw baze (stacja bazowa)" : "Postaw baze (stacja bazowa)", "tylko przy poprawkach z wlasnej bazy; na punkcie osnowy (2 m) baza zna wspolrzedne", ownBase_ && !measuring_},
-      {"mode", static_ ? "Pomiar: statyczny, 120 epok (zmien)" : "Pomiar: RTK (zmien)", "nie w trakcie pomiaru punktu; statyka = dluzsza sesja, mniejszy szum", !measuring_},
       {"start", "Rozpocznij pomiar punktu", "najpierw postaw tyczke", poleUp_ && !measuring_},
-      {"store", "Zapisz punkt", "fix i 10 epok (bez fixu: 5 epok z rozwiazaniem)", CanStore()},
-      {"control", "Zaloz punkt osnowy", "fix i 20 epok", CanControl()},
+      {"store", "Zapisz punkt", static_ ? "fix i co najmniej 30 min sesji" : "fix i 10 epok (bez fixu: 5 epok z rozwiazaniem)", CanStore()},
+      {"control", "Zaloz punkt osnowy", "fix i co najmniej 30 min sesji", CanControl()},
       {"discard", "Odrzuc pomiar", "trwa pomiar punktu", measuring_},
       {"finish", "Zakoncz robote", "najpierw zapisz co najmniej jeden punkt", CanFinish()},
     };
+    items.erase(std::remove_if(items.begin(), items.end(), [&](const MenuItem& m) { return static_ ? m.id == "corr" : m.id == "control"; }), items.end());   // statyka zawsze z baza; osnowa tylko ze statyki (nie z RTK)
+    return items;
   }
 
   void OnMenu(const std::string& id) override {
@@ -37,8 +40,6 @@ class GnssRover : public Job {
       poleUp_ = true;
     } else if (id == "corr") {
       ownBase_ = !ownBase_;
-    } else if (id == "mode") {
-      static_ = !static_;
     } else if (id == "base") {
       GridPos g{0, 0, 0};
       if (!w_.PlaceBase(g)) { w_.Say("Brak gruntu pod stopami"); return; }
@@ -52,6 +53,7 @@ class GnssRover : public Job {
     } else if (id == "start") {
       truth_ = w_.PoleGroundGrid();
       session_ = std::make_unique<GnssSession>((uint32_t)(w_.Random01() * 4e9), w_.NowSec(), truth_, kAntenna[antIdx_]);
+      virtT_ = w_.NowSec();
       if (ownBase_ || static_)
         session_->SetBase(!ownBase_ || baseUp_, ownBase_ && baseUp_ ? std::hypot(truth_.n - baseTruth_.n, truth_.e - baseTruth_.e) : 0.0,
                           ownBase_ ? baseOff_[0] : 0.0, ownBase_ ? baseOff_[1] : 0.0, ownBase_ ? baseOff_[2] : 0.0, static_);
@@ -78,20 +80,24 @@ class GnssRover : public Job {
     if (now < lastEpoch_) { lastEpoch_ = now; return; }           // skok czasu wstecz (np. wczytanie zapisu)
     for (int steps = 0; now - lastEpoch_ >= 1.0 && steps < 5; steps++) {     // najwyzej 5 epok na klatke
       lastEpoch_ += 1.0;
-      session_->Step(lastEpoch_, w_.SkyHorizon());
+      virtT_ += static_ ? kStaticEpochSec : 1.0;                 // statyka: kazda sekunda gry to minuta obserwacji
+      session_->Step(static_ ? virtT_ : lastEpoch_, w_.SkyHorizon());
     }
   }
 
   std::vector<std::string> StatusLines() const override {
     if (!measuring_ || !session_) {
-      if (!poleUp_) return ownBase_ && !baseUp_ ? std::vector<std::string>{"Wlasna baza nie stoi - bez poprawek wynik autonomiczny"} : std::vector<std::string>{};
+      if (!poleUp_) return ownBase_ && !static_ && !baseUp_ ? std::vector<std::string>{"Wlasna baza nie stoi - bez poprawek wynik autonomiczny"} : std::vector<std::string>{};
+      if (static_ && !baseUp_) return {"Statyka: postaw baze na znanym punkcie, bez niej wynik autonomiczny"};
       return {std::string("Tyczka stoi. ") + LV_KEYNAME_MENU + " - Rozpocznij pomiar punktu"};
     }
     const GnssFix& f = session_->Fix();
     char b[128]; std::vector<std::string> out;
     out.push_back(std::string("Rozwiazanie: ") + GnssSolName(f.type) + (sessionStatic_ ? "  (statyka)" : "") + (sessionBase_ ? (baseUp_ ? "  [wlasna baza]" : "  [brak bazy]") : ""));
     std::snprintf(b, sizeof b, "Satelity: %d/%d  PDOP: %.1f", f.used, f.visible, f.pdop); out.push_back(b);
-    std::snprintf(b, sizeof b, "Epoki: %d  RMS H/V: %.3f/%.3f m", f.epochs, f.hRmsMm / 1000.0, f.vRmsMm / 1000.0); out.push_back(b);
+    if (sessionStatic_) std::snprintf(b, sizeof b, "Sesja: %d min (min. %d)  RMS H/V: %.3f/%.3f m", f.epochs, kStaticEpochs, f.hRmsMm / 1000.0, f.vRmsMm / 1000.0);
+    else std::snprintf(b, sizeof b, "Epoki: %d  RMS H/V: %.3f/%.3f m", f.epochs, f.hRmsMm / 1000.0, f.vRmsMm / 1000.0);
+    out.push_back(b);
     std::snprintf(b, sizeof b, "Niebo zasloniete: %.0f%%  najblizsza przeszkoda: %.1f m", f.blockedPct, f.nearestObstacleM); out.push_back(b);
     if (f.type != SolType::Fix) out.push_back("Brak fixu: " + GnssFixHint(f));
     if (f.type == SolType::None) out.push_back("brak rozwiazania");
@@ -127,13 +133,13 @@ class GnssRover : public Job {
  public:
   bool CanSaveState() const override { return true; }
   void SaveState(StateKV& s) const override {                                // trwajacy pomiar punktu (sesja) nie jest zapisywany: po wczytaniu trzeba go zaczac od nowa
-    s.Bool("poleUp", poleUp_); s.Bool("ownBase", ownBase_); s.Bool("baseUp", baseUp_); s.Bool("static", static_); s.Int("ant", antIdx_);
+    s.Bool("poleUp", poleUp_); s.Bool("ownBase", ownBase_); s.Bool("baseUp", baseUp_); s.Int("ant", antIdx_);
     s.Num("base.n", baseTruth_.n); s.Num("base.e", baseTruth_.e); s.Num("base.h", baseTruth_.h);
     s.Num("off0", baseOff_[0]); s.Num("off1", baseOff_[1]); s.Num("off2", baseOff_[2]); s.Str("baseNote", baseNote_);
     PutVec(s, "points", points_, PutGnssPoint);
   }
   bool LoadState(const StateKV& s) override {
-    poleUp_ = s.GetBool("poleUp"); ownBase_ = s.GetBool("ownBase"); baseUp_ = s.GetBool("baseUp"); static_ = s.GetBool("static"); antIdx_ = s.GetInt("ant") % kAntennaCount;
+    poleUp_ = s.GetBool("poleUp"); ownBase_ = s.GetBool("ownBase"); baseUp_ = s.GetBool("baseUp"); antIdx_ = s.GetInt("ant") % kAntennaCount;
     baseTruth_ = GridPos{s.GetNum("base.n"), s.GetNum("base.e"), s.GetNum("base.h")};
     baseOff_[0] = s.GetNum("off0"); baseOff_[1] = s.GetNum("off1"); baseOff_[2] = s.GetNum("off2"); baseNote_ = s.GetStr("baseNote");
     points_ = GetVec<GnssPoint>(s, "points", GetGnssPoint);
@@ -142,12 +148,13 @@ class GnssRover : public Job {
   }
 
  private:
-  static constexpr int kStaticEpochs = 120;
+  static constexpr int kStaticEpochs = 30;                 // minuty sesji (ksiazka: statyka co najmniej kilkadziesiat minut)
+  static constexpr double kStaticEpochSec = 60.0;
   static constexpr int kAntennaCount = 5;
   static constexpr double kAntenna[kAntennaCount] = {2.0, 2.1, 2.5, 1.5, 1.8};   // presety [m]; pierwszy = prawdziwa wysokosc tyczki
 
-  bool CanControl() const {                                          // osnowa tylko z fixem i co najmniej 20 epokami
-    return measuring_ && session_ && session_->Fix().type == SolType::Fix && session_->Fix().epochs >= (sessionStatic_ ? kStaticEpochs : 20);
+  bool CanControl() const {                                          // osnowa tylko ze statyki: fix i co najmniej 30 min
+    return static_ && measuring_ && session_ && session_->Fix().type == SolType::Fix && session_->Fix().epochs >= kStaticEpochs;
   }
 
   bool CanStore() const {
@@ -164,7 +171,7 @@ class GnssRover : public Job {
     p.hRmsMm = f.hRmsMm; p.vRmsMm = f.vRmsMm; p.epochs = f.epochs; p.antennaM = kAntenna[antIdx_];
     p.note = !forcedNote.empty() ? forcedNote : f.type == SolType::Fix ? "" : "zapis bez fixu";
     auto add = [&](const std::string& t) { p.note += (p.note.empty() ? "" : "; ") + t; };
-    if (sessionStatic_) add("statyka " + std::to_string(f.epochs) + " epok");
+    if (sessionStatic_) add("statyka " + std::to_string(f.epochs) + " min");
     if (sessionBase_) add(baseUp_ ? baseNote_ + ", linia bazowa " + std::to_string((int)std::hypot(truth_.n - baseTruth_.n, truth_.e - baseTruth_.e)) + " m" : "bez bazy: wynik autonomiczny");
     if (opt_.showTrueError) {
       p.hasTrue = true; p.dNmm = (f.n - truth_.n) * 1000.0; p.dEmm = (f.e - truth_.e) * 1000.0; p.dHmm = (f.h - truth_.h) * 1000.0;
@@ -174,11 +181,13 @@ class GnssRover : public Job {
   }
 
   IWorld& w_; JobOptions opt_;
-  bool poleUp_ = false, measuring_ = false, ownBase_ = false, baseUp_ = false, static_ = false, sessionBase_ = false, sessionStatic_ = false;
+  bool poleUp_ = false, measuring_ = false, baseUp_ = false, sessionBase_ = false, sessionStatic_ = false;
   GridPos baseTruth_{0, 0, 0}; double baseOff_[3] = {0, 0, 0}; std::string baseNote_;
-  int antIdx_ = 0; double lastEpoch_ = 0; GridPos truth_{0, 0, 0};
+  const bool static_; bool ownBase_;
+  int antIdx_ = 0; double lastEpoch_ = 0, virtT_ = 0; GridPos truth_{0, 0, 0};
   std::unique_ptr<GnssSession> session_;
   std::vector<GnssPoint> points_;
 };
 
 inline std::unique_ptr<Job> CreateGnssRover(IWorld& w, const JobOptions& o) { return std::make_unique<GnssRover>(w, o); }
+inline std::unique_ptr<Job> CreateGnssStatic(IWorld& w, const JobOptions& o) { return std::make_unique<GnssRover>(w, o, true); }
