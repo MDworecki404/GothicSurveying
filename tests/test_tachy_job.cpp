@@ -1,3 +1,4 @@
+#include <set>
 #include <cassert>
 #include <cmath>
 #include <cstdio>
@@ -71,7 +72,11 @@ struct Fx {
   }
   bool enabled(const std::string& id) const { for (auto& m : job->Menu()) if (m.id == id) return m.enabled; return false; }
   std::string label(const std::string& id) const { for (auto& m : job->Menu()) if (m.id == id) return m.label; return ""; }
-  void menu(const std::string& id) { job->OnMenu(id); }
+  void menu(const std::string& id) {
+    if (id.rfind("backsight", 0) == 0) { if (nBack > 0 && !done.count(nBack)) readBack(nBack); nBack++; }
+    if (id == "station" || id.rfind("station:", 0) == 0) { nBack = 0; done.clear(); }
+    job->OnMenu(id);
+  }
   void aim(const GridPos& tgt, double tgtAboveM, double& az, double& pitch) const {
     const double dN = tgt.n - w.station.n, dE = tgt.e - w.station.e, dH = (tgt.h + tgtAboveM) - (w.station.h + 1.5);
     az = std::atan2(dE, dN) * 180.0 / PI; pitch = std::atan2(dH, std::hypot(dN, dE)) * 180.0 / PI;
@@ -79,9 +84,10 @@ struct Fx {
   std::string fireAt(const GridPos& tgt, double above, double offAz = 0, double offPitch = 0) {
     double az, pitch; aim(tgt, above, az, pitch); return job->TachyFire(az + offAz, pitch + offPitch);
   }
-  std::string readBack(int slot, double prismH = 1.5) { return fireAt(w.back[slot - 1], prismH); }
+  int nBack = 0; std::set<int> done;   // stoi tylko ostatnie lustro nawiazania: menu("backsight") najpierw mierzy poprzednie (jak uzytkownik)
+  std::string readBack(int slot, double prismH = 1.5) { done.insert(slot); return fireAt(w.back[slot - 1], prismH); }
   void setup(int backs = 1) { menu("station"); for (int i = 0; i < backs; i++) menu("backsight"); menu("prism"); }
-  void orient(int backs = 1) { for (int i = 1; i <= backs; i++) assert(has(readBack(i), "Nawiazanie")); }
+  void orient(int backs = 1) { for (int i = 1; i <= backs; i++) if (!done.count(i)) assert(has(readBack(i), "Nawiazanie")); }
 };
 
 static void registry_lists_tachy() {
@@ -93,12 +99,13 @@ static void registry_lists_tachy() {
 
 static void menu_state_true_mode() {
   Fx f;
-  for (const char* id : {"src", "backsight", "unback", "prism", "prismh", "meas", "view", "finish"}) assert(!f.enabled(id));   // bez osnowy zrodlo nie do zmiany
+  for (const char* id : {"src", "backsight", "unback", "prism", "prismh", "meas", "view", "finish", "fine"}) assert(!f.enabled(id));   // bez osnowy zrodlo nie do zmiany
   assert(f.enabled("station") && !f.job->NeedsChoice("station"));
   f.menu("station");
   assert((f.w.placed == std::vector<std::string>{"tachymeter"}));
   assert(f.enabled("backsight") && f.enabled("prism") && f.enabled("prismh") && f.enabled("meas") && !f.enabled("view") && !f.enabled("unback"));
   f.menu("backsight"); assert((f.w.placed.back() == "backsight1") && f.enabled("view") && f.enabled("unback") && near(f.w.prismHeight, 1.5, 1e-9));
+  assert(!f.enabled("fine")); f.menu("prism"); assert(f.enabled("fine"));   // precyzyjne ustawienie lustra dopiero po postawieniu tyczki
 }
 
 static void multiple_backsights_orientation_mean() {
@@ -191,9 +198,18 @@ static void gnss_pole_and_prism_exclude_each_other() {
   assert(has(f.fireAt(f.w.prism, 1.5), "T1"));
 }
 
+static void one_backsight_mirror_at_a_time() {
+  Fx f; f.menu("station"); f.menu("backsight");
+  assert(!f.enabled("backsight"));                                   // najpierw zmierz stojace lustro
+  assert(has(f.readBack(1), "Nawiazanie") && f.enabled("backsight"));
+  f.menu("backsight");
+  assert(has(f.readBack(2), "Nawiazanie") && f.job->FinishTachy(true).backsights.size() == 2);   // zmierzone wczesniej zostaje
+}
+
 static void limit_five_backsights() {
   Fx f; f.menu("station");
-  for (int i = 0; i < 5; i++) { assert(f.enabled("backsight")); f.menu("backsight"); }
+  for (int i = 0; i < 5; i++) { if (i > 0) f.readBack(i); assert(f.enabled("backsight")); f.menu("backsight"); }
+  assert(!f.enabled("backsight"));   // lustro nr 5 niezmierzone, a limit 5 i tak blokuje; nr 4 zmierzony wyzej
   assert(!f.enabled("backsight") && f.w.placed.back() == "backsight5");
 }
 
@@ -331,7 +347,7 @@ static void free_station_resection() {
   assert(f.enabled("free") && has(f.label("free"), "znanym"));
   f.menu("free"); assert(has(f.label("free"), "dowolne") && !f.job->NeedsChoice("station"));
   f.menu("station"); f.menu("backsight:G1"); f.menu("backsight:G2"); f.menu("prism");
-  assert(has(f.fireAt(G1p, 1.5), "wymaga min. 2") && f.job->FinishTachy(true).backsights.empty());
+  assert(f.job->FinishTachy(true).backsights.empty());                              // G1 zmierzone przy stawianiu G2 (wciecie wymaga min. 2)
   assert(has(f.fireAt(G2p, 1.5), "Nawiazanie") && f.job->FinishTachy(true).backsights.size() == 2);
   TachyReport r = f.job->FinishTachy(true);
   assert(near(r.stationN, 5500000.0, 0.05) && near(r.stationE, 6500000.0, 0.05) && near(r.stationH, 100.0, 0.05) && has(r.coordSource, "dowolne"));
@@ -463,7 +479,7 @@ static void state_roundtrip_trig() {
 
 int main() {
   registry_lists_tachy(); menu_state_true_mode(); multiple_backsights_orientation_mean(); single_backsight_works(); measure_before_orient_refused();
-  backsight_aiming_is_angular(); remeasure_overwrites(); orientation_locked_after_first_point(); gnss_items_and_control_point_in_tachy_job(); gnss_pole_and_prism_exclude_each_other(); changes_clear_readings(); limit_five_backsights();
+  backsight_aiming_is_angular(); remeasure_overwrites(); orientation_locked_after_first_point(); gnss_items_and_control_point_in_tachy_job(); gnss_pole_and_prism_exclude_each_other(); changes_clear_readings(); limit_five_backsights(); one_backsight_mirror_at_a_time();
   uncertain_flag_direction(); uncertain_flag_distance(); control_source_uses_gnss_coordinates(); no_control_nearby_refused();
   prism_height_is_the_physical_height(); aim_must_be_on_prism_not_ground(); reflectorless_measures_surface_point();
   true_error_and_abort(); extreme_aim_does_not_crash();

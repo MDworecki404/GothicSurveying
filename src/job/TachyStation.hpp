@@ -32,12 +32,13 @@ class TachyStationJob : public Job {
       {"free", free_ ? "Stanowisko: dowolne, wciecie wstecz (zmien)" : "Stanowisko: na znanym punkcie (zmien)", "przed postawieniem tachimetru; wciecie wymaga osnowy i min. 2 nawiazan", !stationUp_ && control_},
       {"newst", "Nowe stanowisko (zamknij biezace)", "najpierw zmierz punkt na biezacym stanowisku", stationUp_ && !fresh},
       {"station", stationUp_ ? "Przestaw tachimetr (stanowisko)" : "Postaw tachimetr (stanowisko)", "nie po zmierzeniu punktu", fresh},
-      {"backsight", "Dodaj nawiazanie (lustro)", "najpierw tachimetr; max 5; nie po zmierzeniu punktu", stationUp_ && fresh && n < kMaxBack},
+      {"backsight", "Dodaj nawiazanie (lustro)", "najpierw tachimetr; max 5; nie po zmierzeniu punktu; najpierw zmierz poprzednie nawiazanie (stoi tylko jedno lustro)", stationUp_ && fresh && n < kMaxBack && (n == 0 || backs_.back().read)},
       {"unback", "Usun ostatnie nawiazanie", "brak nawiazan; nie po zmierzeniu punktu", n > 0 && fresh},
       {"meas", reflectorless_ ? "Rodzaj pomiaru: bezlustrowy (zmien)" : "Rodzaj pomiaru: na lustro (zmien)", "najpierw tachimetr", stationUp_},
       {"faces", twoFace_ ? "Polozenia lunety: dwa, KL+KP (zmien)" : "Polozenia lunety: jedno (zmien)", "nie po zmierzeniu punktu; dwa = kazdy cel mierzysz w KL i KP, przerzut klawiszem " LV_KEYNAME_FLIP, fresh},
       {"prism", prismUp_ ? "Przestaw tyczke z lustrem" : "Postaw tyczke z lustrem", "najpierw tachimetr; nie w trakcie pomiaru GNSS", stationUp_ && !GnssBusy()},
       {"prismh", ph, "najpierw tachimetr", stationUp_},
+      {"fine", "Precyzyjne ustawienie lustra (milimetry)", "najpierw postaw tyczke z lustrem; nie w trakcie pomiaru GNSS", prismUp_ && !GnssBusy()},   // obsluguje kontroler (jak tyczka GNSS)
       {"view", "Patrz przez lunete (" LV_KEYNAME_SCOPE ")", "najpierw tachimetr i co najmniej jedno nawiazanie", stationUp_ && n >= 1},
       {"stake", stakeOn_ ? "Wytyczanie: punkt " + stake_.id + " (zmien)" : "Wytycz punkt osnowy", "najpierw orientacja i tyczka z lustrem; cel 3-300 m od stanowiska", stationUp_ && oriented_},
       {"unstake", "Zakoncz wytyczanie", "trwa wytyczanie", stakeOn_},
@@ -135,7 +136,7 @@ class TachyStationJob : public Job {
         const GridPos g = w_.PointGrid(slot);
         b.cp.n = Mm(g.n); b.cp.e = Mm(g.e); b.cp.h = Mm(g.h); b.name = "N" + std::to_string(slot);
       }
-      backs_.push_back(b); ClearReadings();
+      backs_.push_back(b); lastMsg_.clear(); half_.valid = false; face_ = 1;   // zmierzone wczesniej nawiazania zostaja (stoi tylko jedno lustro, mierzy sie je po kolei)
     } else if (base == "unback") {
       w_.RemoveBacksight(BackCount()); backs_.pop_back(); ClearReadings();
     } else if (base == "prism") {
@@ -369,7 +370,7 @@ class TachyStationJob : public Job {
   // Zwraca komunikat, jesli celownik trafil w lustro ktoregos nawiazania (albo zasloniete); "" gdy nie trafil w zadne.
   std::string TryBacksight(double camAz, double camPitch) {
     const GridPos s = w_.StationGrid();
-    for (int i = 0; i < BackCount(); i++) {
+    for (int i = (std::max)(0, BackCount() - 1); i < BackCount(); i++) {       // stoi (widoczne jest) tylko ostatnio postawione lustro
       const GridPos g = w_.PointGrid(i + 1);
       const TachyAim a = TachyAimError(g.n - s.n, g.e - s.e, (g.h + kPrism[prismIdx_]) - (s.h + st_.instrH), camAz, camPitch);
       if (!a.ok) continue;

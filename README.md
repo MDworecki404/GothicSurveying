@@ -176,7 +176,7 @@ celowania i szum instrumentu, a nie wynik „z gry”.
 punktów osnowy: tachimetr staje na znaku (musisz stać nie dalej niż 2 m), lustra nawiązań na znakach 3–300 m od stanowiska; współrzędne to te zmierzone
 GNSS-em (z błędem). Przy źródle *prawdziwe* stawiasz je pod stopami, jak wcześniej.
 
-Przebieg: **Postaw tachimetr (stanowisko)** → **Dodaj nawiązanie (lustro)** (do 5; znak z tyczką i lustrem zwróconym ku tachimetrowi; „Usuń ostatnie nawiązanie”)
+Przebieg: **Postaw tachimetr (stanowisko)** → **Dodaj nawiązanie (lustro)** (do 5; znak z tyczką i lustrem zwróconym ku tachimetrowi; stoi tylko lustro ostatnio dodanego nawiązania, więc następne dodasz po zmierzeniu poprzedniego; „Usuń ostatnie nawiązanie”; **Precyzyjne ustawienie lustra** przesuwa tyczkę z lustrem o milimetry)
 → **Patrz przez lunetę** (**F10**) i **zmierz nawiązania**: celujesz krzyżem w środek lustra każdego nawiązania i naciskasz **Enter**. Orientacja to średnia z kierunków
 wszystkich zmierzonych nawiązań (co najmniej jedno). Panel i komunikat pokazują dla każdego **odchyłkę kierunku** (mgon) i **odchyłkę odległości** (mm) względem współrzędnych;
 powyżej 20 mgon albo 20 mm + 5 ppm nawiązanie jest oznaczone „niepewne”. Potem **Postaw tyczkę z lustrem**, celuj w lustro punktu i **Enter**. Dodanie, usunięcie

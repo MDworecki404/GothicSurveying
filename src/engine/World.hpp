@@ -761,6 +761,7 @@ namespace GOTHIC_NAMESPACE {
       if ( withMarker ) b.marker = SpawnVob( LV_VIS_REPER, p );
       b.prism = SpawnVob( PrismModel( prismH_ ), p ); b.pos = p; b.up = true;
       FaceInstrument( b.prism );
+      for ( int i = 0; i < 5; i++ ) if ( i != slot - 1 ) RemoveVobSafe( back_[i].prism );   // widoczne jest tylko ostatnio postawione lustro (znak i pozycja zostaja)
     }
     void FaceInstrument( zCVob* v ) {                  // tyczka z lustrem zwrocona tarcza ku tachimetrowi
       if ( !v || !hasInstr_ ) return;

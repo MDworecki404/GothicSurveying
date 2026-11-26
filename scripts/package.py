@@ -10,7 +10,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = sys.argv[1] if len(sys.argv) > 1 else "0.14.1"
+VERSION = sys.argv[1] if len(sys.argv) > 1 else "0.14.2"
 BIN = ROOT / "out" / "install" / "x86-release" / "bin"
 
 README = r"""GothicSurveying v{version} - niwelacja geometryczna w Gothic II: Noc Kruka (plugin Union)
@@ -64,6 +64,7 @@ STEROWANIE
 - Pomiar GNSS (RTK): "Rozpocznij robote" -> "Pomiar GNSS (RTK)"; tyczka z odbiornikiem, panel w lewym gornym rogu,
   "Zapisz punkt" po fixie; wynik: pomiar_gnss.csv i pomiar_gnss.docx w folderze roboty.
 - Luneta tachimetru: K - przelozenie lunety (animacja: przez zenit, luneta konczy skierowana w przeciwna strone), X - obrot alidady o 200 g (z powrotem na cel).
+- Tachimetria: precyzyjne ustawienie lustra (menu, strzalki 1 mm / Shift 10 mm / Ctrl 100 mm); stoi tylko jedno lustro nawiazania naraz - kolejne nawiazanie dodasz po zmierzeniu poprzedniego.
 - Skaner laserowy: zakres - pelne 360 st. albo okno z lunety ("Wskaz zakres skanu w lunecie": Enter = lewy dolny, potem prawy gorny rog).
 - Osnowa z poligonizacji: ciag poligonowy nawiazany obustronnie w limitach -> "Zapisz punkty ciagu jako osnowe".
 - Statyka GNSS (osnowa): osobna robota "Statyka GNSS (osnowa)"; odbiornik (i opcjonalna baza) na statywie, poprawki z sieci albo wlasna baza, sesja co najmniej 30 min (1 s gry = 1 min), "Zaloz punkt osnowy" po fixie. Punkty osnowy zaklada sie tylko stad.
