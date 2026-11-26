@@ -143,7 +143,20 @@ static void precise_turn_is_smooth_and_zoom_scaled() {
   assert(PreciseTurnRateDegS(2, 40) < PreciseTurnRateDegS(2, 20) && PreciseTurnRateDegS(2, 3) > PreciseTurnRateDegS(2, 20));    // wieksze powiekszenie = wolniej
 }
 
+static void flip_pose_goes_over_zenith_and_ends_opposite() {
+  const TachyPose s = TachyFlipPose(0.0, 100.0, 10.0); assert(std::fabs(s.azDeg - 100.0) < 1e-9 && std::fabs(s.pitchDeg - 10.0) < 1e-9);
+  const TachyPose m = TachyFlipPose(0.5, 100.0, 10.0); assert(m.pitchDeg > 85.0 && m.pitchDeg < 95.0);                        // w polowie: przy zenicie
+  const TachyPose e = TachyFlipPose(1.0, 100.0, 10.0); assert(std::fabs(e.azDeg - 280.0) < 1e-9 && std::fabs(e.pitchDeg - 10.0) < 1e-9);   // koniec: przeciwny kierunek
+  const TachyPose e2 = TachyFlipPose(0.9999, 100.0, 10.0);                                                                    // brak skoku tuz przed koncem: ten sam kierunek w przestrzeni
+  const double rad = 3.14159265358979323846 / 180.0, a = e2.azDeg * rad, p = e2.pitchDeg * rad;
+  const double vx = std::sin(a) * std::cos(p), vz = std::cos(a) * std::cos(p), vy = std::sin(p);
+  const double ex = std::sin(280.0 * rad) * std::cos(10.0 * rad), ez = std::cos(280.0 * rad) * std::cos(10.0 * rad), ey = std::sin(10.0 * rad);
+  assert(std::fabs(vx - ex) < 1e-2 && std::fabs(vy - ey) < 1e-2 && std::fabs(vz - ez) < 1e-2);
+  const TachyPose t = TachyTurnPose(1.0, 280.0, 10.0); assert(std::fabs(t.azDeg - 100.0) < 1e-9 && std::fabs(t.pitchDeg - 10.0) < 1e-9);   // obrot alidady wraca na ten sam cel
+}
+
 int main() {
+  flip_pose_goes_over_zenith_and_ends_opposite();
   conversions(); azimuth_directions(); polar_east_level(); polar_sloped_north(); orientation_zeroes_hz();
   extreme_pitch_stays_finite(); aim_error_and_limits(); aim_tolerance_is_angular(); angle_diff_and_circular_mean(); noise_statistics();
   resection_recovers_station_and_rotation(); stakeout_decomposes_along_and_cross(); precise_turn_is_smooth_and_zoom_scaled();

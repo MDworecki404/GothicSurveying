@@ -24,6 +24,7 @@ namespace GOTHIC_NAMESPACE {
   inline const int LV_KEY_ZOOM_IN  = KEY_PGUP;   // w lunecie: wieksze powiekszenie
   inline const int LV_KEY_ZOOM_OUT = KEY_PGDN;   // w lunecie: mniejsze powiekszenie
   inline const int LV_KEY_FLIP     = KEY_K;      // w lunecie tachimetru: przerzut lunety KL <-> KP
+  inline const int LV_KEY_ALIDADE  = KEY_X;      // w lunecie tachimetru: obrot alidady o 200 g (po przelozeniu lunety)
   inline const int LV_KEY_AIM      = KEY_Z;      // w lunecie tachimetru: szybkie najechanie na kolejne lustro
 }
 #endif

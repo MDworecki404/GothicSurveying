@@ -17,6 +17,8 @@ namespace GOTHIC_NAMESPACE {
   inline bool       gTachyOn = false, gTachyFovSaved = false;
   inline float      gTachyAz = 0, gTachyPitch = 0, gTachyFovX = 0, gTachyFovY = 0;   // azymut i pochylenie osi lunety [rad]
   inline std::chrono::steady_clock::time_point gTachyLast;   // zegar o duzej rozdzielczosci (GetTickCount ma ok. 15 ms ziarno => szarpany obrot przy malych predkosciach)
+  inline int        gTachyAnim = 0;                                // 0 brak, 1 przelozenie lunety, 2 obrot alidady o 200 g
+  inline float      gTachyAnimT = 0, gTachyAnimAz = 0, gTachyAnimPitch = 0;   // czas animacji [s] i poczatkowy azymut/pochylenie [rad]
   inline float      gTachyHold = 0;                                // jak dlugo trzymana jest strzalka obrotu [s] (narasta predkosc w trybie dokladnym)
   inline zVEC3      gTachyGround;
   inline zCView     *gTachyReticle = nullptr, *gTachyPanel = nullptr;
@@ -77,10 +79,10 @@ namespace GOTHIC_NAMESPACE {
     gTachyReticle->SetAlphaBlendFunc( zRND_ALPHA_FUNC_BLEND );
     screen->InsertItem( gTachyReticle );
     ViewOpenNow( gTachyReticle );
-    gTachyOn = true; gTachyLast = std::chrono::steady_clock::now(); gTachyHold = 0;
+    gTachyOn = true; gTachyLast = std::chrono::steady_clock::now(); gTachyHold = 0; gTachyAnim = 0;
     ogame->Pause();
     TachyViewRedraw();
-    HudMessage( LV_KEYNAME_AIM " - najechanie na lustro, " LV_KEYNAME_ZOOM " - powiekszenie, Shift - tryb dokladny" );
+    HudMessage( LV_KEYNAME_AIM " - najechanie na lustro, " LV_KEYNAME_ZOOM " - powiekszenie, Shift - tryb dokladny, K - przelozenie lunety, X - obrot alidady o 200 g" );
   }
 
   inline void TachyViewTick() {
@@ -90,6 +92,21 @@ namespace GOTHIC_NAMESPACE {
     float dt = std::chrono::duration<float>( now - gTachyLast ).count(); gTachyLast = now;
     if ( dt > 0.1f ) dt = 0.1f;
     if ( zinput->KeyToggled( LV_KEY_SCOPE ) ) { TachyViewLeave(); return; }
+    if ( gTachyAnim ) {                                         // trwa przelozenie lunety albo obrot alidady: bez sterowania, kamera podaza za animacja
+      const float kPi = 3.14159265f, dur = gTachyAnim == 1 ? 1.4f : 0.7f;
+      gTachyAnimT += dt;
+      const TachyPose p = gTachyAnim == 1 ? TachyFlipPose( gTachyAnimT / dur, gTachyAnimAz * 180.0 / kPi, gTachyAnimPitch * 180.0 / kPi )
+                                          : TachyTurnPose( gTachyAnimT / dur, gTachyAnimAz * 180.0 / kPi, gTachyAnimPitch * 180.0 / kPi );
+      gTachyAz = (float)( p.azDeg * kPi / 180.0 ); gTachyPitch = (float)( p.pitchDeg * kPi / 180.0 );
+      if ( gTachyAnimT >= dur ) gTachyAnim = 0;
+      TachyViewRedraw();
+      zCVob* cam = ogame->GetCameraVob();
+      if ( cam ) {
+        cam->SetPositionWorld( zVEC3( gTachyGround[VX], gTachyGround[VY] + LV_INSTR_H, gTachyGround[VZ] ) );
+        cam->SetHeadingAtWorld( zVEC3( sinf( gTachyAz ) * cosf( gTachyPitch ), sinf( gTachyPitch ), cosf( gTachyAz ) * cosf( gTachyPitch ) ) );
+      }
+      return;
+    }
     const bool turning = zinput->KeyPressed( KEY_LEFT ) || zinput->KeyPressed( KEY_RIGHT ) || zinput->KeyPressed( KEY_UP ) || zinput->KeyPressed( KEY_DOWN );
     gTachyHold = turning ? gTachyHold + dt : 0.0f;                                    // puszczenie strzalki zeruje narastanie predkosci
     const float rate = ( zinput->KeyPressed( KEY_LSHIFT ) ? (float)PreciseTurnRateDegS( gTachyHold, gZoom ) : LV_TURN_FAST ) * 3.14159265f / 180.0f;
@@ -101,7 +118,13 @@ namespace GOTHIC_NAMESPACE {
     if ( gTachyPitch > lim ) gTachyPitch = lim;
     if ( gTachyPitch < -lim ) gTachyPitch = -lim;
     ZoomKeys();
-    if ( zinput->KeyToggled( LV_KEY_FLIP ) && gTachyCb.flip ) { const std::string m = gTachyCb.flip(); if ( !m.empty() ) HudMessage( m.c_str() ); }
+    if ( zinput->KeyToggled( LV_KEY_FLIP ) && gTachyCb.flip ) {
+      auto faceOf = []() { const std::vector<std::string> l = gTachyCb.panel ? gTachyCb.panel( 0, 0 ) : std::vector<std::string>(); return !l.empty() && l[0].find( "KP" ) != std::string::npos ? 2 : 1; };
+      const int before = faceOf();
+      const std::string m = gTachyCb.flip(); if ( !m.empty() ) HudMessage( m.c_str() );
+      if ( faceOf() != before ) { gTachyAnim = 1; gTachyAnimT = 0; gTachyAnimAz = gTachyAz; gTachyAnimPitch = gTachyPitch; return; }   // polozenie sie zmienilo: pokaz przelozenie lunety
+    }
+    if ( zinput->KeyToggled( LV_KEY_ALIDADE ) ) { gTachyAnim = 2; gTachyAnimT = 0; gTachyAnimAz = gTachyAz; gTachyAnimPitch = gTachyPitch; return; }
     if ( zinput->KeyToggled( LV_KEY_AIM ) ) {                   // najazd z celowym bledem: lustro ma sie pojawic w polu widzenia, ale nie w krzyzu
       const std::vector<zVEC3> t = gWorld.PrismTops();
       if ( t.empty() ) HudMessage( "Brak lustra do najechania" );

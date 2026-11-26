@@ -40,7 +40,8 @@ inline std::vector<std::string> HelpLines(const std::string& context) {
     "Statyka (osobna robota): poprawki z sieci albo wlasna baza; min. 30 min sesji.",
   };
   else if (context == "job:tachy") extra = {
-    LV_KEYNAME_SCOPE " - luneta tachimetru; Enter - orientacja albo pomiar; " LV_KEYNAME_FLIP " - przerzut lunety (KL/KP).",
+    LV_KEYNAME_SCOPE " - luneta tachimetru; Enter - orientacja albo pomiar.",
+    LV_KEYNAME_FLIP " - przelozenie lunety (KL/KP), X - obrot alidady o 200 g.",
     "Kolejnosc: stanowisko, nawiazania (orientacja w lunecie), tyczka z lustrem, pomiar.",
   };
   else if (context == "job:scan") extra = {

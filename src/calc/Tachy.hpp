@@ -128,6 +128,21 @@ inline double PreciseTurnRateDegS(double holdSec, double zoom) {
   return (0.01 + (0.4 - 0.01) * s) * zs;
 }
 
+// Przelozenie lunety (K): luneta przechodzi przez zenit, po drodze robi pelny obrot w azymucie, a konczy skierowana w przeciwna strone
+// (az + 180 st., to samo pochylenie), tak jak po przelozeniu bez obrotu alidady. t01 = postep animacji 0..1.
+struct TachyPose { double azDeg, pitchDeg; };
+inline TachyPose TachyFlipPose(double t01, double az0Deg, double pitch0Deg) {
+  const double t = (std::min)(1.0, (std::max)(0.0, t01));
+  if (t >= 1.0) return {NormDeg(az0Deg + 180.0), pitch0Deg};
+  const double e = t * t * (3.0 - 2.0 * t);                                  // lagodny start i koniec
+  return {az0Deg + 360.0 * e, pitch0Deg + (180.0 - 2.0 * pitch0Deg) * e};     // pochylenie > 90 st. = luneta po drugiej stronie zenitu
+}
+// Obrot alidady o 200 g (klawisz X) po przelozeniu: plynnie o 180 st.
+inline TachyPose TachyTurnPose(double t01, double az0Deg, double pitch0Deg) {
+  const double t = (std::min)(1.0, (std::max)(0.0, t01)), e = t * t * (3.0 - 2.0 * t);
+  return {t >= 1.0 ? NormDeg(az0Deg + 180.0) : az0Deg + 180.0 * e, pitch0Deg};
+}
+
 struct TachyAim { double lateralM, verticalM, distM; bool ok; };
 
 // Różnica kątów a - b zawinięta do [-180, 180] stopni.
