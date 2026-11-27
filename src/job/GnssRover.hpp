@@ -21,6 +21,7 @@ class GnssRover : public Job {
       {"pole", static_ ? (poleUp_ ? "Przestaw odbiornik na statywie" : "Postaw odbiornik na statywie") : poleUp_ ? "Przestaw tyczke z odbiornikiem" : "Postaw tyczke z odbiornikiem", "nie w trakcie pomiaru punktu", !measuring_},
       {"fine", "Precyzyjne ustawienie tyczki (milimetry)", "najpierw postaw tyczke; nie w trakcie pomiaru punktu", poleUp_ && !measuring_},   // obsluguje kontroler
       {"antenna", ant, "nie w trakcie pomiaru punktu", !measuring_},
+      {"prefix", std::string("Prefiks punktow: ") + kDetailPrefix[prefixIdx_] + " (zmien)", "T teren, B budynek, D droga, P plot, S slup, Z zielen, K krawedz", !measuring_},
       {"corr", ownBase_ ? "Poprawki RTK: wlasna baza (zmien)" : "Poprawki RTK: siec (zmien)", "nie w trakcie pomiaru punktu; wlasna baza = stawiasz stacje bazowa", !measuring_},
       {"base", baseUp_ ? "Przestaw baze (stacja bazowa)" : "Postaw baze (stacja bazowa)", "tylko przy poprawkach z wlasnej bazy; na punkcie osnowy (2 m) baza zna wspolrzedne", ownBase_ && !measuring_},
       {"start", "Rozpocznij pomiar punktu", "najpierw postaw tyczke", poleUp_ && !measuring_},
@@ -48,6 +49,8 @@ class GnssRover : public Job {
       GnssRng r((uint32_t)(w_.Random01() * 4e9) + 1); const double s = known ? 0.005 : 1.2;
       baseOff_[0] = s * r.Normal(); baseOff_[1] = s * r.Normal(); baseOff_[2] = 1.5 * s * r.Normal();
       baseNote_ = known ? "baza na punkcie osnowy" : "baza na dowolnym punkcie (wspolrzedne bazy z bledem)";
+    } else if (id == "prefix") {
+      prefixIdx_ = (prefixIdx_ + 1) % kDetailPrefixCount;
     } else if (id == "antenna") {
       antIdx_ = (antIdx_ + 1) % kAntennaCount;
     } else if (id == "start") {
@@ -132,13 +135,13 @@ class GnssRover : public Job {
  public:
   bool CanSaveState() const override { return true; }
   void SaveState(StateKV& s) const override {                                // trwajacy pomiar punktu (sesja) nie jest zapisywany: po wczytaniu trzeba go zaczac od nowa
-    s.Bool("poleUp", poleUp_); s.Bool("ownBase", ownBase_); s.Bool("baseUp", baseUp_); s.Int("ant", antIdx_);
+    s.Bool("poleUp", poleUp_); s.Bool("ownBase", ownBase_); s.Bool("baseUp", baseUp_); s.Int("ant", antIdx_); s.Int("prefixIdx", prefixIdx_);
     s.Num("base.n", baseTruth_.n); s.Num("base.e", baseTruth_.e); s.Num("base.h", baseTruth_.h);
     s.Num("off0", baseOff_[0]); s.Num("off1", baseOff_[1]); s.Num("off2", baseOff_[2]); s.Str("baseNote", baseNote_);
     PutVec(s, "points", points_, PutGnssPoint);
   }
   bool LoadState(const StateKV& s) override {
-    poleUp_ = s.GetBool("poleUp"); ownBase_ = s.GetBool("ownBase"); baseUp_ = s.GetBool("baseUp"); antIdx_ = s.GetInt("ant") % kAntennaCount;
+    poleUp_ = s.GetBool("poleUp"); ownBase_ = s.GetBool("ownBase"); baseUp_ = s.GetBool("baseUp"); antIdx_ = s.GetInt("ant") % kAntennaCount; prefixIdx_ = s.GetInt("prefixIdx", 3) % kDetailPrefixCount;
     baseTruth_ = GridPos{s.GetNum("base.n"), s.GetNum("base.e"), s.GetNum("base.h")};
     baseOff_[0] = s.GetNum("off0"); baseOff_[1] = s.GetNum("off1"); baseOff_[2] = s.GetNum("off2"); baseNote_ = s.GetStr("baseNote");
     points_ = GetVec<GnssPoint>(s, "points", GetGnssPoint);
@@ -165,7 +168,9 @@ class GnssRover : public Job {
 
   void Store(const std::string& forcedNote = "") {
     const GnssFix& f = session_->Fix();
-    GnssPoint p; p.name = "P" + std::to_string(points_.size() + 1); p.timeText = w_.TimeText();
+    const std::string pre = kDetailPrefix[prefixIdx_];
+    int num = 1; for (const GnssPoint& q : points_) if (q.name.compare(0, pre.size(), pre) == 0) num++;   // numeracja osobno dla kazdego prefiksu
+    GnssPoint p; p.name = pre + std::to_string(num); p.timeText = w_.TimeText();
     p.n = f.n; p.e = f.e; p.h = f.h; p.solution = GnssSolName(f.type); p.used = f.used; p.pdop = f.pdop;
     p.hRmsMm = f.hRmsMm; p.vRmsMm = f.vRmsMm; p.epochs = f.epochs; p.antennaM = kAntenna[antIdx_];
     p.note = !forcedNote.empty() ? forcedNote : f.type == SolType::Fix ? "" : "zapis bez fixu";
@@ -183,7 +188,7 @@ class GnssRover : public Job {
   bool poleUp_ = false, measuring_ = false, baseUp_ = false, sessionBase_ = false, sessionStatic_ = false;
   GridPos baseTruth_{0, 0, 0}; double baseOff_[3] = {0, 0, 0}; std::string baseNote_;
   const bool static_; bool ownBase_ = false;      // poprawki: siec (domyslnie, bez bazy: mozna zalozyc pierwsza osnowe) albo wlasna baza
-  int antIdx_ = 0; double lastEpoch_ = 0, virtT_ = 0; GridPos truth_{0, 0, 0};
+  int antIdx_ = 0, prefixIdx_ = 3; double lastEpoch_ = 0, virtT_ = 0; GridPos truth_{0, 0, 0};
   std::unique_ptr<GnssSession> session_;
   std::vector<GnssPoint> points_;
 };

@@ -35,6 +35,7 @@ class TachyStationJob : public Job {
       {"backsight", "Dodaj nawiazanie (lustro)", "najpierw tachimetr; max 5; nie po zmierzeniu punktu; najpierw zmierz poprzednie nawiazanie (stoi tylko jedno lustro)", stationUp_ && fresh && n < kMaxBack && (n == 0 || backs_.back().read)},
       {"unback", "Usun ostatnie nawiazanie", "brak nawiazan; nie po zmierzeniu punktu", n > 0 && fresh},
       {"meas", reflectorless_ ? "Rodzaj pomiaru: bezlustrowy (zmien)" : "Rodzaj pomiaru: na lustro (zmien)", "najpierw tachimetr", stationUp_},
+      {"prefix", std::string("Prefiks szczegolow: ") + kDetailPrefix[prefixIdx_] + " (zmien)", "T teren, B budynek, D droga, P plot, S slup, Z zielen, K krawedz", true},
       {"faces", twoFace_ ? "Polozenia lunety: dwa, KL+KP (zmien)" : "Polozenia lunety: jedno (zmien)", "nie po zmierzeniu punktu; dwa = kazdy cel mierzysz w KL i KP, przerzut klawiszem " LV_KEYNAME_FLIP, fresh},
       {"prism", prismUp_ ? "Przestaw tyczke z lustrem" : "Postaw tyczke z lustrem", "najpierw tachimetr; nie w trakcie pomiaru GNSS", stationUp_ && !GnssBusy()},
       {"prismh", ph, "najpierw tachimetr", stationUp_},
@@ -146,6 +147,8 @@ class TachyStationJob : public Job {
     } else if (base == "prismh") {
       prismIdx_ = (prismIdx_ + 1) % kPrismCount;
       w_.SetPrismHeightM(kPrism[prismIdx_]);          // modele lustra (tyczka i nawiazania) maja od teraz te wysokosc
+    } else if (base == "prefix") {
+      prefixIdx_ = (prefixIdx_ + 1) % kDetailPrefixCount;
     } else if (base == "meas") {
       reflectorless_ = !reflectorless_;
     } else if (base == "faces") {
@@ -243,7 +246,7 @@ class TachyStationJob : public Job {
   void SaveState(StateKV& s) const override {
     s.Bool("control", control_); s.Bool("free", free_); s.Bool("solved", solved_); s.Bool("stakeOn", stakeOn_); s.Bool("stationUp", stationUp_); s.Bool("prismUp", prismUp_);
     s.Bool("oriented", oriented_); s.Bool("reflectorless", reflectorless_); s.Bool("twoFace", twoFace_); s.Bool("errDrawn", errDrawn_); s.Int("face", face_);
-    s.Num("coll", collGon_); s.Num("index", indexGon_); s.Int("prismIdx", prismIdx_); s.Num("az0", az0_); s.Num("freeRms", freeRms_);
+    s.Num("coll", collGon_); s.Num("index", indexGon_); s.Int("prismIdx", prismIdx_); s.Int("prefixIdx", prefixIdx_); s.Num("az0", az0_); s.Num("freeRms", freeRms_);
     s.Num("st.n", st_.n); s.Num("st.e", st_.e); s.Num("st.h", st_.h); s.Num("st.ih", st_.instrH); s.Num("st.azb", st_.azBackDeg); s.Num("st.az0", st_.az0Deg);
     PutControl(s, "stationCp", stationCp_); PutControl(s, "stake", stake_);
     s.Int("backs.n", (long long)backs_.size());
@@ -258,7 +261,7 @@ class TachyStationJob : public Job {
   bool LoadState(const StateKV& s) override {
     control_ = s.GetBool("control"); free_ = s.GetBool("free"); solved_ = s.GetBool("solved"); stakeOn_ = s.GetBool("stakeOn"); stationUp_ = s.GetBool("stationUp"); prismUp_ = s.GetBool("prismUp");
     oriented_ = s.GetBool("oriented"); reflectorless_ = s.GetBool("reflectorless"); twoFace_ = s.GetBool("twoFace"); errDrawn_ = s.GetBool("errDrawn"); face_ = s.GetInt("face", 1);
-    collGon_ = s.GetNum("coll"); indexGon_ = s.GetNum("index"); prismIdx_ = s.GetInt("prismIdx") % kPrismCount; az0_ = s.GetNum("az0"); freeRms_ = s.GetNum("freeRms");
+    collGon_ = s.GetNum("coll"); indexGon_ = s.GetNum("index"); prismIdx_ = s.GetInt("prismIdx") % kPrismCount; prefixIdx_ = s.GetInt("prefixIdx") % kDetailPrefixCount; az0_ = s.GetNum("az0"); freeRms_ = s.GetNum("freeRms");
     st_.n = s.GetNum("st.n"); st_.e = s.GetNum("st.e"); st_.h = s.GetNum("st.h"); st_.instrH = s.GetNum("st.ih", 1.5); st_.azBackDeg = s.GetNum("st.azb"); st_.az0Deg = s.GetNum("st.az0");
     stationCp_ = GetControl(s, "stationCp"); stake_ = GetControl(s, "stake");
     backs_.clear(); const int nb = s.GetInt("backs.n");
@@ -434,7 +437,9 @@ class TachyStationJob : public Job {
   }
 
   std::string Store(const TachyReading& r, const TachyResult& res, double prismM, const GridPos& truth, const std::string& note) {
-    TachyPoint p; p.name = "T" + std::to_string(points_.size() + 1); p.timeText = w_.TimeText();
+    const std::string pre = kDetailPrefix[prefixIdx_];
+    int num = 1; for (const TachyPoint& q : points_) if (q.name.compare(0, pre.size(), pre) == 0) num++;   // numeracja osobno dla kazdego prefiksu
+    TachyPoint p; p.name = pre + std::to_string(num); p.timeText = w_.TimeText();
     p.hzGon = r.hzGon; p.vGon = r.vGon; p.slopeM = r.slopeM; p.hDistM = res.hDistM;
     p.dHM = r.slopeM * std::cos(GonToDeg(r.vGon) * TACHY_PI / 180.0);
     p.n = res.n; p.e = res.e; p.h = res.h; p.prismM = prismM; p.note = note;
@@ -460,6 +465,7 @@ class TachyStationJob : public Job {
   bool twoFace_ = false, errDrawn_ = false; int face_ = 1; double collGon_ = 0, indexGon_ = 0; std::string faceNote_;
   bool control_ = false, stationUp_ = false, prismUp_ = false, oriented_ = false, reflectorless_ = false;
   int prismIdx_ = 0; double az0_ = 0;
+  int prefixIdx_ = 0;
   std::string lastMsg_;
   std::vector<TachyPoint> points_;
   std::unique_ptr<Job> gnss_;

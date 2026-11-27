@@ -16,6 +16,9 @@ enum class MarkerKind { Reper, Turning };
 enum class JobKind { Leveling, Gnss, Tachy, Scan, Aerial, Photo, Polygon };
 struct MapLine { double n1, e1, n2, e2; int color; };   // nakladka na mape osnowy: 0 obszar, 1 szereg, 2 dojazd
 
+// Prefiksy nazw mierzonych szczegolow (menu "prefix" w tachimetrii i GNSS): T teren, B budynek, D droga, P plot, S slup, Z zielen, K krawedz; bez G/O/N (osnowa, nawiazania).
+inline constexpr const char* kDetailPrefix[] = {"T", "B", "D", "P", "S", "Z", "K"};
+inline constexpr int kDetailPrefixCount = 7;
 struct MenuItem { std::string id, label, hint; bool enabled; std::string section = "", why = ""; };   // section/why: wypelnia Arrange (job/Workflow.hpp)
 struct JobOptions { TraverseKind kind; CalcMode mode; bool showTrueError = false; };
 

@@ -192,7 +192,7 @@ Zmiana trybu kasuje orientację. Domyślnie jedno położenie, bez tych błędó
 **Stanowisko dowolne (wcięcie wstecz)** (menu „Stanowisko: dowolne”, przy źródle osnowa GNSS): tachimetr stawiasz gdziekolwiek, dodajesz co najmniej 2 nawiązania na punktach osnowy
 i mierzysz je (kierunek i odległość). Współrzędne stanowiska, orientację koła i wysokość liczy obrót + przesunięcie z dopasowania do wszystkich nawiązań; panel pokazuje N, E i rms dopasowania.
 **Wiele stanowisk**: po zmierzeniu punktu menu ma „Nowe stanowisko (zamknij bieżące)”. Zamyka ono stanowisko (S1, S2…) razem z jego nawiązaniami i odchyłkami, a następne stawiasz od nowa
-(na znanym punkcie albo dowolnie, z własną orientacją). Punkty numerują się dalej (T1, T2…) i mają w uwagach „stanowisko S<n>”; raport (CSV i DOCX) opisuje każde stanowisko osobno
+(na znanym punkcie albo dowolnie, z własną orientacją). Punkty numerują się dalej (T1, T2…; prefiks – T teren, B budynek, D droga, P płot, S słup, Z zieleń, K krawędź – wybierasz w menu „Prefiks szczegółów”, tak samo w pomiarze GNSS, a numeracja liczy się osobno dla każdego prefiksu) i mają w uwagach „stanowisko S<n>”; raport (CSV i DOCX) opisuje każde stanowisko osobno
 i podsumowuje liczbę stanowisk. Punkt mierzony z dwóch stanowisk daje porównanie współrzędnych bez wyrównania.
 
 **Wytyczanie** („Wytycz punkt osnowy”, po orientacji): wybierasz punkt osnowy 3–300 m od stanowiska, ustawiasz tyczkę z lustrem i mierzysz **Enter**; komunikat mówi, o ile przesunąć tyczkę
