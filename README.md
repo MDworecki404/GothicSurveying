@@ -63,6 +63,10 @@ na punkcie końcowym **Zakończ robotę**. Punkt końcowy: dla ciągu dowiązane
 Pierwszy odczyt na stanowisku może być wstecz lub wprzód (kolejność dowolna); przewyższenie to wstecz − wprzód. Wysokość punktu to wysokość stopy łaty
 (szczyt znaku reperu lub żabki).
 
+**Kierunek lunety i obrót instrumentu.** Niwelator i tachimetr pamiętają kierunek, w który patrzyłeś w lunecie: po wyjściu (F10) i ponownym wejściu widok wraca w to samo miejsce
+(nowe postawienie instrumentu zaczyna od kierunku gracza). Model obraca się naprawdę: alidada (u niwelatora górna część z lunetą) za azymutem, a luneta tachimetru także w pionie, również przy
+przełożeniu lunety i obrocie alidady. Statyw stoi w miejscu. Pamięć kierunku zapisuje się razem ze stanem sprzętu w zapisie gry.
+
 ## Projekty i pomiary
 
 **Projekt** to praca na jednym świecie; w nim wykonujesz **pomiary** (ciąg niwelacyjny, GNSS, tachimetria, niwelacja trygonometryczna, skaner, nalot ALS, fotogrametria) – także kilka tego samego rodzaju, po kolei (naraz trwa jeden pomiar).

@@ -85,6 +85,7 @@ def block(i):  # stały punkt w i-tym z 8 bloków atlasu 128x16: drewno | stal |
 
 
 def build_instrument():
+    """Niwelator - czesc nieruchoma: statyw, glowica, limbus. Obrotowa gorna czesc to build_instrument_head (osobny vob, obraca sie wokol pionu)."""
     m = Mesh()
     cx, cy = 0.0, 0.0
     for ang in (90, 210, 330):                       # statyw: 3 nogi rozstawione na zewnątrz
@@ -92,6 +93,12 @@ def build_instrument():
         prism(m, (cx + 55 * math.cos(a), cy + 55 * math.sin(a), 0), (cx + 3 * math.cos(a), cy + 3 * math.sin(a), 140), 2.2, 4, block(0))
     prism(m, (0, 0, 138), (0, 0, 146), 9, 12, block(1))          # głowica statywu
     prism(m, (0, 0, 146), (0, 0, 147.5), 7, 12, block(3))        # limbus (pomarańcz)
+    return m
+
+
+def build_instrument_head():
+    """Niwelator - obrotowa czesc (osobny vob w punkcie gruntu, obrot wokol pionu): podstawa lunety, luneta o osi 150 cm, libela."""
+    m = Mesh()
     box(m, 0, 0, 148.5, 9, 9, 3, block(1))                        # podstawa lunety
     prism(m, (0, -18, 150), (0, 14, 150), 3.5, 12, block(1))     # tubus lunety, oś = 150 cm
     prism(m, (0, 14, 150), (0, 22, 150), 4.8, 12, block(2))      # obiektyw
@@ -139,7 +146,7 @@ def build_prism_pole(h_cm):
 
 
 def build_tachy():
-    """Tachimetr na statywie: statyw, spodarka, alidada z dwoma slupkami, luneta (os 150 cm), uchwyt, panel sterowania."""
+    """Tachimetr - czesc nieruchoma: statyw, glowica, spodarka (trojnog ze sruba), podstawa alidady. Alidada i luneta to osobne voby (build_tachy_head, build_tachy_scope)."""
     m = Mesh()
     for ang in (90, 210, 330):                                               # statyw: 3 nogi
         a = math.radians(ang)
@@ -147,16 +154,28 @@ def build_tachy():
     prism(m, (0, 0, 126), (0, 0, 132), 10, 12, block(1))                     # glowica statywu
     prism(m, (0, 0, 132), (0, 0, 136), 8.5, 12, block(2))                    # spodarka (trojnog ze sruba)
     prism(m, (0, 0, 136), (0, 0, 141), 8.0, 12, block(1))                    # podstawa alidady
+    return m
+
+
+def build_tachy_head():
+    """Tachimetr - alidada (vob w punkcie gruntu, obrot wokol pionu = kolo poziome): dwa slupki, mostek, uchwyt, os pozioma lunety, panel, wyswietlacz."""
+    m = Mesh()
     box(m, -10, 0, 151, 5, 10, 22, block(1))                                 # lewy slupek alidady
     box(m, 10, 0, 151, 5, 10, 22, block(1))                                  # prawy slupek alidady
     box(m, 0, 0, 164, 25, 7, 3, block(1))                                    # mostek / uchwyt nad luneta
     box(m, 0, 0, 168, 3, 14, 3, block(2))                                    # raczka do przenoszenia
     prism(m, (-12, 0, 150), (12, 0, 150), 2.0, 12, block(2))                 # os pozioma lunety
-    prism(m, (0, -9, 150), (0, 13, 150), 4.2, 12, block(1))                  # tubus lunety, os = 150 cm
-    prism(m, (0, 13, 150), (0, 19, 150), 5.4, 12, block(2))                  # obiektyw
-    prism(m, (0, -14, 150), (0, -9, 150), 3.0, 12, block(2))                 # okular
     box(m, 12.6, 0, 148, 1.5, 8, 10, block(3))                               # panel sterowania (pomaranczowy)
     box(m, 0, 9, 142, 10, 2, 4, block(2))                                    # wyswietlacz/libela na podstawie
+    return m
+
+
+def build_tachy_scope():
+    """Tachimetr - luneta (vob na osi poziomej, 150 cm nad gruntem; poczatek ukladu = os; obrot w poziomie i w pionie): tubus, obiektyw (+Y), okular."""
+    m = Mesh()
+    prism(m, (0, -9, 0), (0, 13, 0), 4.2, 12, block(1))                      # tubus lunety
+    prism(m, (0, 13, 0), (0, 19, 0), 5.4, 12, block(2))                      # obiektyw
+    prism(m, (0, -14, 0), (0, -9, 0), 3.0, 12, block(2))                     # okular
     return m
 
 
@@ -430,10 +449,13 @@ def main():
                               ("LVL_RODL4", build_rod(8), rod_mats(8)),
                               ("LVL_RODL5", build_rod(10), rod_mats(10)),
                               ("LVL_INSTR", build_instrument(), one),
+                              ("LVL_INSTRHEAD", build_instrument_head(), one),
                               ("LVL_PLATE", build_plate(), one),
                               ("LVL_POLE", build_pole(), one),
                               ("LVL_GNSSTRI", build_gnss_tripod(), one),
                               ("LVL_TACHY", build_tachy(), one),
+                              ("LVL_TACHYHEAD", build_tachy_head(), one),
+                              ("LVL_TACHYSCOPE", build_tachy_scope(), one),
                               ("LVL_PRISM13", build_prism_pole(130.0), one),
                               ("LVL_PRISM15", build_prism_pole(150.0), one),
                               ("LVL_PRISM18", build_prism_pole(180.0), one),

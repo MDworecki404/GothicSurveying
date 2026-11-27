@@ -81,7 +81,7 @@ namespace GOTHIC_NAMESPACE {
     };
     cb.block = []() { return gJob ? gJob->InstrumentBlock() : std::string(); };
     cb.levelState = []() { return gJob ? CtrlLevelState() : std::string(); };
-    cb.onEnter = []() { gWorld.TurnRodsToInstrument(); gWorld.SetInstrumentVisible( false ); };
+    cb.onEnter = []() { gWorld.TurnRodsToInstrument(); gWorld.SetInstrumentVisible( false ); float a, p; if ( gWorld.InstrumentPose( a, p ) ) gAz = a; };   // kierunek z poprzedniego wejscia
     cb.onLeave = []() { gWorld.SetInstrumentVisible( true ); };
     ScopeEnter( gWorld.InstrumentGround(), cb );
   }
@@ -611,6 +611,8 @@ namespace GOTHIC_NAMESPACE {
     ScopeTick();
     PoleFineTick();
     TachyViewTick();
+    if ( ScopeActive() ) gWorld.SetInstrumentPose( gAz, 0.0f );                          // model instrumentu obraca sie za lunetą i zapamietuje kierunek
+    if ( TachyViewActive() ) gWorld.SetInstrumentPose( gTachyAz, gTachyPitch );
     HudTick();
     if ( ScopeActive() || PoleFineActive() || TachyViewActive() ) { CtrlCloseJobHud(); return; }
     if ( FieldBookEditActive() ) { if ( FieldBookEditTick() ) CtrlFinishManual(); return; }

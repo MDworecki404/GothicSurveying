@@ -73,6 +73,7 @@ namespace GOTHIC_NAMESPACE {
     gTachyCb = cb; gTachyGround = gWorld.InstrumentGround();
     zVEC3 at = cam->GetAtVectorWorld();
     gTachyAz = atan2f( at[VX], at[VZ] ); gTachyPitch = 0;       // zaczynamy tam, gdzie patrzyl gracz, poziomo
+    { float a, p; if ( gWorld.InstrumentPose( a, p ) ) { gTachyAz = a; gTachyPitch = p; } }   // ...chyba ze instrument pamieta kierunek z poprzedniego wejscia
     if ( player ) player->showVisual = 0;                       // kamera w osi lunety - nic nie przeslania widoku
     gWorld.SetDressVisible( false ); gWorld.SetInstrumentVisible( false );
     gTachyReticle = new zCView( 0, 0, 8192, 8192 );

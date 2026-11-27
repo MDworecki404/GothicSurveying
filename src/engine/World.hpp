@@ -46,11 +46,10 @@ namespace GOTHIC_NAMESPACE {
     bool PlaceInstrument() override {
       zVEC3 p;
       if ( !FeetGround( p ) ) return false;
-      RemoveVobSafe( instr_ );
-      instr_ = SpawnVob( LV_VIS_INSTR, p ); instrGround_ = p; hasInstr_ = true; instrKind_ = 0;
+      SpawnInstrument( p, 0 );
       return true;
     }
-    void RemoveInstrument() override { RemoveVobSafe( instr_ ); RemoveVobSafe( scanHead_ ); hasInstr_ = false; }
+    void RemoveInstrument() override { RemoveVobSafe( instr_ ); RemoveVobSafe( scanHead_ ); RemoveVobSafe( scope_ ); hasInstr_ = false; havePose_ = false; }
     double PointHeightM( int pointId ) const override { return pts_.count( pointId ) ? Foot( pointId )[VY] / 100.0 : 0.0; }
     double SightDistCm( int pointId ) const override {
       auto it = pts_.find( pointId );
@@ -589,6 +588,8 @@ namespace GOTHIC_NAMESPACE {
       if ( !hasInstr_ ) return;
       instrGround_[VY] += (float)( dyMm / 10.0 );
       if ( instr_ ) instr_->SetPositionWorld( instrGround_ );
+      if ( instrKind_ != 2 && scanHead_ ) scanHead_->SetPositionWorld( instrGround_ );
+      if ( scope_ ) scope_->SetPositionWorld( instrGround_ + zVEC3( 0, LV_INSTR_H, 0 ) );
     }
     void Say( const std::string& text ) override { HudMessage( text.c_str() ); }
 
@@ -602,7 +603,19 @@ namespace GOTHIC_NAMESPACE {
       return v;
     }
     zVEC3 PointFoot( int pointId ) const { return Foot( pointId ); }
-    void SetInstrumentVisible( bool v ) { if ( instr_ ) instr_->showVisual = v ? 1 : 0; }
+    void SetInstrumentVisible( bool v ) {
+      if ( instr_ ) instr_->showVisual = v ? 1 : 0;
+      if ( instrKind_ != 2 && scanHead_ ) scanHead_->showVisual = v ? 1 : 0;   // skaner: glowica zawsze widoczna (steruje nia skan)
+      if ( scope_ ) scope_->showVisual = v ? 1 : 0;
+    }
+    // Poza instrumentu = kierunek lunety (azymut, pochylenie [rad]): obraca alidade/gorna czesc i lunete modelu; pamiec kierunku miedzy wejsciami do lunety.
+    void SetInstrumentPose( float az, float pitch ) {
+      poseAz_ = az; posePitch_ = pitch; havePose_ = true;
+      if ( !hasInstr_ || instrKind_ == 2 ) return;
+      if ( scanHead_ && !VobIsStale( scanHead_ ) ) scanHead_->SetHeadingAtWorld( zVEC3( sinf( az ), 0, cosf( az ) ) );
+      if ( scope_ && !VobIsStale( scope_ ) ) scope_->SetHeadingAtWorld( zVEC3( sinf( az ) * cosf( pitch ), sinf( pitch ), cosf( az ) * cosf( pitch ) ) );
+    }
+    bool InstrumentPose( float& az, float& pitch ) const { if ( !havePose_ || !hasInstr_ ) return false; az = poseAz_; pitch = posePitch_; return true; }
     void TurnRodsToInstrument() {                      // łaty zwrócone przodem do instrumentu (do odczytu)
       for ( int r = 0; r < 2; r++ ) {
         if ( !rod_[r] || !hasInstr_ ) continue;
@@ -658,7 +671,7 @@ namespace GOTHIC_NAMESPACE {
     // Po zmianie świata: oddaje własne referencje bez dotykania świata (voby zwolnił już świat).
     void ForgetAll() {
       for ( auto& kv : pts_ ) DropVobRef( kv.second.marker );
-      DropVobRef( rod_[0] ); DropVobRef( rod_[1] ); DropVobRef( instr_ ); DropVobRef( scanHead_ ); DropVobRef( pole_ ); DropVobRef( base_ ); for ( ScanTgt& t : scanTgt_ ) { DropVobRef( t.vob ); t.up = false; } hasPole_ = false; poleIsPrism_ = false;
+      DropVobRef( rod_[0] ); DropVobRef( rod_[1] ); DropVobRef( instr_ ); DropVobRef( scanHead_ ); DropVobRef( scope_ ); DropVobRef( pole_ ); DropVobRef( base_ ); for ( ScanTgt& t : scanTgt_ ) { DropVobRef( t.vob ); t.up = false; } hasPole_ = false; poleIsPrism_ = false;
       for ( Back& b : back_ ) { DropVobRef( b.marker ); DropVobRef( b.prism ); b.up = false; }
       DropVobRef( helmet_ ); DropVobRef( vest_ ); helmetNode_ = vestNode_ = nullptr;
       DropVobRef( drone_ ); for ( zCVob*& v : prop_ ) DropVobRef( v ); droneUp_ = false; followCam_ = false;
@@ -666,11 +679,11 @@ namespace GOTHIC_NAMESPACE {
     }
     bool Stale() const {                                 // któryś z naszych vobów nie należy już do bieżącego świata
       for ( const auto& kv : pts_ ) if ( VobIsStale( kv.second.marker ) ) return true;
-      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ ) || VobIsStale( scanHead_ ) || VobIsStale( helmet_ ) || VobIsStale( vest_ ) || VobIsStale( pole_ ) || VobIsStale( base_ ) || VobIsStale( drone_ ) || ScanTargetsStale() || BacksightsStale();
+      return VobIsStale( rod_[0] ) || VobIsStale( rod_[1] ) || VobIsStale( instr_ ) || VobIsStale( scanHead_ ) || VobIsStale( scope_ ) || VobIsStale( helmet_ ) || VobIsStale( vest_ ) || VobIsStale( pole_ ) || VobIsStale( base_ ) || VobIsStale( drone_ ) || ScanTargetsStale() || BacksightsStale();
     }
     void ClearAll() {
       for ( auto& kv : pts_ ) RemoveVobSafe( kv.second.marker );
-      RemoveVobSafe( rod_[0] ); RemoveVobSafe( rod_[1] ); RemoveVobSafe( instr_ ); RemoveVobSafe( scanHead_ ); RemoveVobSafe( pole_ ); RemoveVobSafe( base_ ); for ( ScanTgt& t : scanTgt_ ) { RemoveVobSafe( t.vob ); t.up = false; } hasPole_ = false; poleIsPrism_ = false;
+      RemoveVobSafe( rod_[0] ); RemoveVobSafe( rod_[1] ); RemoveVobSafe( instr_ ); RemoveVobSafe( scanHead_ ); RemoveVobSafe( scope_ ); RemoveVobSafe( pole_ ); RemoveVobSafe( base_ ); for ( ScanTgt& t : scanTgt_ ) { RemoveVobSafe( t.vob ); t.up = false; } hasPole_ = false; poleIsPrism_ = false;
       for ( int i = 1; i <= 5; i++ ) RemoveBacksight( i );
       DressOff(); RemoveDrone(); followCam_ = false;
       pts_.clear(); rodPoint_[0] = rodPoint_[1] = -1; hasInstr_ = false; hasBase_ = false;
@@ -684,6 +697,7 @@ namespace GOTHIC_NAMESPACE {
       for ( const auto& kv : pts_ ) { const std::string p = "pts." + std::to_string( i++ ); s.Int( p + ".id", kv.first ); PutPos( s, p, kv.second.pos ); s.Bool( p + ".reper", kv.second.reper ); }
       s.Int( "rod0", rodPoint_[0] ); s.Int( "rod1", rodPoint_[1] );
       s.Bool( "instr", hasInstr_ ); s.Int( "instrKind", instrKind_ ); PutPos( s, "instrPos", instrGround_ );
+      s.Bool( "havePose", havePose_ ); s.Num( "poseAz", poseAz_ ); s.Num( "posePitch", posePitch_ );
       s.Bool( "pole", hasPole_ ); s.Bool( "poleIsPrism", poleIsPrism_ ); s.Bool( "poleTripod", poleTripod_ ); PutPos( s, "polePos", poleGround_ );
       for ( int k = 0; k < 5; k++ ) { const std::string p = "back" + std::to_string( k ); s.Bool( p + ".up", back_[k].up ); s.Bool( p + ".marker", back_[k].marker != nullptr ); PutPos( s, p, back_[k].pos ); }
       s.Bool( "base", hasBase_ ); PutPos( s, "basePos", baseGround_ );
@@ -700,7 +714,8 @@ namespace GOTHIC_NAMESPACE {
         const zVEC3 ip = GetPos( s, "instrPos" );
         const int kind = s.Has( "instrKind" ) ? s.GetInt( "instrKind" ) : ( s.GetBool( "instrTachy" ) ? 1 : 0 );
         if ( kind >= 1 ) PlaceTachymeterPos( ip, kind );
-        else { instr_ = SpawnVob( LV_VIS_INSTR, ip ); instrGround_ = ip; hasInstr_ = true; instrKind_ = 0; }
+        else SpawnInstrument( ip, 0 );
+        if ( s.GetBool( "havePose" ) ) SetInstrumentPose( (float)s.GetNum( "poseAz" ), (float)s.GetNum( "posePitch" ) );
       }
       for ( int r = 0; r < 2; r++ ) { const int id = s.GetInt( r ? "rod1" : "rod0", -1 ); if ( id >= 0 ) PlaceRod( r ? RodRole::Fore : RodRole::Back, id ); }
       if ( s.GetBool( "pole" ) ) {
@@ -749,11 +764,17 @@ namespace GOTHIC_NAMESPACE {
     bool ScanTargetsStale() const { for ( const ScanTgt& t : scanTgt_ ) if ( VobIsStale( t.vob ) ) return true; return false; }
     bool BacksightsStale() const { for ( const Back& b : back_ ) if ( VobIsStale( b.marker ) || VobIsStale( b.prism ) ) return true; return false; }
     void PlaceTachymeterPos( const zVEC3& p, int kind = 1 ) {       // kind: 1 tachimetr, 2 skaner laserowy
-      RemoveVobSafe( instr_ ); RemoveVobSafe( scanHead_ );
-      instr_ = SpawnVob( kind == 2 ? LV_VIS_SCANNER : LV_VIS_TACHY, p ); instrGround_ = p; hasInstr_ = true; instrKind_ = kind;
-      if ( kind == 2 ) scanHead_ = SpawnVob( LV_VIS_SCANHEAD, p );                  // obrotowa glowica skanera
+      SpawnInstrument( p, kind );
       if ( poleIsPrism_ ) FaceInstrument( pole_ );
       for ( Back& b : back_ ) if ( b.up ) FaceInstrument( b.prism );
+    }
+    // Instrument i jego obrotowe czesci: niwelator (podstawa + gorna czesc), tachimetr (statyw + alidada + luneta), skaner (korpus + glowica). Nowe stawianie kasuje zapamietany kierunek.
+    void SpawnInstrument( const zVEC3& p, int kind ) {
+      RemoveVobSafe( instr_ ); RemoveVobSafe( scanHead_ ); RemoveVobSafe( scope_ );
+      instr_ = SpawnVob( kind == 2 ? LV_VIS_SCANNER : kind == 1 ? LV_VIS_TACHY : LV_VIS_INSTR, p ); instrGround_ = p; hasInstr_ = true; instrKind_ = kind;
+      scanHead_ = SpawnVob( kind == 2 ? LV_VIS_SCANHEAD : kind == 1 ? LV_VIS_TACHYHEAD : LV_VIS_INSTRHEAD, p );
+      if ( kind == 1 ) scope_ = SpawnVob( LV_VIS_TACHYSCOPE, p + zVEC3( 0, LV_INSTR_H, 0 ) );
+      havePose_ = false;
     }
     void PlaceBacksightPos( int slot, const zVEC3& p, bool withMarker ) {
       Back& b = back_[slot - 1];
@@ -771,7 +792,9 @@ namespace GOTHIC_NAMESPACE {
     }
     struct ScanTgt { zVEC3 pos; zCVob* vob = nullptr; bool up = false; };
     ScanTgt scanTgt_[6];                               // kule referencyjne skanera (srodek = pos + kScanTargetUpM nad znakiem)
-    zCVob* scanHead_ = nullptr;                        // obrotowa glowica skanera
+    zCVob* scanHead_ = nullptr;                        // obrotowa czesc instrumentu: glowica skanera / alidada tachimetru / gorna czesc niwelatora
+    zCVob* scope_ = nullptr;                           // luneta tachimetru (obrot w poziomie i w pionie)
+    float poseAz_ = 0, posePitch_ = 0; bool havePose_ = false;   // zapamietany kierunek lunety [rad]
     struct Beam { double az, el, dist; };
     std::vector<Beam> beams_;                          // ostatnie wiazki skanu (rysowane liniami)
     zCVob* base_ = nullptr; zVEC3 baseGround_; bool hasBase_ = false;   // stacja bazowa RTK
