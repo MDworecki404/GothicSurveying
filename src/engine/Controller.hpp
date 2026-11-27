@@ -39,6 +39,7 @@ namespace GOTHIC_NAMESPACE {
   inline zCView*            gStatusPanel = nullptr;  // panel odbiornika GNSS (linie ze Job::StatusLines)
   inline std::string        gStatusText;
 
+  inline std::string CtrlFineGuide( const GridPos& poleTruth ) { return gJob ? gJob->FineGuide( poleTruth ) : std::string(); }
   inline void CtrlCloseJobHud() { PanelClose( gJobHud ); gJobHudText.clear(); PanelClose( gStatusPanel ); gStatusText.clear(); }
   inline void CtrlEndJob() { gJob.reset(); gWorld.ClearAll(); CtrlCloseJobHud(); }
   inline void CtrlForgetJob() {                        // po zmianie świata: obiekty zniknęły razem ze światem
@@ -312,11 +313,11 @@ namespace GOTHIC_NAMESPACE {
     std::vector<MenuItem> items = gJob->TachyChoices( menuId );
     if ( items.empty() ) {
       if ( menuId.compare( 0, 4, "ref_" ) == 0 ) { HudMessage( "Brak wolnych punktow osnowy w tym swiecie (zaladuj osnowe albo zaloz punkty w robocie GNSS)" ); return; }
-      HudMessage( menuId == "station" ? "Brak punktu osnowy w promieniu 2 m od ciebie" : menuId == "stake" ? "Brak punktow osnowy 3-300 m od stanowiska do wytyczenia" : "Brak wolnych punktow osnowy 3-300 m od stanowiska" );
+      HudMessage( menuId == "station" ? "Brak punktu osnowy w promieniu 2 m od ciebie" : menuId == "stake" ? ( gJob->Kind() == JobKind::Gnss ? "Brak punktow projektowych do wytyczenia (wszystkie wytyczone)" : "Brak punktow osnowy 3-300 m od stanowiska do wytyczenia" ) : "Brak wolnych punktow osnowy 3-300 m od stanowiska" );
       return;
     }
     MenuOpen( MenuView{ menuId == "redo" ? "Wybierz stanowisko do powtorzenia" : menuId == "ref_n1" ? "Wybierz nawiazanie poczatkowe N1" : menuId == "ref_a" ? "Wybierz pierwszy punkt ciagu A" : menuId == "ref_b" ? "Wybierz ostatni punkt ciagu B" : menuId == "ref_n2" ? "Wybierz nawiazanie koncowe N2" :
-                        menuId == "station" ? "Wybierz punkt osnowy na stanowisko" : menuId == "stake" ? "Wybierz punkt osnowy do wytyczenia" : "Wybierz punkt osnowy na nawiazanie", items },
+                        menuId == "station" ? "Wybierz punkt osnowy na stanowisko" : menuId == "stake" ? ( gJob->Kind() == JobKind::Gnss ? "Wybierz punkt projektowy do wytyczenia" : "Wybierz punkt osnowy do wytyczenia" ) : "Wybierz punkt osnowy na nawiazanie", items },
               []( const std::string& id ) { if ( gJob ) gJob->OnMenu( id ); } );
   }
 
@@ -500,7 +501,7 @@ namespace GOTHIC_NAMESPACE {
       else {
         const size_t before = gJob->Kind() == JobKind::Gnss ? gJob->FinishGnss( false ).points.size() : 0;
         gJob->OnMenu( id );
-        if ( gJob->Kind() == JobKind::Gnss && ( id == "store" || id == "control" ) ) {   // każdy zapisany punkt od razu do logu (przetrwa awarię gry)
+        if ( gJob->Kind() == JobKind::Gnss && ( id == "store" || id == "control" || id == "confirm" ) ) {   // każdy zapisany punkt od razu do logu (przetrwa awarię gry)
           const GnssReport r = gJob->FinishGnss( false );
           if ( r.points.size() > before ) AppendGnssLog( gReadingLog, r.points.back(), (int)r.points.size(), r.showTrueError );
         }

@@ -109,6 +109,7 @@ class Job {
   virtual FieldBook Finish(bool complete) = 0;                    // complete=false przy przerwaniu
   virtual JobKind Kind() const { return JobKind::Leveling; }
   virtual TachyReport FinishTachy(bool complete) { (void)complete; return TachyReport{}; }
+  virtual std::string FineGuide(const GridPos& poleTruth) const { (void)poleTruth; return ""; }   // wskazowka wytyczania przy milimetrowym ustawianiu tyczki (pusta = nie wytycza)
   virtual bool NeedsChoice(const std::string& menuId) const { (void)menuId; return false; }    // pozycja menu wymaga wyboru punktu z listy (osnowa)
   virtual std::vector<MenuItem> TachyChoices(const std::string& menuId) const { (void)menuId; return {}; }   // lista wyboru: id pozycji "<menuId>:<punkt>"
   virtual std::string TachyFire(double camAzDeg, double camPitchDeg) { (void)camAzDeg; (void)camPitchDeg; return ""; }   // Enter w lunecie; komunikat ASCII

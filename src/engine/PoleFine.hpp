@@ -5,6 +5,7 @@
 #include <string>
 
 namespace GOTHIC_NAMESPACE {
+  inline std::string CtrlFineGuide( const GridPos& poleTruth );   // engine/Controller.hpp: wskazowka wytyczania z roboty (pusta, gdy robota nie wytycza)
   inline bool      gFineOn = false;
   inline zVEC3     gFineStart, gFinePos;               // pozycja tyczki przy wejściu i bieżąca (grunt)
   inline float     gFineAz = 0;                        // azymut widoku kamery [rad]: kierunek (sin az, 0, cos az) = od kamery w stronę tyczki
@@ -21,6 +22,8 @@ namespace GOTHIC_NAMESPACE {
     char l2[96], l3[110];
     sprintf( l2, "Przesuniecie od startu: N %+.0f mm   E %+.0f mm", offN, offE );
     sprintf( l3, "Pozycja w grze: N %.3f  E %.3f  H %.3f m", g.n, g.e, g.h );
+    const std::string guide = CtrlFineGuide( g );        // przy wytyczaniu zamiast prawdziwej pozycji: wskazanie odbiornika
+    if ( !guide.empty() ) snprintf( l3, sizeof l3, "%s", guide.c_str() );
     const std::string text = std::string( l2 ) + "|" + l3;
     if ( gFinePanel && text == gFineText ) return;
     gFineText = text;

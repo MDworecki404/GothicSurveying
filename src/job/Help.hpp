@@ -37,6 +37,7 @@ inline std::vector<std::string> HelpLines(const std::string& context) {
   else if (context == "job:gnss") extra = {
     "Postaw tyczke, rozpocznij pomiar punktu, poczekaj na fix i zapisz punkt.",
     "RTK sluzy do zdjecia sytuacyjnego; punkty osnowy zakladasz w robocie Statyka GNSS.",
+    "Wytyczanie: punkty projektowe, wskazania odbiornika, zatwierdz przy fixie i <= 3 cm.",
     "Statyka (osobna robota): poprawki z sieci albo wlasna baza; min. 30 min sesji.",
   };
   else if (context == "job:tachy") extra = {

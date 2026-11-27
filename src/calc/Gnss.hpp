@@ -160,6 +160,7 @@ class GnssSession {
     const double ang = 2.0 * 3.14159265358979323846 * rng_.Uniform();
     const double err[3] = {bias_[0] + g.hMm * rng_.Normal() + tilt * std::cos(ang), bias_[1] + g.hMm * rng_.Normal() + tilt * std::sin(ang),
                            bias_[2] + g.vMm * rng_.Normal()};
+    if (kin_) { cnt_ = 0; for (int i = 0; i < 3; i++) sum_[i] = sq_[i] = 0; }       // wytyczanie: kazda epoka to nowy, nieuredniany odczyt (tyczka sie przemieszcza)
     for (int i = 0; i < 3; i++) { sum_[i] += err[i]; sq_[i] += err[i] * err[i]; }
     cnt_++; fix_.epochs = cnt_;
     const bool rel = corrOk_ && type != SolType::Autonomous;             // przesuniecie bazy dotyczy tylko rozwiazan wzglednych
@@ -175,12 +176,15 @@ class GnssSession {
   void SetBase(bool corrOk, double baselineM, double dn, double de, double dh, bool isStatic) {
     corrOk_ = corrOk; baselineM_ = baselineM; off_[0] = dn; off_[1] = de; off_[2] = dh; static_ = isStatic;
   }
+  // Tryb kinematyczny (wytyczanie): bez usredniania epok, a prawdziwe polozenie tyczki mozna zmieniac miedzy epokami.
+  void SetKinematic(bool k) { kin_ = k; }
+  void SetTruth(const GridPos& t) { truth_ = t; }
   const GnssFix& Fix() const { return fix_; }
   double StartSec() const { return t0_; }
  private:
   GnssRng rng_; double t0_; GridPos truth_; double setM_, trueM_;
   double tFloat_ = 8, tFix_ = 20;
-  bool corrOk_ = true, static_ = false; double baselineM_ = 0, off_[3] = {0, 0, 0};
+  bool corrOk_ = true, static_ = false, kin_ = false; double baselineM_ = 0, off_[3] = {0, 0, 0};
   SolSigma Sigma(SolType t) const {                // + 1 ppm (poziomo) i 2 ppm (pionowo) od linii bazowej; statyka: 0,4 szumu fixu
     SolSigma g = GnssSigma(t, fix_.pdop, fix_.multipath);
     if (t == SolType::Fix) { if (static_) { g.hMm *= 0.4; g.vMm *= 0.4; } g.hMm += baselineM_ * 0.001; g.vMm += baselineM_ * 0.002; }

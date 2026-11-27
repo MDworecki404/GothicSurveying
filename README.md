@@ -142,6 +142,12 @@ dodatkowe kolumny `blad_N_m`, `blad_E_m`, `blad_H_m`, `blad_2D_m` względem punk
 zna swoje współrzędne (błąd mm), baza na dowolnym punkcie ma błąd pozycji rzędu metra, który przesuwa wszystkie punkty rovera tak samo; dochodzi błąd linii bazowej (1 ppm poziomo, 2 ppm pionowo).
 Statyka to **osobna robota** „Statyka GNSS (osnowa)”: odbiornik i baza stoją na statywie, poprawki domyślnie z sieci (bez bazy, więc pierwszą osnowę można założyć od zera), zapis wymaga fixu i co najmniej 30 min sesji (1 s gry = 1 min), a szum fixu jest wtedy 0,4 zwykłego. Punkty osnowy zakłada się tylko stąd (RTK ich nie zakłada). Uwaga przy punkcie podaje bazę, linię bazową i statykę.
 
+**Wytyczanie punktów projektowych.** W robocie „Pomiar GNSS (RTK)” (nie w statyce) pozycja „Wygeneruj punkty projektowe” tworzy prostokąt budynku 10 × 6 m (W1–W4) kilka metrów od
+ciebie. „Wytycz punkt projektowy” (lista punktów) włącza wytyczanie: odbiornik pokazuje, o ile metrów i w którą stronę (N, NE, E… i azymut, dN/dE) przestawić tyczkę. Przestawiasz ją
+(„Postaw tyczkę” albo „Precyzyjne ustawienie” – tam zamiast pozycji w grze widać wskazanie odbiornika). Gdy jest fix RTK i odległość ≤ 3 cm, „Zatwierdź wytyczony punkt” zapisuje punkt
+(nazwa jak w projekcie, uwagi: odchyłka wg odbiornika, a przy „prawdziwym błędzie” także prawdziwa odchyłka kołka od projektu) i przechodzi do następnego. Wytyczanie z pliku z listą
+punktów i wysokości projektowe nie są jeszcze obsługiwane; sesja wytyczania nie jest zapisywana w zapisie gry (lista punktów i wykonanie tak).
+
 ## Osnowa GNSS
 
 W robocie GNSS, gdy odbiornik ma **fix** i co najmniej **20 epok**, menu ma pozycję **Załóż punkt osnowy**. Zapisuje ona punkt tak jak „Zapisz punkt”

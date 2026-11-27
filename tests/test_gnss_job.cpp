@@ -27,7 +27,9 @@ struct FakeGnss : IWorld {
   bool PlaceBase(GridPos& g) override { g = baseAt; return ground; }
   std::vector<ControlPoint> ControlNearHero(double) const override { return controlNear ? std::vector<ControlPoint>{ControlPoint{}} : std::vector<ControlPoint>{}; }
   SkyMask SkyHorizon() const override { return mask; }
-  GridPos PoleGroundGrid() const override { return {5500100.0, 6500200.0, 12.5}; }
+  GridPos pole{5500100.0, 6500200.0, 12.5};
+  GridPos PoleGroundGrid() const override { return pole; }
+  bool HeroGround(GridPos& g) const override { g = pole; return true; }
   double NowSec() const override { return now; }
   std::string TimeText() const override { return "09:15:03"; }
   std::vector<ControlPoint> stored; std::string nextId = "O1";                 // osnowa: zapisane punkty i id nadawane przez swiat
@@ -44,6 +46,28 @@ struct Fx {
   std::string status() const { std::string s; for (auto& l : job->StatusLines()) s += l + "\n"; return s; }
   void measure(int sec) { menu("pole"); menu("start"); advance(sec); }
 };
+
+static void stakeout_guides_confirms_and_advances() {
+  Fx f(true);
+  assert(!f.enabled("stake") && !f.enabled("confirm"));
+  f.menu("pole"); assert(f.enabled("design") && !f.enabled("stake"));          // najpierw punkty projektowe
+  f.menu("design"); assert(f.enabled("stake") && f.job->NeedsChoice("stake") && f.job->TachyChoices("stake").size() == 4);
+  f.menu("stake:W1"); assert(f.enabled("unstake") && f.enabled("fine") && f.enabled("pole") && !f.enabled("start") && !f.enabled("finish"));
+  f.advance(30);
+  const std::string g = f.job->FineGuide(f.w.pole);
+  assert(has(g, "W1") && has(g, "m na NE") && !f.enabled("confirm"));            // tyczka 7 m od punktu
+  f.w.pole = GridPos{5500105.0, 6500205.0, 12.5}; f.advance(3);                    // przestawiona na punkt projektowy
+  assert(f.enabled("confirm") && has(f.status(), "Punkt wytyczony"));
+  f.menu("confirm");
+  assert(has(f.label("stake"), "W2") && f.enabled("unstake"));                     // kolejny cel, sesja trwa
+  f.advance(30); f.w.pole = GridPos{5500115.0, 6500205.0, 12.5}; f.advance(3); f.menu("confirm");
+  f.menu("unstake");
+  const GnssReport r = f.job->FinishGnss(true);
+  assert(r.points.size() == 2 && r.points[0].name == "W1" && r.points[1].name == "W2" && has(r.points[0].note, "wytyczenie W1") && has(r.points[0].note, "prawdziwa odchylka"));
+  assert(r.points[0].hasTrue && std::fabs(r.points[0].dNmm) < 60.0 && std::fabs(r.points[0].dEmm) < 60.0);
+  StateKV st; f.job->SaveState(st); Fx h(true); h.job->LoadState(st);            // lista punktow i wykonanie przezywaja zapis
+  assert(h.job->TachyChoices("stake").size() == 2);
+}
 
 static void registry_lists_gnss() {
   bool found = false;
@@ -226,6 +250,7 @@ static void state_roundtrip_gnss() {
 }
 
 int main() {
+  stakeout_guides_confirms_and_advances();
   registry_lists_gnss(); menu_enablement_follows_state(); pole_blocked_without_ground(); open_sky_fix_then_store();
   store_without_fix_is_flagged(); blocked_sky_never_enables_store(); clock_frozen_means_no_epochs();
   antenna_presets_cycle_and_bias_height(); true_error_columns_when_enabled(); abort_returns_partial_report(); discard_clears_measurement();
