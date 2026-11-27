@@ -436,11 +436,27 @@ namespace GOTHIC_NAMESPACE {
     } );
   }
 
+  // Szybkie zalozenie punktu osnowy pod nogami bohatera: znak stoi w prawdziwym miejscu, a zapisane N/E/H maja szum jak z pomiaru
+  // (statyka: 5 mm w planie / 10 mm w pionie; poligon: 10 mm / 15 mm - sigma 1-osiowa). Bez rachunku - to skrot do zakladania osnowy.
+  inline void CtrlQuickControl( bool statik ) {
+    zVEC3 g; if ( !FeetGround( g ) ) { HudMessage( "Brak gruntu pod stopami" ); return; }
+    static GnssRng rng( (uint32_t)GetTickCount() );
+    const double sh = statik ? 0.005 : 0.010, sv = statik ? 0.010 : 0.015;
+    const GridPos t = GnssToGrid( g[VX], g[VY], g[VZ] );
+    ControlPoint cp; cp.x = g[VX]; cp.y = g[VY]; cp.z = g[VZ];
+    cp.n = t.n + sh * rng.Normal(); cp.e = t.e + sh * rng.Normal(); cp.h = t.h + sv * rng.Normal();
+    cp.solution = statik ? "szybkie zalozenie (symulacja statyki)" : "szybkie zalozenie (symulacja poligonizacji)";
+    cp.timeText = gWorld.TimeText();
+    const std::string id = ControlAdd( cp );
+    HudMessage( id.empty() ? "Blad zapisu osnowy" : ( "Zalozono punkt osnowy " + id ).c_str() );
+  }
+
   // Narzedzia niezalezne od projektu: osnowa swiata, mapa, teleport, usuwanie osnowy, poziomowanie instrumentow. Lewo wraca na ekran glowny.
   inline void CtrlOpenToolsMenu() {
     MenuOpen( MenuView{ "Osnowa i narzedzia", { { "world", "Zaladuj osnowe geodezyjna swiata", "", true }, { "control", "Pokaz osnowe", "", true }, { "map", "Mapa osnowy", "", true }, { "tp", "Teleport do punktu osnowy", "", true }, { "rm", "Usun osnowe", "", true },
+                                             { "qs", "Zaloz punkt osnowy tu (statyka)", "pod nogami, wspolrzedne z szumem", true }, { "qp", "Zaloz punkt osnowy tu (poligon)", "pod nogami, wspolrzedne z szumem", true },
                                              { "lvl", gLevelingOn ? "Poziomowanie instrumentow: wlaczone (zmien)" : "Poziomowanie instrumentow: wylaczone (zmien)", "dotyczy nastepnych stanowisk", true } }, "GEODEZJA > Narzedzia" },
-              []( const std::string& id ) { if ( id == "lvl" ) { gLevelingOn = !gLevelingOn; HudMessage( gLevelingOn ? "Poziomowanie instrumentow wlaczone" : "Poziomowanie instrumentow wylaczone" ); } else if ( id == "control" ) CtrlShowControl(); else if ( id == "world" ) CtrlLoadWorldControl(); else if ( id == "map" ) MapOpen(); else if ( id == "tp" ) CtrlOpenTeleport( 0 ); else if ( id == "rm" ) CtrlOpenRemoveMenu(); },
+              []( const std::string& id ) { if ( id == "lvl" ) { gLevelingOn = !gLevelingOn; HudMessage( gLevelingOn ? "Poziomowanie instrumentow wlaczone" : "Poziomowanie instrumentow wylaczone" ); } else if ( id == "control" ) CtrlShowControl(); else if ( id == "world" ) CtrlLoadWorldControl(); else if ( id == "map" ) MapOpen(); else if ( id == "tp" ) CtrlOpenTeleport( 0 ); else if ( id == "rm" ) CtrlOpenRemoveMenu(); else if ( id == "qs" || id == "qp" ) CtrlQuickControl( id == "qs" ); },
               []() { ProjUiOpenHome(); } );
   }
 
