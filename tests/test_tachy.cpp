@@ -143,20 +143,18 @@ static void precise_turn_is_smooth_and_zoom_scaled() {
   assert(PreciseTurnRateDegS(2, 40) < PreciseTurnRateDegS(2, 20) && PreciseTurnRateDegS(2, 3) > PreciseTurnRateDegS(2, 20));    // wieksze powiekszenie = wolniej
 }
 
-static void flip_pose_goes_over_zenith_and_ends_opposite() {
-  const TachyPose s = TachyFlipPose(0.0, 100.0, 10.0); assert(std::fabs(s.azDeg - 100.0) < 1e-9 && std::fabs(s.pitchDeg - 10.0) < 1e-9);
-  const TachyPose m = TachyFlipPose(0.5, 100.0, 10.0); assert(m.pitchDeg > 85.0 && m.pitchDeg < 95.0);                        // w polowie: przy zenicie
-  const TachyPose e = TachyFlipPose(1.0, 100.0, 10.0); assert(std::fabs(e.azDeg - 280.0) < 1e-9 && std::fabs(e.pitchDeg - 10.0) < 1e-9);   // koniec: przeciwny kierunek
-  const TachyPose e2 = TachyFlipPose(0.9999, 100.0, 10.0);                                                                    // brak skoku tuz przed koncem: ten sam kierunek w przestrzeni
-  const double rad = 3.14159265358979323846 / 180.0, a = e2.azDeg * rad, p = e2.pitchDeg * rad;
-  const double vx = std::sin(a) * std::cos(p), vz = std::cos(a) * std::cos(p), vy = std::sin(p);
-  const double ex = std::sin(280.0 * rad) * std::cos(10.0 * rad), ez = std::cos(280.0 * rad) * std::cos(10.0 * rad), ey = std::sin(10.0 * rad);
-  assert(std::fabs(vx - ex) < 1e-2 && std::fabs(vy - ey) < 1e-2 && std::fabs(vz - ez) < 1e-2);
-  const TachyPose t = TachyTurnPose(1.0, 280.0, 10.0); assert(std::fabs(t.azDeg - 100.0) < 1e-9 && std::fabs(t.pitchDeg - 10.0) < 1e-9);   // obrot alidady wraca na ten sam cel
+static void flip_pose_full_turn_ends_near_target() {
+  const TachyPose s = TachyFlipPose(0.0, 100.0, 10.0, 0.3, -0.2); assert(std::fabs(s.azDeg - 100.0) < 1e-9 && std::fabs(s.pitchDeg - 10.0) < 1e-9);
+  const TachyPose m = TachyFlipPose(0.5, 100.0, 10.0, 0.3, -0.2); assert(m.pitchDeg > 80.0 && m.pitchDeg < 90.0);                   // w polowie: wysoko, ale nie za zenitem
+  const TachyPose e = TachyFlipPose(1.0, 100.0, 10.0, 0.3, -0.2); assert(std::fabs(e.azDeg - 100.3) < 1e-9 && std::fabs(e.pitchDeg - 9.8) < 1e-9);   // koniec: obok celu
+  for (int i = 0; i <= 100; i++) assert(TachyFlipPose(i / 100.0, 100.0, 10.0).pitchDeg < 90.0);                                    // nigdy przez zenit
+  const TachyPose e2 = TachyFlipPose(0.9999, 100.0, 10.0, 0.3, -0.2);                                                              // brak skoku tuz przed koncem
+  assert(std::fabs(NormDeg(e2.azDeg) - 100.3) < 0.05 && std::fabs(e2.pitchDeg - 9.8) < 0.05);
+  const TachyPose t = TachyTurnPose(1.0, 280.0, 10.0); assert(std::fabs(t.azDeg - 100.0) < 1e-9 && std::fabs(t.pitchDeg - 10.0) < 1e-9);   // obrot alidady o 180 st.
 }
 
 int main() {
-  flip_pose_goes_over_zenith_and_ends_opposite();
+  flip_pose_full_turn_ends_near_target();
   conversions(); azimuth_directions(); polar_east_level(); polar_sloped_north(); orientation_zeroes_hz();
   extreme_pitch_stays_finite(); aim_error_and_limits(); aim_tolerance_is_angular(); angle_diff_and_circular_mean(); noise_statistics();
   resection_recovers_station_and_rotation(); stakeout_decomposes_along_and_cross(); precise_turn_is_smooth_and_zoom_scaled();
