@@ -37,6 +37,7 @@ class TachyStationJob : public Job {
       {"meas", reflectorless_ ? "Rodzaj pomiaru: bezlustrowy (zmien)" : "Rodzaj pomiaru: na lustro (zmien)", "najpierw tachimetr", stationUp_},
       {"prefix", std::string("Prefiks szczegolow: ") + kDetailPrefix[prefixIdx_] + " (zmien)", "T teren, B budynek, D droga, P plot, S slup, Z zielen, K krawedz", true},
       {"faces", twoFace_ ? "Polozenia lunety: dwa, KL+KP (zmien)" : "Polozenia lunety: jedno (zmien)", "nie po zmierzeniu punktu; dwa = kazdy cel mierzysz w KL i KP, przerzut klawiszem " LV_KEYNAME_FLIP, fresh},
+      {"intersect", intersect_ ? "Metoda: wciecie w przod, same kierunki (zmien)" : "Metoda: biegunowa (zmien)", "najpierw tachimetr; wciecie: ten sam punkt (tyczka) mierzysz z dwoch stanowisk, bez odleglosci", stationUp_},
       {"prism", prismUp_ ? "Przestaw tyczke z lustrem" : "Postaw tyczke z lustrem", "najpierw tachimetr; nie w trakcie pomiaru GNSS", stationUp_ && !GnssBusy()},
       {"prismh", ph, "najpierw tachimetr", stationUp_},
       {"fine", "Precyzyjne ustawienie lustra (milimetry)", "najpierw postaw tyczke z lustrem; nie w trakcie pomiaru GNSS", prismUp_ && !GnssBusy()},   // obsluguje kontroler (jak tyczka GNSS)
@@ -147,6 +148,8 @@ class TachyStationJob : public Job {
     } else if (base == "prismh") {
       prismIdx_ = (prismIdx_ + 1) % kPrismCount;
       w_.SetPrismHeightM(kPrism[prismIdx_]);          // modele lustra (tyczka i nawiazania) maja od teraz te wysokosc
+    } else if (base == "intersect") {
+      intersect_ = !intersect_;
     } else if (base == "prefix") {
       prefixIdx_ = (prefixIdx_ + 1) % kDetailPrefixCount;
     } else if (base == "meas") {
@@ -246,7 +249,9 @@ class TachyStationJob : public Job {
   void SaveState(StateKV& s) const override {
     s.Bool("control", control_); s.Bool("free", free_); s.Bool("solved", solved_); s.Bool("stakeOn", stakeOn_); s.Bool("stationUp", stationUp_); s.Bool("prismUp", prismUp_);
     s.Bool("oriented", oriented_); s.Bool("reflectorless", reflectorless_); s.Bool("twoFace", twoFace_); s.Bool("errDrawn", errDrawn_); s.Int("face", face_);
-    s.Num("coll", collGon_); s.Num("index", indexGon_); s.Int("prismIdx", prismIdx_); s.Int("prefixIdx", prefixIdx_); s.Num("az0", az0_); s.Num("freeRms", freeRms_);
+    s.Num("coll", collGon_); s.Num("index", indexGon_); s.Int("prismIdx", prismIdx_); s.Int("prefixIdx", prefixIdx_); s.Bool("intersect", intersect_);
+    s.Int("fwd.n", (long long)fwd_.size());
+    for (size_t i = 0; i < fwd_.size(); i++) { const std::string k = "fwd." + std::to_string(i); const FwdObs& o = fwd_[i]; s.Int(k + ".st", o.station); s.Num(k + ".n", o.n); s.Num(k + ".e", o.e); s.Num(k + ".az", o.azDeg); s.Num(k + ".tn", o.tn); s.Num(k + ".te", o.te); } s.Num("az0", az0_); s.Num("freeRms", freeRms_);
     s.Num("st.n", st_.n); s.Num("st.e", st_.e); s.Num("st.h", st_.h); s.Num("st.ih", st_.instrH); s.Num("st.azb", st_.azBackDeg); s.Num("st.az0", st_.az0Deg);
     PutControl(s, "stationCp", stationCp_); PutControl(s, "stake", stake_);
     s.Int("backs.n", (long long)backs_.size());
@@ -270,6 +275,8 @@ class TachyStationJob : public Job {
       b.name = s.GetStr(p + ".name"); b.cp = GetControl(s, p + ".cp"); b.read = s.GetBool(p + ".read"); b.azMeasDeg = s.GetNum(p + ".az"); b.distMeasM = s.GetNum(p + ".d"); b.hdMeasM = s.GetNum(p + ".hd"); b.dHMeasM = s.GetNum(p + ".dh");
       backs_.push_back(b);
     }
+    intersect_ = s.GetBool("intersect"); fwd_.clear();
+    for (int i = 0, nf = s.GetInt("fwd.n"); i < nf; i++) { const std::string k = "fwd." + std::to_string(i); fwd_.push_back({s.GetInt(k + ".st"), s.GetNum(k + ".n"), s.GetNum(k + ".e"), s.GetNum(k + ".az"), s.GetNum(k + ".tn"), s.GetNum(k + ".te")}); }
     points_ = GetVec<TachyPoint>(s, "points", GetTachyPoint); done_ = GetVec<TachyStationRec>(s, "done", GetTachyStationRec);
     stationNo_ = s.GetInt("stationNo", 1); stationStart_ = (size_t)s.GetInt("stationStart"); lib_.x = s.GetNum("lib.x"); lib_.y = s.GetNum("lib.y");
     half_.valid = false; lastMsg_.clear();
@@ -294,7 +301,7 @@ class TachyStationJob : public Job {
     }
   }
   void NewSetup() { if (!lib_.enabled) return; const double u1 = w_.Random01(), u2 = w_.Random01(); lib_.Reset(u1, u2); }   // nowe stanowisko: instrument krzywo na statywie
-  bool PointsHere() const { return points_.size() > stationStart_; }       // czy na biezacym stanowisku zmierzono juz punkt
+  bool PointsHere() const { for (const FwdObs& o : fwd_) if (o.station == stationNo_) return true; return points_.size() > stationStart_; }       // czy na biezacym stanowisku zmierzono juz punkt
 
   TachyStationRec CurrentRec() const {
     TachyStationRec s; s.label = "S" + std::to_string(stationNo_);
@@ -410,9 +417,36 @@ class TachyStationJob : public Job {
     if (!w_.LineClear(true)) return lastMsg_ = "Linia celowa zaslonieta";
     TachyReading r;
     if (!Acquire("P", camAz, camPitch, az0_, a.distM, noise_, r)) return lastMsg_;
+    if (intersect_) return MeasureIntersect(r, g);
     const TachyResult res = TachyPolar(st_, r, ph);
     const std::string m = Store(r, res, ph, g, stakeOn_ ? ("wytyczanie " + stake_.id) : "");
     return stakeOn_ ? lastMsg_ = m + StakeGuide(res) : m;
+  }
+
+  // Wciecie w przod: z odczytu liczy sie tylko kierunek (odleglosc pomijana). Pierwszy kierunek czeka; drugi na ten sam punkt
+  // (tyczka w tym samym miejscu, <= 5 cm) z innego stanowiska daje punkt z przeciecia obu kierunkow.
+  std::string MeasureIntersect(const TachyReading& r, const GridPos& truth) {
+    faceNote_.clear();
+    const double az = NormDeg(GonToDeg(r.hzGon));
+    for (size_t i = 0; i < fwd_.size(); i++) {
+      const FwdObs& o = fwd_[i];
+      if (o.station == stationNo_ || std::hypot(o.tn - truth.n, o.te - truth.e) > 0.05) continue;
+      const TachyIntersection x = TachyForwardIntersection(o.n, o.e, o.azDeg, st_.n, st_.e, az);
+      if (!x.ok || x.gammaGon < 30.0 || x.gammaGon > 170.0) {
+        char b[140]; std::snprintf(b, sizeof b, "Wciecie niemozliwe albo zle uwarunkowane (kat przeciecia %.1f g, zalecane 30-170 g): zmien stanowisko", x.ok ? x.gammaGon : 0.0);
+        return lastMsg_ = b;
+      }
+      char note[120]; std::snprintf(note, sizeof note, "wciecie w przod z S%d i S%d, kat przeciecia %.2f g, bez wysokosci", o.station, stationNo_, x.gammaGon);
+      TachyReading rr{r.hzGon, 100.0, 0.0};
+      GridPos t = truth; t.h = 0.0;                                      // wciecie nie daje wysokosci: blad H nie jest liczony
+      const std::string m = Store(rr, TachyResult{x.n, x.e, 0.0, 0.0, az}, 0.0, t, note);
+      fwd_.erase(fwd_.begin() + (long)i);
+      return m;
+    }
+    for (FwdObs& o : fwd_) if (o.station == stationNo_ && std::hypot(o.tn - truth.n, o.te - truth.e) <= 0.05) { o.n = st_.n; o.e = st_.e; o.azDeg = az; return lastMsg_ = "Kierunek z tego stanowiska zapisany ponownie"; }
+    fwd_.push_back({stationNo_, st_.n, st_.e, az, truth.n, truth.e});
+    char b[140]; std::snprintf(b, sizeof b, "Kierunek z S%d zapisany (Hz %.4f g). Przejdz na nowe stanowisko i zmierz ten sam punkt", stationNo_, r.hzGon);
+    return lastMsg_ = b;
   }
 
   // Pomiar bezlustrowy: odleglosc do pierwszego trafionego punktu (teren, budynek), bez lustra; wiekszy szum odleglosci.
@@ -466,6 +500,9 @@ class TachyStationJob : public Job {
   bool control_ = false, stationUp_ = false, prismUp_ = false, oriented_ = false, reflectorless_ = false;
   int prismIdx_ = 0; double az0_ = 0;
   int prefixIdx_ = 0;
+  bool intersect_ = false;                                                  // wciecie w przod zamiast pomiaru biegunowego
+  struct FwdObs { int station; double n, e, azDeg, tn, te; };               // kierunek ze stanowiska (jego N,E) na punkt o prawdziwym polozeniu tn,te
+  std::vector<FwdObs> fwd_;
   std::string lastMsg_;
   std::vector<TachyPoint> points_;
   std::unique_ptr<Job> gnss_;

@@ -153,7 +153,18 @@ static void flip_pose_full_turn_ends_near_target() {
   const TachyPose t = TachyTurnPose(1.0, 280.0, 10.0); assert(std::fabs(t.azDeg - 100.0) < 1e-9 && std::fabs(t.pitchDeg - 10.0) < 1e-9);   // obrot alidady o 180 st.
 }
 
+static void forward_intersection_recovers_point() {
+  const double pn = 30.0, pe = 40.0;                                          // P wzgledem A(0,0); B(0,100)
+  const TachyIntersection x = TachyForwardIntersection(0, 0, TachyAzimuthDeg(0, 0, pn, pe), 0, 100, TachyAzimuthDeg(0, 100, pn, pe));
+  assert(x.ok && near(x.n, pn, 1e-9) && near(x.e, pe, 1e-9) && near(x.gammaGon, 129.5, 0.2));
+  assert(!TachyForwardIntersection(0, 0, 45.0, 0, 100, 45.0).ok);               // rownolegle
+  assert(!TachyForwardIntersection(0, 0, 0.0, 0, 100, 180.0).ok);               // P "za" stanowiskiem B (s < 0)
+  const TachyIntersection thin = TachyForwardIntersection(0, 0, 90.0, 0, 100, 91.0);
+  assert(!thin.ok || thin.gammaGon < 30.0);
+}
+
 int main() {
+  forward_intersection_recovers_point();
   flip_pose_full_turn_ends_near_target();
   conversions(); azimuth_directions(); polar_east_level(); polar_sloped_north(); orientation_zeroes_hz();
   extreme_pitch_stays_finite(); aim_error_and_limits(); aim_tolerance_is_angular(); angle_diff_and_circular_mean(); noise_statistics();

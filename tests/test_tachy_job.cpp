@@ -477,7 +477,26 @@ static void state_roundtrip_trig() {
   assert(has(job2->TachyFire(az, pitch), "Tam A>B"));                                // wczytana robota mierzy dalej
 }
 
+static void forward_intersection_two_stations() {
+  Fx f; f.setup(1); f.orient(1); f.menu("intersect");
+  assert(has(f.label("intersect"), "wciecie"));
+  const GridPos P{5500030.0, 6500040.0, 100.0}; f.w.prism = P;
+  std::string m = f.fireAt(P, 1.5);
+  assert(has(m, "Kierunek z S1") && f.job->FinishTachy(true).points.empty());
+  assert(!f.enabled("backsight") && f.enabled("newst"));                        // orientacja zablokowana po pierwszym kierunku
+  f.menu("newst"); f.w.station = GridPos{5500000.0, 6500100.0, 100.0};
+  f.menu("station"); f.menu("backsight"); f.orient(1);
+  m = f.fireAt(P, 1.5);
+  assert(has(m, "T1"));
+  const TachyReport r = f.job->FinishTachy(true);
+  assert(r.points.size() == 1 && near(r.points[0].n, P.n, 0.02) && near(r.points[0].e, P.e, 0.02) && has(r.points[0].note, "wciecie w przod z S1 i S2"));
+  Fx g; g.setup(1); g.orient(1); g.menu("intersect"); g.w.prism = P; g.fireAt(P, 1.5);       // zapis stanu: czekajacy kierunek przezywa
+  StateKV s; g.job->SaveState(s);
+  Fx h; h.job->LoadState(s); assert(has(h.label("intersect"), "wciecie"));
+}
+
 int main() {
+  forward_intersection_two_stations();
   registry_lists_tachy(); menu_state_true_mode(); multiple_backsights_orientation_mean(); single_backsight_works(); measure_before_orient_refused();
   backsight_aiming_is_angular(); remeasure_overwrites(); orientation_locked_after_first_point(); gnss_items_and_control_point_in_tachy_job(); gnss_pole_and_prism_exclude_each_other(); changes_clear_readings(); limit_five_backsights(); one_backsight_mirror_at_a_time();
   uncertain_flag_direction(); uncertain_flag_distance(); control_source_uses_gnss_coordinates(); no_control_nearby_refused();

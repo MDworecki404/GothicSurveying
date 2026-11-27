@@ -210,6 +210,10 @@ Wyniki: `pomiar_tachimetryczny.csv` i `.docx` w folderze roboty (stanowisko, źr
 przerwana: `pomiar_tachimetryczny_przerwany.csv`), każdy punkt od razu w `odczyty_biezace.csv`; opcja prawdziwego błędu dodaje kolumny `blad_N_m`, `blad_E_m`, `blad_H_m`, `blad_2D_m`
 (przy osnowie błąd zawiera też błąd osnowy GNSS; przy pomiarze bezlustrowym jest liczony względem trafionego punktu).
 
+**Wcięcie w przód.** Pozycja menu „Metoda: biegunowa (zmień)” przełącza na wcięcie w przód: na stanowisku (zorientowanym na nawiązanie) celujesz w tyczkę z lustrem i zapisujesz sam
+kierunek, bez odległości. Potem „Nowe stanowisko”, orientacja na nawiązanie i pomiar **tego samego** punktu (tyczka stoi w tym samym miejscu, ≤ 5 cm). Punkt liczy się z przecięcia
+dwóch kierunków; kąt przecięcia poza 30–170 g odrzuca wcięcie (zmień stanowisko). Wcięcie nie daje wysokości (H = 0, błąd H nie jest liczony); uwagi punktu opisują stanowiska i kąt przecięcia.
+
 ## Niwelacja trygonometryczna
 
 „Rozpocznij robotę” → „Niwelacja trygonometryczna” (pytanie o prawdziwy błąd). Przewyższenia mierzysz tachimetrem: z odczytanego kąta zenitalnego V i odległości skośnej D,
@@ -410,7 +414,7 @@ Jeśli cyfry na łacie są w grze do góry nogami, ustaw `FLIP_V = True` w `asse
 - Zapis gry w trakcie roboty zapisuje też stan roboty i sprzętu (patrz „Zapis gry w trakcie roboty”). Trwający pomiar punktu GNSS (sesja) i połowa pomiaru KL bez KP nie są zapisywane; zapisy zrobione wersją bez tej funkcji nie mają stanu.
 - Roboty: ciąg niwelacyjny, pomiar GNSS (RTK), tachimetria, niwelacja trygonometryczna (jeden odcinek naraz, bez wyrównania całego ciągu), ciąg poligonowy (sytuacja, limity odchyłek jako założenie symulatora), skaner laserowy naziemny i skaning lotniczy z drona.
 - ALS: wyrównanie szeregów jest sztywne (przesunięcia E/N/H na szereg, bez poprawki dryfu wewnątrz szeregu i bez kalibracji ramienia dźwigni); pitch/yaw boresightu wymagają nachylonego terenu albo szeregów poprzecznych; pierwszy zwrot (bez wielokrotnych odbić); bez omijania przeszkód i ręcznego latania; trajektoria dojazdu po wznowieniu lotu nie jest zapisywana; kamera za dronem jest eksperymentalna (kamera gry może ją nadpisać); fotogrametria lotnicza to osobna, późniejsza faza.
-- Tachimetria: bez wcięcia w przód i bez wyrównania osnowy ani wspólnego wyrównania stanowisk.
+- Tachimetria: wcięcie w przód tylko z dwóch stanowisk (bez wyrównania nadliczbowych kierunków), bez wyrównania osnowy ani wspólnego wyrównania stanowisk.
 - Pomiar GNSS: poprawki z własnej bazy to model uproszczony (1 ppm + przesunięcie bazy), bez wielu baz i bez przetwarzania linii bazowych; statyka to pojedyncza sesja co najmniej 30 min (1 s gry = 1 min).
 - Kreski dalmiercze liczone są dla pola widzenia gry; przy bardzo wąskim FOV mogą wypaść poza lunetę (wtedy są pomijane, wpis w `GothicSurveying.log`).
 - Hook na `zCWorld::Render` sprawdzono tylko na Gothic II NotR 2.6 (fix) ze Steam Gold Classic.

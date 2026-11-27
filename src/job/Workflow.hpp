@@ -37,7 +37,7 @@ inline const std::vector<Slot>& Table() {
     {"obsadzka", Section::Measure}, {"redo", Section::Measure}, {"redo_readings", Section::Measure}, {"meas", Section::Measure}, {"view", Section::Measure},
     {"stake", Section::Measure}, {"unstake", Section::Measure}, {"start", Section::Measure}, {"store", Section::Measure}, {"control", Section::Measure},
     {"discard", Section::Measure}, {"scan", Section::Measure}, {"launch", Section::Measure}, {"cancel", Section::Measure}, {"scope", Section::Measure},
-    {"level", Section::Measure}, {"camera", Section::Measure}, {"prefix", Section::Measure},
+    {"level", Section::Measure}, {"camera", Section::Measure}, {"prefix", Section::Measure}, {"intersect", Section::Measure},
     {"adjust", Section::Results}, {"adjust_cancel", Section::Results}, {"products", Section::Results}, {"products_cancel", Section::Results}, {"calc", Section::Results}, {"savectl", Section::Results},
     {"ortho", Section::Results}, {"ortho_cancel", Section::Results}, {"finish", Section::Results},
     {"preview", Section::Tools}, {"map", Section::Tools}, {"tp", Section::Tools},

@@ -114,6 +114,23 @@ inline TachyFreeStation TachyResection(const std::vector<TachyResObs>& o) {
 }
 
 // Wytyczanie: gdzie przesunac tyczke z punktu P do celu T, rozlozone na kierunek od stanowiska (along > 0 = dalej od stanowiska) i prostopadly (cross > 0 = w prawo).
+// Wciecie w przod: punkt P z azymutow (stopnie) z dwoch znanych stanowisk. gammaGon = kat przy P miedzy kierunkami do stanowisk;
+// ok = false, gdy kierunki sa rownolegle albo P lezy "za" ktoryms stanowiskiem; zalecany kat 30-170 g (poza tym wynik jest zle uwarunkowany).
+struct TachyIntersection { bool ok = false; double n = 0, e = 0, gammaGon = 0; };
+inline TachyIntersection TachyForwardIntersection(double n1, double e1, double az1Deg, double n2, double e2, double az2Deg) {
+  const double a1 = az1Deg * TACHY_PI / 180.0, a2 = az2Deg * TACHY_PI / 180.0;
+  const double u1n = std::cos(a1), u1e = std::sin(a1), u2n = std::cos(a2), u2e = std::sin(a2);
+  const double den = u1n * u2e - u1e * u2n;
+  TachyIntersection r;
+  if (std::fabs(den) < 1e-9) return r;
+  const double dn = n2 - n1, de = e2 - e1;
+  const double t = (dn * u2e - de * u2n) / den, s = (dn * u1e - de * u1n) / den;
+  if (t <= 0 || s <= 0) return r;
+  r.ok = true; r.n = n1 + t * u1n; r.e = e1 + t * u1e;
+  r.gammaGon = std::acos((std::max)(-1.0, (std::min)(1.0, u1n * u2n + u1e * u2e))) * 200.0 / TACHY_PI;
+  return r;
+}
+
 struct TachyStakeout { double along = 0, cross = 0, dist = 0; };
 inline TachyStakeout TachyStakeoutCalc(double stN, double stE, double pN, double pE, double tN, double tE) {
   const double az = std::atan2(pE - stE, pN - stN), dn = tN - pN, de = tE - pE;
